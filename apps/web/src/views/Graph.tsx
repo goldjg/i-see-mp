@@ -120,7 +120,7 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
       layout: {
         name: 'cose',
         animate: false,
-        randomize: true,
+        randomize: false,
         fit: true,
         padding: 70,
         nodeDimensionsIncludeLabels: true,
