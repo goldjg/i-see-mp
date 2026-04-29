@@ -4,17 +4,40 @@
 
 > **Execution path analysis engine for AI systems** — maps how models, tools, and context interact, revealing what your AI can actually be made to do.
 
-ISeeMP (I See Model Paths) is a read-only static analyser for [Model Context Protocol](https://modelcontextprotocol.io/) ecosystems. It enumerates your MCP servers, classifies tool capabilities using deterministic rules (no LLM required), builds an attack graph, and surfaces security findings — all in a local SQLite database with a visual web UI.
+ISeeMP (I See Model Paths) is a read-only static analyzer for [Model Context Protocol](https://modelcontextprotocol.io/) ecosystems. It enumerates MCP servers, classifies tool capabilities with deterministic rules (no LLM required), builds an attack graph, and surfaces security findings in a local SQLite database with a visual web UI.
 
-Unlike traditional scanners that focus on capabilities, ISeeMP traces causal chains:
+## Table of Contents
 
-- **what gets invoked** — path discovery
-- **what flows where** — path execution
-- **what crosses trust boundaries** — path evidence
+- [What it does](#what-it-does)
+- [Core concepts](#core-concepts)
+- [Prerequisites](#prerequisites)
+- [Quickstart](#quickstart)
+- [End-to-end local demo (safe fixture)](#end-to-end-local-demo-safe-fixture)
+- [Web UI screenshots](#web-ui-screenshots)
+- [Architecture](#architecture)
+- [Capability model](#capability-model)
+- [Risk categories](#risk-categories)
+- [Configuration discovery](#configuration-discovery)
+- [CLI reference](#cli-reference)
+- [HTTP API reference](#http-api-reference)
+- [Data model (SQLite)](#data-model-sqlite)
+- [Development](#development)
+- [Monorepo layout](#monorepo-layout)
+- [Troubleshooting](#troubleshooting)
+- [MVP scope and roadmap](#mvp-scope-and-roadmap)
+- [Safety notes](#safety-notes)
 
-Because in AI systems, risk isn't defined by capability… it's defined by what happens next.
+## What it does
 
-## Internal Language
+ISeeMP traces causal chains in AI tooling environments:
+
+- **What gets invoked** — path discovery
+- **What flows where** — path execution graphing
+- **What crosses trust boundaries** — path evidence and findings
+
+Unlike scanners that only inventory capabilities, ISeeMP highlights chained risk across tools and servers.
+
+## Core concepts
 
 | Term | Meaning |
 |---|---|
@@ -24,16 +47,24 @@ Because in AI systems, risk isn't defined by capability… it's defined by what 
 | Path evidence | Traces |
 | Path risk | Findings |
 
+## Prerequisites
+
+- Node.js `>=20`
+- pnpm `>=9`
+- Access to MCP server configs and/or URLs you want to analyze
+
 ## Quickstart
 
 ```sh
-# 1. Clone & install
-git clone https://github.com/goldjg/mcphound.git iseemp
-cd iseemp
+# 1) Clone and install
+git clone https://github.com/goldjg/i-see-mp.git
+cd i-see-mp
+corepack enable
+corepack prepare pnpm@latest --activate
 pnpm install
 
-# 2. Configure your MCP servers — create iseemp.config.json in the repo root:
-cat > iseemp.config.json << 'EOF'
+# 2) Create config: iseemp.config.json
+cat > iseemp.config.json << 'EOF_CONF'
 {
   "mcpServers": {
     "github": {
@@ -43,21 +74,68 @@ cat > iseemp.config.json << 'EOF'
     }
   }
 }
-EOF
+EOF_CONF
 
-# 3. Build packages
+# 3) Build
 pnpm build
+pnpm --filter @iseemp/web build
 
-# 4. Collect & analyze
+# 4) Collect + analyze
 node packages/cli/dist/index.js collect
 node packages/cli/dist/index.js analyze
 
-# 5. Serve the web UI
+# 5) Serve UI
 node packages/cli/dist/index.js serve
-# → Open http://localhost:7474
+# Open http://localhost:7474
 ```
 
-ISeeMP also auto-discovers Claude Desktop and VS Code MCP configurations. See [Configuration Discovery](#configuration-discovery) below.
+## End-to-end local demo (safe fixture)
+
+Use the deterministic `examples/safe-mcp` server to validate the full flow locally.
+
+```sh
+# Build the safe fixture
+pnpm --filter safe-mcp build
+
+# Create a local config that points to the fixture
+cat > iseemp.config.json << 'EOF_CONF'
+{
+  "mcpServers": {
+    "safe-mcp": {
+      "command": "node",
+      "args": ["examples/safe-mcp/dist/index.js"]
+    }
+  }
+}
+EOF_CONF
+
+# Build, collect, analyze, serve
+pnpm build
+pnpm --filter @iseemp/web build
+node packages/cli/dist/index.js collect --config iseemp.config.json
+node packages/cli/dist/index.js analyze
+node packages/cli/dist/index.js serve --port 7474
+```
+
+## Web UI screenshots
+
+These screenshots were generated via Playwright.
+
+### Dashboard
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Graph
+
+![Graph](docs/screenshots/graph.png)
+
+### Tools
+
+![Tools](docs/screenshots/tools.png)
+
+### Findings
+
+![Findings](docs/screenshots/findings.png)
 
 ## Architecture
 
@@ -77,9 +155,9 @@ graph TD
   WebUI -->|Cytoscape.js| AttackGraph[Attack Graph View]
 ```
 
-## Capabilities
+## Capability model
 
-ISeeMP classifies each tool with one or more capabilities using name/description/schema heuristics:
+ISeeMP classifies tools using name/description/schema heuristics:
 
 | Capability | Description | Risk Score |
 |---|---|---|
@@ -99,7 +177,7 @@ ISeeMP classifies each tool with one or more capabilities using name/description
 | `READ_LOCAL_FILE` | Read local filesystem | 30 |
 | `UNKNOWN` | Unclassified | 10 |
 
-## Risk Categories
+## Risk categories
 
 | Category | Description |
 |---|---|
@@ -112,17 +190,18 @@ ISeeMP classifies each tool with one or more capabilities using name/description
 | `OVERBROAD_TOOL` | Single tool with 4+ capabilities |
 | `DANGEROUS_TOOL_CHAIN` | Server has READ_SECRET + SEND_HTTP (exfil chain) |
 
-## Configuration Discovery
+## Configuration discovery
 
-ISeeMP discovers MCP servers from (in priority order):
+Discovery order:
 
-1. `--config <path>` — explicit config file path
-2. `iseemp.config.json` in the current directory
-3. Claude Desktop config (`%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/...` on macOS)
-4. VS Code settings (`~/.vscode/settings.json`, `mcpServers` key)
-5. `--server <url>` — single server by URL
+1. `--config <path>` explicit config
+2. `iseemp.config.json` in current directory
+3. Claude Desktop config
+4. VS Code settings (`mcpServers` key)
+5. `--server <url>` single remote server
 
-Config format (same as Claude Desktop):
+Config format (Claude Desktop compatible):
+
 ```json
 {
   "mcpServers": {
@@ -138,71 +217,111 @@ Config format (same as Claude Desktop):
 }
 ```
 
-## CLI Reference
+## CLI reference
 
-```
+```text
 iseemp collect [--config <path>] [--server <url>] [--db <path>]
 iseemp analyze [--collection <id>] [--db <path>]
 iseemp serve [--port <n>] [--db <path>]
 iseemp --help
 ```
 
-## Web UI Views
+### Command behavior
 
-- **Dashboard** — server/tool/finding counts, capability histogram, top risks
-- **Graph** — Cytoscape.js attack graph with type/capability filters
-- **Tools** — sortable table with capabilities and risk scores
-- **Findings** — grouped by severity with remediation hints and "show on graph" links
+- `collect` — discovers MCP servers, inventories tools/resources/prompts, and persists results
+- `analyze` — builds graph edges/nodes and runs findings rules
+- `serve` — starts Fastify API and serves web UI (if `apps/web/dist` exists)
 
-## MVP Scope
+## HTTP API reference
 
-**In scope:**
-- Static analysis only — reads MCP server manifests, no tool calls executed
-- Rules-based capability classification (deterministic, offline, reviewable)
-- SQLite storage with append-only collections for future diffing
-- Local web UI served by the API process
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Liveness and timestamp |
+| `/collections` | GET | List collections |
+| `/servers?collectionId=...` | GET | Servers for collection (latest by default) |
+| `/tools?collectionId=...` | GET | Tools for collection (latest by default) |
+| `/graph?collectionId=...` | GET | Graph nodes/edges (persisted or built on read) |
+| `/findings?collectionId=...` | GET | Findings for collection |
 
-**Out of scope (post-MVP):**
-- LLM-based tool testing / prompt injection probing
-- Observed-call tracking (`observed_call` / `tested_path` edge types reserved)
-- Multi-tenant / cloud deployment
-- Historical diff views
+## Data model (SQLite)
 
-## Safety Notes
+Primary tables:
 
-- ISeeMP **never calls your MCP tools** — it only reads the tool manifest (names, descriptions, schemas)
-- API tokens/env vars found in configs are **redacted** before storage
-- The SQLite database is local-only; no data leaves your machine
-- Running `iseemp collect` against a remote server only calls `listTools`, `listResources`, and `listPrompts`
+- `collections`
+- `servers`
+- `tools`
+- `resources`
+- `prompts`
+- `nodes`
+- `edges`
+- `findings`
+
+Reserved post-MVP testing tables:
+
+- `test_runs`
+- `evidence`
 
 ## Development
 
 ```sh
 pnpm install
-pnpm build        # build all packages
-pnpm test         # run Vitest
-pnpm typecheck    # TypeScript project references
-pnpm lint         # ESLint
+pnpm lint
+pnpm typecheck
+pnpm build
+pnpm test
 ```
 
-### Monorepo layout
+## Monorepo layout
 
+```text
+apps/web              React + Vite + Cytoscape.js UI
+apps/api              Fastify API server
+packages/core         Shared types + Zod schemas
+packages/collector    Config discovery + MCP client
+packages/graph        Graph builder + attack-path queries
+packages/storage      SQLite schema + typed repositories
+packages/rules        Capability classifier + findings rules
+packages/cli          iseemp CLI entry point
+examples/safe-mcp     Deterministic MCP fixture with known tools
 ```
-apps/web        React + Vite + Cytoscape.js UI
-apps/api        Fastify API server
-packages/core        shared types + Zod schemas
-packages/collector   config discovery + MCP client
-packages/graph       graph builder + attack-path queries
-packages/storage     SQLite schema + typed repositories
-packages/rules       capability classifier + findings rules
-packages/cli         iseemp CLI entry point
-examples/safe-mcp    deterministic test fixture (MCP server with known tools)
-```
 
-## Roadmap
+## Troubleshooting
 
-- **Post-MVP tester**: LLM-driven tool fuzzing, prompt injection probing, `observed_call`/`tested_path` edges
-- **Diff view**: compare collections over time to detect new risks
-- **CI integration**: `iseemp analyze --fail-on critical` exit code for pipelines
-- **Policy-as-code**: custom YAML rules for organisation-specific findings
+- **UI returns empty data**
+  - Run `collect` first, then `analyze`.
+  - Confirm your `--db` path is the same across commands.
+- **`serve` says web UI is not built**
+  - Run `pnpm --filter @iseemp/web build`.
+- **Config not discovered**
+  - Pass explicit `--config` path to remove ambiguity.
+- **Remote server issues**
+  - Verify URL/transport and credentials for that server.
 
+## MVP scope and roadmap
+
+### In scope
+
+- Static analysis only (does not execute tools)
+- Deterministic rules-based capability classification
+- SQLite storage with append-only collections
+- Local API + web UI
+
+### Out of scope (post-MVP)
+
+- LLM-driven fuzzing / prompt-injection probing
+- Observed-call tracking (`observed_call` / `tested_path` edges)
+- Multi-tenant cloud deployment
+- Historical collection diff UI
+
+### Roadmap highlights
+
+- CI failure gates (`analyze --fail-on critical`)
+- Diff views over time
+- Policy-as-code custom rules
+
+## Safety notes
+
+- ISeeMP **never executes MCP tools** in MVP mode.
+- Secrets in config env vars are **redacted** before storage.
+- SQLite database is local; no automatic outbound data export.
+- Remote collection uses metadata endpoints only (`listTools`, `listResources`, `listPrompts`).
