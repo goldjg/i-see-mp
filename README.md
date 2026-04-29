@@ -28,8 +28,8 @@ Because in AI systems, risk isn't defined by capability… it's defined by what 
 
 ```sh
 # 1. Clone & install
-git clone https://github.com/goldjg/mcphound.git
-cd mcphound
+git clone https://github.com/goldjg/mcphound.git iseemp
+cd iseemp
 pnpm install
 
 # 2. Configure your MCP servers — create iseemp.config.json in the repo root:
