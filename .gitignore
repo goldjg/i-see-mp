@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.db
+*.sqlite
+coverage/
+.DS_Store
+apps/web/dist/

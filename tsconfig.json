@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/storage" },
+    { "path": "packages/collector" },
+    { "path": "packages/rules" },
+    { "path": "packages/graph" },
+    { "path": "packages/cli" },
+    { "path": "apps/api" }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": true,
+    "paths": {
+      "@mcphound/core": ["../core/src/index.ts"],
+      "@mcphound/storage": ["../storage/src/index.ts"],
+      "@mcphound/rules": ["../rules/src/index.ts"]
+    }
+  },
+  "references": [
+    { "path": "../core" },
+    { "path": "../storage" },
+    { "path": "../rules" }
+  ],
+  "include": ["src"]
+}

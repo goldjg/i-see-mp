@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": true,
+    "paths": {
+      "@mcphound/core": ["../../packages/core/src/index.ts"],
+      "@mcphound/storage": ["../../packages/storage/src/index.ts"],
+      "@mcphound/graph": ["../../packages/graph/src/index.ts"],
+      "@mcphound/rules": ["../../packages/rules/src/index.ts"]
+    }
+  },
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/storage" },
+    { "path": "../../packages/graph" },
+    { "path": "../../packages/rules" }
+  ],
+  "include": ["src"]
+}
