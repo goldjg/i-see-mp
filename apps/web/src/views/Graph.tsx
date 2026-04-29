@@ -89,7 +89,7 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
             'text-outline-width': 2,
             'font-size': 10,
             'text-wrap': 'wrap',
-            'text-max-width': 110,
+            'text-max-width': '110px',
             'shape': (ele: cytoscape.NodeSingular) => (NODE_SHAPES[ele.data('type') as string] ?? 'ellipse') as cytoscape.Css.NodeShape,
             'width': (ele: cytoscape.NodeSingular) => Math.max(40, (ele.data('riskScore') as number) * 0.6),
             'height': (ele: cytoscape.NodeSingular) => Math.max(30, (ele.data('riskScore') as number) * 0.4),
