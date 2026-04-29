@@ -1,0 +1,29 @@
+{
+  "name": "@mcphound/cli",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "mcphound": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "*"
+  },
+  "dependencies": {
+    "@mcphound/api": "workspace:*",
+    "@mcphound/collector": "workspace:*",
+    "@mcphound/graph": "workspace:*",
+    "@mcphound/rules": "workspace:*",
+    "@mcphound/storage": "workspace:*"
+  }
+}
