@@ -3,20 +3,37 @@ import { api } from '../api.js';
 import type { Tool } from '../api.js';
 
 const CAP_COLORS: Record<string, string> = {
+  // Execution (highest)
   RUN_SHELL: '#dc2626',
   EXECUTE_CODE: '#dc2626',
-  READ_SECRET: '#ea580c',
+  // Sensitivity tiers
+  READ_CREDENTIAL_HIGH: '#dc2626',
+  READ_SECRET_HIGH: '#ea580c',
+  READ_SECRET: '#ea580c', // legacy
+  READ_SENSITIVE_MEDIUM: '#ca8a04',
+  READ_METADATA_LOW: '#65a30d',
+  // Identity / cloud
   MUTATE_IDENTITY: '#ea580c',
   MUTATE_CLOUD_RESOURCE: '#ca8a04',
+  // Mutation (remote)
+  MUTATE_REPOSITORY: '#a16207',
+  MUTATE_REMOTE_STATE: '#7c3aed',
+  MUTATE_ISSUE_OR_PR: '#7c3aed',
+  // Network
+  SEND_EXTERNAL: '#2563eb',
   SEND_HTTP: '#2563eb',
+  SEND_EMAIL: '#9333ea',
+  // Files
   WRITE_LOCAL_FILE: '#7c3aed',
   WRITE_REMOTE_DATA: '#7c3aed',
-  QUERY_DATABASE: '#0284c7',
-  CREATE_TICKET: '#16a34a',
   READ_LOCAL_FILE: '#0891b2',
   READ_REMOTE_DATA: '#0891b2',
+  // Query
+  QUERY_DATABASE: '#0284c7',
+  QUERY_REMOTE_SYSTEM: '#0ea5e9',
+  // Misc
+  CREATE_TICKET: '#16a34a',
   EXPORT_DATA: '#db2777',
-  SEND_EMAIL: '#9333ea',
   UNKNOWN: '#94a3b8',
 };
 

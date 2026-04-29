@@ -29,23 +29,56 @@ export const EdgeType = {
 export type EdgeType = (typeof EdgeType)[keyof typeof EdgeType];
 
 export const Capability = {
+  // Read / data access
   READ_LOCAL_FILE: 'READ_LOCAL_FILE',
   READ_REMOTE_DATA: 'READ_REMOTE_DATA',
+  // Sensitivity tiers (preferred over legacy READ_SECRET)
+  READ_CREDENTIAL_HIGH: 'READ_CREDENTIAL_HIGH',
+  READ_SECRET_HIGH: 'READ_SECRET_HIGH',
+  READ_SENSITIVE_MEDIUM: 'READ_SENSITIVE_MEDIUM',
+  READ_METADATA_LOW: 'READ_METADATA_LOW',
+  /** @deprecated kept for backwards compatibility — use READ_SECRET_HIGH / READ_CREDENTIAL_HIGH */
   READ_SECRET: 'READ_SECRET',
+  // Write / mutation
   WRITE_LOCAL_FILE: 'WRITE_LOCAL_FILE',
   WRITE_REMOTE_DATA: 'WRITE_REMOTE_DATA',
+  MUTATE_REMOTE_STATE: 'MUTATE_REMOTE_STATE',
+  MUTATE_REPOSITORY: 'MUTATE_REPOSITORY',
+  MUTATE_ISSUE_OR_PR: 'MUTATE_ISSUE_OR_PR',
+  // Execution
   EXECUTE_CODE: 'EXECUTE_CODE',
   RUN_SHELL: 'RUN_SHELL',
+  // Network / send
   SEND_HTTP: 'SEND_HTTP',
+  SEND_EXTERNAL: 'SEND_EXTERNAL',
   SEND_EMAIL: 'SEND_EMAIL',
+  // Query
+  QUERY_REMOTE_SYSTEM: 'QUERY_REMOTE_SYSTEM',
+  QUERY_DATABASE: 'QUERY_DATABASE',
+  // Misc
   CREATE_TICKET: 'CREATE_TICKET',
   MUTATE_IDENTITY: 'MUTATE_IDENTITY',
   MUTATE_CLOUD_RESOURCE: 'MUTATE_CLOUD_RESOURCE',
-  QUERY_DATABASE: 'QUERY_DATABASE',
   EXPORT_DATA: 'EXPORT_DATA',
   UNKNOWN: 'UNKNOWN',
 } as const;
 export type Capability = (typeof Capability)[keyof typeof Capability];
+
+export const TrustBoundary = {
+  LOCAL: 'LOCAL',
+  INTERNAL: 'INTERNAL',
+  EXTERNAL: 'EXTERNAL',
+  SAAS: 'SAAS',
+  UNKNOWN: 'UNKNOWN',
+} as const;
+export type TrustBoundary = (typeof TrustBoundary)[keyof typeof TrustBoundary];
+
+export const Confidence = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high',
+} as const;
+export type Confidence = (typeof Confidence)[keyof typeof Confidence];
 
 export const RiskCategory = {
   DATA_EXFILTRATION: 'DATA_EXFILTRATION',

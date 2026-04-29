@@ -14,5 +14,5 @@ export { createNodesRepo } from './repos/nodes.js';
 export type { NodeRow } from './repos/nodes.js';
 export { createEdgesRepo } from './repos/edges.js';
 export type { EdgeRow } from './repos/edges.js';
-export { createFindingsRepo } from './repos/findings.js';
+export { createFindingsRepo, findingToRow } from './repos/findings.js';
 export type { FindingRow } from './repos/findings.js';

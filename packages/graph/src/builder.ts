@@ -1,4 +1,4 @@
-import { NodeType, EdgeType, Capability } from '@iseemp/core';
+import { NodeType, EdgeType, Capability, TrustBoundary } from '@iseemp/core';
 import type { GraphNode, GraphEdge } from '@iseemp/core';
 import type { ServerRow, ToolRow, ResourceRow, PromptRow } from '@iseemp/storage';
 
@@ -26,6 +26,15 @@ function parseCaps(capsJson: string): Capability[] {
 function isNonLocalhost(url: string | null): boolean {
   if (!url) return false;
   return !url.includes('localhost') && !url.includes('127.0.0.1') && !url.includes('::1');
+}
+
+function inferTrustBoundary(url: string | null): TrustBoundary {
+  if (!url) return TrustBoundary.LOCAL;
+  if (!isNonLocalhost(url)) return TrustBoundary.LOCAL;
+  if (/github\.com|api\.github|gitlab\.com|atlassian\.|slack\.com|notion\.so/.test(url)) {
+    return TrustBoundary.SAAS;
+  }
+  return TrustBoundary.EXTERNAL;
 }
 
 export function buildGraph(context: BuildContext): GraphResult {
@@ -84,6 +93,7 @@ export function buildGraph(context: BuildContext): GraphResult {
       label: server.name,
       capabilities: uniqueCaps,
       riskScore: maxRisk,
+      trustBoundary: inferTrustBoundary(server.url),
       metadata: {
         transport: server.transport,
         url: server.url ?? undefined,
@@ -145,7 +155,15 @@ export function buildGraph(context: BuildContext): GraphResult {
       }
 
       // Tool capability edges
-      if (caps.includes(Capability.SEND_HTTP) || caps.includes(Capability.READ_REMOTE_DATA)) {
+      if (
+        caps.includes(Capability.SEND_HTTP) ||
+        caps.includes(Capability.SEND_EXTERNAL) ||
+        caps.includes(Capability.READ_REMOTE_DATA) ||
+        caps.includes(Capability.QUERY_REMOTE_SYSTEM) ||
+        caps.includes(Capability.MUTATE_REMOTE_STATE) ||
+        caps.includes(Capability.MUTATE_ISSUE_OR_PR) ||
+        caps.includes(Capability.MUTATE_REPOSITORY)
+      ) {
         if (!hasExternalSystem) {
           nodes.push({
             id: externalSystemId,
@@ -184,7 +202,12 @@ export function buildGraph(context: BuildContext): GraphResult {
         });
       }
 
-      if (caps.includes(Capability.READ_SECRET)) {
+      if (
+        caps.includes(Capability.READ_SECRET) ||
+        caps.includes(Capability.READ_SECRET_HIGH) ||
+        caps.includes(Capability.READ_CREDENTIAL_HIGH) ||
+        caps.includes(Capability.READ_SENSITIVE_MEDIUM)
+      ) {
         if (!hasSensitiveData) {
           nodes.push({
             id: sensitiveDataId,

@@ -87,8 +87,19 @@ CREATE TABLE IF NOT EXISTS findings (
   title TEXT NOT NULL,
   description TEXT NOT NULL,
   affected_node_ids TEXT NOT NULL DEFAULT '[]',
+  affected_edge_ids TEXT,
   remediation_hint TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  confidence TEXT,
+  static_possible INTEGER,
+  observed INTEGER,
+  tested INTEGER,
+  path_summary TEXT,
+  source_capabilities TEXT,
+  sink_capabilities TEXT,
+  boundary_crossed TEXT,
+  explanation TEXT,
+  evidence TEXT
 );
 
 -- Reserved for post-MVP tester (unused in MVP)
