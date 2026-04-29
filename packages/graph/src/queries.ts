@@ -1,5 +1,5 @@
-import { Capability, NodeType } from '@mcphound/core';
-import type { GraphNode, GraphEdge } from '@mcphound/core';
+import { Capability, NodeType } from '@iseemp/core';
+import type { GraphNode, GraphEdge } from '@iseemp/core';
 
 export interface AttackPath {
   id: string;

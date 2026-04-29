@@ -1,5 +1,5 @@
 {
-  "name": "@mcphound/api",
+  "name": "@iseemp/api",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,9 +17,9 @@
     "typescript": "*"
   },
   "dependencies": {
-    "@mcphound/storage": "workspace:*",
-    "@mcphound/graph": "workspace:*",
-    "@mcphound/rules": "workspace:*",
+    "@iseemp/storage": "workspace:*",
+    "@iseemp/graph": "workspace:*",
+    "@iseemp/rules": "workspace:*",
     "fastify": "^4.26.0",
     "@fastify/static": "^7.0.0",
     "zod": "^3.22.0"

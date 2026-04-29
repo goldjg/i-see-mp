@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { ServerConfigSchema } from '@mcphound/core';
-import type { ServerConfig } from '@mcphound/core';
+import { ServerConfigSchema } from '@iseemp/core';
+import type { ServerConfig } from '@iseemp/core';
 
 interface ClaudeDesktopConfig {
   mcpServers?: Record<
@@ -133,8 +133,8 @@ export async function discoverConfigs(options: {
     return results;
   }
 
-  // 2. mcphound.config.json in CWD
-  const local = join(process.cwd(), 'mcphound.config.json');
+  // 2. iseemp.config.json in CWD
+  const local = join(process.cwd(), 'iseemp.config.json');
   results.push(...(await loadLocalConfig(local)));
 
   // 3. Claude Desktop

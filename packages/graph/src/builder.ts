@@ -1,6 +1,6 @@
-import { NodeType, EdgeType, Capability } from '@mcphound/core';
-import type { GraphNode, GraphEdge } from '@mcphound/core';
-import type { ServerRow, ToolRow, ResourceRow, PromptRow } from '@mcphound/storage';
+import { NodeType, EdgeType, Capability } from '@iseemp/core';
+import type { GraphNode, GraphEdge } from '@iseemp/core';
+import type { ServerRow, ToolRow, ResourceRow, PromptRow } from '@iseemp/storage';
 
 interface BuildContext {
   collectionId: string;

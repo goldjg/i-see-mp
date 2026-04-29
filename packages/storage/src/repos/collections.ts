@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { Collection } from '@mcphound/core';
+import type { Collection } from '@iseemp/core';
 
 export interface CollectionRow {
   id: string;

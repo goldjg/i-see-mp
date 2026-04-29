@@ -6,8 +6,8 @@ import { discoverConfigs } from '../config-discovery.js';
 
 describe('discoverConfigs', () => {
   it('loads servers from explicit config path', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'mcphound-test-'));
-    const configPath = join(dir, 'mcphound.config.json');
+    const dir = await mkdtemp(join(tmpdir(), 'iseemp-test-'));
+    const configPath = join(dir, 'iseemp.config.json');
     await writeFile(
       configPath,
       JSON.stringify({

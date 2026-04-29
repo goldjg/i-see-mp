@@ -5,9 +5,9 @@
     "rootDir": "src",
     "composite": true,
     "paths": {
-      "@mcphound/core": ["../core/src/index.ts"],
-      "@mcphound/storage": ["../storage/src/index.ts"],
-      "@mcphound/rules": ["../rules/src/index.ts"]
+      "@iseemp/core": ["../core/src/index.ts"],
+      "@iseemp/storage": ["../storage/src/index.ts"],
+      "@iseemp/rules": ["../rules/src/index.ts"]
     }
   },
   "references": [

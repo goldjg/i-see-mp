@@ -1,5 +1,5 @@
 {
-  "name": "@mcphound/storage",
+  "name": "@iseemp/storage",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,7 +19,7 @@
     "typescript": "*"
   },
   "dependencies": {
-    "@mcphound/core": "workspace:*",
+    "@iseemp/core": "workspace:*",
     "better-sqlite3": "^9.4.0"
   }
 }

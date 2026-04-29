@@ -8,17 +8,17 @@ import {
   createNodesRepo,
   createEdgesRepo,
   createFindingsRepo,
-} from '@mcphound/storage';
-import type { NodeRow, EdgeRow, FindingRow } from '@mcphound/storage';
-import { runFindingsRules } from '@mcphound/rules';
+} from '@iseemp/storage';
+import type { NodeRow, EdgeRow, FindingRow } from '@iseemp/storage';
+import { runFindingsRules } from '@iseemp/rules';
 import { buildGraph } from './builder.js';
-import type { Finding } from '@mcphound/core';
+import type { Finding } from '@iseemp/core';
 
 export async function analyze(options: {
   collectionId?: string;
   dbPath?: string;
 }): Promise<Finding[]> {
-  const db = getDb(options.dbPath ?? 'mcphound.db');
+  const db = getDb(options.dbPath ?? 'iseemp.db');
   const collections = createCollectionsRepo(db);
   const serversRepo = createServersRepo(db);
   const toolsRepo = createToolsRepo(db);
@@ -34,7 +34,7 @@ export async function analyze(options: {
       : collections.latest();
 
   if (!col) {
-    throw new Error('No collection found. Run mcphound collect first.');
+    throw new Error('No collection found. Run iseemp collect first.');
   }
 
   const collectionId = col.id;

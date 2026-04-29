@@ -1,19 +1,39 @@
-# MCPHound 🔍
+# ISeeMP — I See Model Paths 🔍
 
-> **BloodHound for your AI** — maps what your MCP servers can do, and hunts what they should not.
+![ISeeMP Logo](iseemap-logo.png)
 
-MCPHound is a read-only static analyser for [Model Context Protocol](https://modelcontextprotocol.io/) ecosystems. It enumerates your MCP servers, classifies tool capabilities using deterministic rules (no LLM required), builds an attack graph, and surfaces security findings — all in a local SQLite database with a visual web UI.
+> **Execution path analysis engine for AI systems** — maps how models, tools, and context interact, revealing what your AI can actually be made to do.
+
+ISeeMP (I See Model Paths) is a read-only static analyser for [Model Context Protocol](https://modelcontextprotocol.io/) ecosystems. It enumerates your MCP servers, classifies tool capabilities using deterministic rules (no LLM required), builds an attack graph, and surfaces security findings — all in a local SQLite database with a visual web UI.
+
+Unlike traditional scanners that focus on capabilities, ISeeMP traces causal chains:
+
+- **what gets invoked** — path discovery
+- **what flows where** — path execution
+- **what crosses trust boundaries** — path evidence
+
+Because in AI systems, risk isn't defined by capability… it's defined by what happens next.
+
+## Internal Language
+
+| Term | Meaning |
+|---|---|
+| Model Paths | Core concept |
+| Path discovery | Engine |
+| Path execution | Testing |
+| Path evidence | Traces |
+| Path risk | Findings |
 
 ## Quickstart
 
 ```sh
 # 1. Clone & install
-git clone https://github.com/goldjg/mcphound.git
-cd mcphound
+git clone https://github.com/goldjg/mcphound.git iseemp
+cd iseemp
 pnpm install
 
-# 2. Configure your MCP servers — create mcphound.config.json in the repo root:
-cat > mcphound.config.json << 'EOF'
+# 2. Configure your MCP servers — create iseemp.config.json in the repo root:
+cat > iseemp.config.json << 'EOF'
 {
   "mcpServers": {
     "github": {
@@ -37,13 +57,13 @@ node packages/cli/dist/index.js serve
 # → Open http://localhost:7474
 ```
 
-MCPHound also auto-discovers Claude Desktop and VS Code MCP configurations. See [Configuration Discovery](#configuration-discovery) below.
+ISeeMP also auto-discovers Claude Desktop and VS Code MCP configurations. See [Configuration Discovery](#configuration-discovery) below.
 
 ## Architecture
 
 ```mermaid
 graph TD
-  CLI[mcphound CLI] -->|collect| Collector
+  CLI[iseemp CLI] -->|collect| Collector
   Collector -->|MCP SDK stdio/SSE| MCPServer[MCP Server]
   Collector -->|classify capabilities| Rules[Capability Classifier]
   Collector -->|persist| Storage[(SQLite)]
@@ -59,7 +79,7 @@ graph TD
 
 ## Capabilities
 
-MCPHound classifies each tool with one or more capabilities using name/description/schema heuristics:
+ISeeMP classifies each tool with one or more capabilities using name/description/schema heuristics:
 
 | Capability | Description | Risk Score |
 |---|---|---|
@@ -94,10 +114,10 @@ MCPHound classifies each tool with one or more capabilities using name/descripti
 
 ## Configuration Discovery
 
-MCPHound discovers MCP servers from (in priority order):
+ISeeMP discovers MCP servers from (in priority order):
 
 1. `--config <path>` — explicit config file path
-2. `mcphound.config.json` in the current directory
+2. `iseemp.config.json` in the current directory
 3. Claude Desktop config (`%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/...` on macOS)
 4. VS Code settings (`~/.vscode/settings.json`, `mcpServers` key)
 5. `--server <url>` — single server by URL
@@ -121,10 +141,10 @@ Config format (same as Claude Desktop):
 ## CLI Reference
 
 ```
-mcphound collect [--config <path>] [--server <url>] [--db <path>]
-mcphound analyze [--collection <id>] [--db <path>]
-mcphound serve [--port <n>] [--db <path>]
-mcphound --help
+iseemp collect [--config <path>] [--server <url>] [--db <path>]
+iseemp analyze [--collection <id>] [--db <path>]
+iseemp serve [--port <n>] [--db <path>]
+iseemp --help
 ```
 
 ## Web UI Views
@@ -150,10 +170,10 @@ mcphound --help
 
 ## Safety Notes
 
-- MCPHound **never calls your MCP tools** — it only reads the tool manifest (names, descriptions, schemas)
+- ISeeMP **never calls your MCP tools** — it only reads the tool manifest (names, descriptions, schemas)
 - API tokens/env vars found in configs are **redacted** before storage
 - The SQLite database is local-only; no data leaves your machine
-- Running `mcphound collect` against a remote server only calls `listTools`, `listResources`, and `listPrompts`
+- Running `iseemp collect` against a remote server only calls `listTools`, `listResources`, and `listPrompts`
 
 ## Development
 
@@ -175,7 +195,7 @@ packages/collector   config discovery + MCP client
 packages/graph       graph builder + attack-path queries
 packages/storage     SQLite schema + typed repositories
 packages/rules       capability classifier + findings rules
-packages/cli         mcphound CLI entry point
+packages/cli         iseemp CLI entry point
 examples/safe-mcp    deterministic test fixture (MCP server with known tools)
 ```
 
@@ -183,6 +203,6 @@ examples/safe-mcp    deterministic test fixture (MCP server with known tools)
 
 - **Post-MVP tester**: LLM-driven tool fuzzing, prompt injection probing, `observed_call`/`tested_path` edges
 - **Diff view**: compare collections over time to detect new risks
-- **CI integration**: `mcphound analyze --fail-on critical` exit code for pipelines
+- **CI integration**: `iseemp analyze --fail-on critical` exit code for pipelines
 - **Policy-as-code**: custom YAML rules for organisation-specific findings
 

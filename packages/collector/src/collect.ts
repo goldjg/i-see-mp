@@ -5,8 +5,8 @@ import {
   createResourcesRepo,
   createPromptsRepo,
   getDb,
-} from '@mcphound/storage';
-import { classifyTool } from '@mcphound/rules';
+} from '@iseemp/storage';
+import { classifyTool } from '@iseemp/rules';
 import { discoverConfigs } from './config-discovery.js';
 import { enumerateServer } from './mcp-client.js';
 
@@ -15,7 +15,7 @@ export async function collect(options: {
   serverUrl?: string;
   dbPath?: string;
 }): Promise<string> {
-  const db = getDb(options.dbPath ?? 'mcphound.db');
+  const db = getDb(options.dbPath ?? 'iseemp.db');
   const collections = createCollectionsRepo(db);
   const servers = createServersRepo(db);
   const tools = createToolsRepo(db);
@@ -33,7 +33,7 @@ export async function collect(options: {
 
   if (configs.length === 0) {
     collections.fail(collectionId, 'No MCP server configurations found');
-    throw new Error('No MCP server configurations found. Create mcphound.config.json or use --server <url>');
+    throw new Error('No MCP server configurations found. Create iseemp.config.json or use --server <url>');
   }
 
   let totalTools = 0;

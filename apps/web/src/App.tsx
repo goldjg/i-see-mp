@@ -18,7 +18,7 @@ export function App() {
       <nav className="sidebar">
         <div className="logo">
           <span className="logo-icon">🔍</span>
-          <span className="logo-text">MCPHound</span>
+          <span className="logo-text">ISeeMP</span>
         </div>
         <ul>
           {(['dashboard', 'graph', 'tools', 'findings'] as View[]).map((v) => (

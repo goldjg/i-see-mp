@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { runFindingsRules } from '../findings-rules.js';
-import { Capability, RiskCategory } from '@mcphound/core';
+import { Capability, RiskCategory } from '@iseemp/core';
 
 const now = new Date().toISOString();
 

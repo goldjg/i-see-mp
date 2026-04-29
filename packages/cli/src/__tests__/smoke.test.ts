@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { discoverConfigs } from '@mcphound/collector';
-import { classifyTool } from '@mcphound/rules';
-import { Capability } from '@mcphound/core';
+import { discoverConfigs } from '@iseemp/collector';
+import { classifyTool } from '@iseemp/rules';
+import { Capability } from '@iseemp/core';
 
 describe('CLI smoke tests', () => {
   it('discovers config from temp file', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'mcphound-cli-'));
-    const configPath = join(dir, 'mcphound.config.json');
+    const dir = await mkdtemp(join(tmpdir(), 'iseemp-cli-'));
+    const configPath = join(dir, 'iseemp.config.json');
     await writeFile(
       configPath,
       JSON.stringify({

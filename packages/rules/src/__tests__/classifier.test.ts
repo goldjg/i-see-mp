@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { classifyTool } from '../classifier.js';
-import { Capability } from '@mcphound/core';
+import { Capability } from '@iseemp/core';
 
 describe('classifyTool — safe-mcp fixtures', () => {
   it('classifies read_file correctly', () => {

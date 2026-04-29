@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-import type { ServerConfig, McpTool, McpResource, McpPrompt } from '@mcphound/core';
+import type { ServerConfig, McpTool, McpResource, McpPrompt } from '@iseemp/core';
 
 export interface EnumerationResult {
   tools: McpTool[];
@@ -11,7 +11,7 @@ export interface EnumerationResult {
 
 export async function enumerateServer(config: ServerConfig): Promise<EnumerationResult> {
   const client = new Client(
-    { name: 'mcphound-collector', version: '0.0.1' },
+    { name: 'iseemp-collector', version: '0.0.1' },
     { capabilities: {} },
   );
 
