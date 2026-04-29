@@ -15,10 +15,11 @@ describe('classifyTool — safe-mcp fixtures', () => {
     expect(result.riskScore).toBeGreaterThanOrEqual(55);
   });
 
-  it('classifies run_shell as high risk', () => {
+  it('classifies run_shell as RUN_SHELL (high risk), not EXECUTE_CODE', () => {
     const result = classifyTool({ name: 'run_shell', description: 'Execute a shell command' });
     expect(result.capabilities).toContain(Capability.RUN_SHELL);
-    expect(result.capabilities).toContain(Capability.EXECUTE_CODE);
+    // Should NOT also blanket-set EXECUTE_CODE — they are distinct.
+    expect(result.capabilities).not.toContain(Capability.EXECUTE_CODE);
     expect(result.riskScore).toBeGreaterThanOrEqual(90);
   });
 
@@ -38,60 +39,181 @@ describe('classifyTool — safe-mcp fixtures', () => {
       inputSchema: { type: 'object', properties: { url: { type: 'string' }, method: { type: 'string' } } },
     });
     expect(result.capabilities).toContain(Capability.SEND_HTTP);
-    expect(result.riskScore).toBeGreaterThanOrEqual(60);
+    expect(result.capabilities).toContain(Capability.SEND_EXTERNAL);
+    expect(result.riskScore).toBeGreaterThanOrEqual(55);
   });
 });
 
-describe('classifyTool — GitHub MCP shaped tools', () => {
-  it('classifies push_files correctly', () => {
+describe('classifyTool — GitHub MCP shaped tools (precise)', () => {
+  it('search_repositories is QUERY_REMOTE_SYSTEM/READ_REMOTE_DATA, NOT EXECUTE_CODE', () => {
     const result = classifyTool({
-      name: 'push_files',
-      description: 'Push files to a GitHub repository',
+      name: 'search_repositories',
+      description: 'Search GitHub repositories',
     });
-    expect(result.capabilities).toContain(Capability.CREATE_TICKET);
+    expect(result.capabilities).toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
+    expect(result.capabilities).not.toContain(Capability.EXECUTE_CODE);
+    expect(result.capabilities).not.toContain(Capability.RUN_SHELL);
+    expect(result.riskScore).toBeLessThan(60);
   });
 
-  it('classifies create_issue correctly', () => {
+  it('add_reply_to_pull_request_comment is MUTATE_ISSUE_OR_PR / MUTATE_REMOTE_STATE, not EXECUTE_CODE', () => {
     const result = classifyTool({
-      name: 'create_issue',
-      description: 'Create a GitHub issue in a repository',
+      name: 'add_reply_to_pull_request_comment',
+      description: 'Reply to a pull request review comment on GitHub',
     });
-    expect(result.capabilities).toContain(Capability.CREATE_TICKET);
+    expect(result.capabilities).toContain(Capability.MUTATE_ISSUE_OR_PR);
+    expect(result.capabilities).toContain(Capability.MUTATE_REMOTE_STATE);
+    expect(result.capabilities).not.toContain(Capability.EXECUTE_CODE);
+    expect(result.capabilities).not.toContain(Capability.RUN_SHELL);
   });
 
-  it('classifies get_file_contents as read', () => {
+  it('pull_request_review_write is MUTATE_ISSUE_OR_PR / MUTATE_REMOTE_STATE, not EXECUTE_CODE', () => {
+    const result = classifyTool({
+      name: 'pull_request_review_write',
+      description: 'Submit a pull request review on GitHub',
+    });
+    expect(result.capabilities).toContain(Capability.MUTATE_ISSUE_OR_PR);
+    expect(result.capabilities).toContain(Capability.MUTATE_REMOTE_STATE);
+    expect(result.capabilities).not.toContain(Capability.EXECUTE_CODE);
+    expect(result.capabilities).not.toContain(Capability.RUN_SHELL);
+  });
+
+  it('get_team_members is READ_SENSITIVE_MEDIUM / READ_REMOTE_DATA, not READ_SECRET_HIGH', () => {
+    const result = classifyTool({
+      name: 'get_team_members',
+      description: 'Get members of a GitHub team',
+    });
+    expect(result.capabilities).toContain(Capability.READ_SENSITIVE_MEDIUM);
+    expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
+    expect(result.capabilities).not.toContain(Capability.READ_SECRET_HIGH);
+    expect(result.capabilities).not.toContain(Capability.READ_CREDENTIAL_HIGH);
+  });
+
+  it('get_teams is READ_SENSITIVE_MEDIUM / READ_REMOTE_DATA', () => {
+    const result = classifyTool({
+      name: 'get_teams',
+      description: 'List GitHub teams in an organisation',
+    });
+    expect(result.capabilities).toContain(Capability.READ_SENSITIVE_MEDIUM);
+    expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
+  });
+
+  it('get_file_contents on GitHub is READ_REMOTE_DATA, NOT READ_LOCAL_FILE', () => {
     const result = classifyTool({
       name: 'get_file_contents',
       description: 'Get the contents of a file from a GitHub repository',
       inputSchema: { type: 'object', properties: { path: { type: 'string' }, repo: { type: 'string' } } },
     });
-    expect(result.capabilities).toContain(Capability.READ_LOCAL_FILE);
+    expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
+    expect(result.capabilities).not.toContain(Capability.READ_LOCAL_FILE);
   });
 
-  it('classifies search_repositories as remote data read', () => {
+  it('push_files is MUTATE_REPOSITORY / MUTATE_REMOTE_STATE', () => {
     const result = classifyTool({
-      name: 'search_repositories',
-      description: 'Search GitHub repositories',
+      name: 'push_files',
+      description: 'Push files to a GitHub repository',
     });
-    // GitHub tool — should pick up CREATE_TICKET from 'github' in the name
-    expect(result.capabilities).toContain(Capability.CREATE_TICKET);
+    expect(result.capabilities).toContain(Capability.MUTATE_REPOSITORY);
+    expect(result.capabilities).toContain(Capability.MUTATE_REMOTE_STATE);
   });
 
-  it('classifies create_pull_request correctly', () => {
+  it('create_issue is MUTATE_ISSUE_OR_PR', () => {
+    const result = classifyTool({
+      name: 'create_issue',
+      description: 'Create a GitHub issue in a repository',
+    });
+    expect(result.capabilities).toContain(Capability.MUTATE_ISSUE_OR_PR);
+  });
+
+  it('create_pull_request is MUTATE_ISSUE_OR_PR', () => {
     const result = classifyTool({
       name: 'create_pull_request',
       description: 'Create a pull request on GitHub',
     });
-    expect(result.capabilities).toContain(Capability.CREATE_TICKET);
+    expect(result.capabilities).toContain(Capability.MUTATE_ISSUE_OR_PR);
   });
 
-  it('classifies list_commits correctly', () => {
+  it('list_commits on GitHub is QUERY_REMOTE_SYSTEM / READ_REMOTE_DATA, low risk', () => {
     const result = classifyTool({
       name: 'list_commits',
       description: 'List commits in a GitHub repository',
     });
-    // Not a dangerous tool — should have low score
-    expect(result.riskScore).toBeLessThan(80);
+    expect(result.capabilities).toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
+    expect(result.capabilities).not.toContain(Capability.EXECUTE_CODE);
+    expect(result.capabilities).not.toContain(Capability.RUN_SHELL);
+    expect(result.riskScore).toBeLessThan(60);
+  });
+
+  it('list_releases on GitHub is READ_METADATA_LOW', () => {
+    const result = classifyTool({
+      name: 'list_releases',
+      description: 'List releases in a GitHub repository',
+    });
+    expect(result.capabilities).toContain(Capability.READ_METADATA_LOW);
+  });
+});
+
+describe('classifyTool — execution capabilities (narrow)', () => {
+  it('run_shell_command is RUN_SHELL with high/critical score', () => {
+    const result = classifyTool({
+      name: 'run_shell_command',
+      description: 'Run a shell command on the host',
+    });
+    expect(result.capabilities).toContain(Capability.RUN_SHELL);
+    expect(result.riskScore).toBeGreaterThanOrEqual(90);
+  });
+
+  it('execute_python is EXECUTE_CODE with high/critical score', () => {
+    const result = classifyTool({
+      name: 'execute_python',
+      description: 'Execute Python code in a sandbox',
+    });
+    expect(result.capabilities).toContain(Capability.EXECUTE_CODE);
+    expect(result.riskScore).toBeGreaterThanOrEqual(85);
+  });
+
+  it('python_repl is EXECUTE_CODE', () => {
+    const result = classifyTool({ name: 'python_repl', description: 'Python REPL' });
+    expect(result.capabilities).toContain(Capability.EXECUTE_CODE);
+  });
+
+  it('command-parameter schema implies RUN_SHELL', () => {
+    const result = classifyTool({
+      name: 'do_thing',
+      description: 'Do a thing',
+      inputSchema: { type: 'object', properties: { command: { type: 'string' } } },
+    });
+    expect(result.capabilities).toContain(Capability.RUN_SHELL);
+  });
+
+  it('a tool whose description mentions "code review" is NOT EXECUTE_CODE', () => {
+    const result = classifyTool({
+      name: 'submit_review',
+      description: 'Submit a code review on a pull request',
+    });
+    expect(result.capabilities).not.toContain(Capability.EXECUTE_CODE);
+    expect(result.capabilities).not.toContain(Capability.RUN_SHELL);
+  });
+});
+
+describe('classifyTool — credential reads', () => {
+  it('get_secret is READ_CREDENTIAL_HIGH / READ_SECRET_HIGH', () => {
+    const result = classifyTool({
+      name: 'get_secret',
+      description: 'Read a secret from the vault',
+    });
+    expect(result.capabilities).toContain(Capability.READ_CREDENTIAL_HIGH);
+    expect(result.capabilities).toContain(Capability.READ_SECRET_HIGH);
+  });
+
+  it('read_env_vars is READ_CREDENTIAL_HIGH', () => {
+    const result = classifyTool({
+      name: 'read_env_vars',
+      description: 'Read environment variables from the host',
+    });
+    expect(result.capabilities).toContain(Capability.READ_CREDENTIAL_HIGH);
   });
 });
 
@@ -105,6 +227,15 @@ describe('classifyTool — schema-based inference', () => {
     expect(result.capabilities).toContain(Capability.READ_LOCAL_FILE);
   });
 
+  it('does NOT infer READ_LOCAL_FILE from path parameter on a remote SaaS tool', () => {
+    const result = classifyTool({
+      name: 'read_content',
+      description: 'Get content from a GitHub repository',
+      inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
+    });
+    expect(result.capabilities).not.toContain(Capability.READ_LOCAL_FILE);
+  });
+
   it('infers READ_REMOTE_DATA from url parameter', () => {
     const result = classifyTool({
       name: 'fetch_data',
@@ -112,15 +243,6 @@ describe('classifyTool — schema-based inference', () => {
       inputSchema: { type: 'object', properties: { url: { type: 'string' } } },
     });
     expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
-  });
-
-  it('infers RUN_SHELL from command parameter', () => {
-    const result = classifyTool({
-      name: 'do_thing',
-      description: 'Do a thing',
-      inputSchema: { type: 'object', properties: { command: { type: 'string' } } },
-    });
-    expect(result.capabilities).toContain(Capability.RUN_SHELL);
   });
 });
 

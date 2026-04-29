@@ -157,38 +157,88 @@ graph TD
 
 ## Capability model
 
-ISeeMP classifies tools using name/description/schema heuristics:
+ISeeMP classifies tools using name/description/schema heuristics. Capabilities are now grouped by intent, so GitHub-style tools like `search_repositories`, `add_reply_to_pull_request_comment`, or `pull_request_review_write` are no longer flagged as code execution.
 
-| Capability | Description | Risk Score |
+**Execution (only true shell/code-eval tools)**
+
+| Capability | Description | Risk |
 |---|---|---|
-| `RUN_SHELL` | Execute arbitrary shell commands | 90 |
-| `EXECUTE_CODE` | Run code/scripts | 85 |
-| `READ_SECRET` | Read secrets, tokens, credentials | 80 |
+| `RUN_SHELL` | Executes shell/OS commands or subprocesses | 95 |
+| `EXECUTE_CODE` | Evaluates code in an interpreter / REPL | 90 |
+
+**Reads (sensitivity tiers)**
+
+| Capability | Description | Risk |
+|---|---|---|
+| `READ_CREDENTIAL_HIGH` | Real credentials/tokens/passwords/API keys/env vars | 85 |
+| `READ_SECRET_HIGH` | Secrets / vault contents | 80 |
+| `READ_SECRET` | (legacy alias for READ_SECRET_HIGH) | 80 |
+| `READ_SENSITIVE_MEDIUM` | Team/org/collaborator metadata | 55 |
+| `READ_LOCAL_FILE` | Read local filesystem | 30 |
+| `READ_REMOTE_DATA` | Read from remote sources | 25 |
+| `READ_METADATA_LOW` | Public metadata (releases, tags, labels) | 15 |
+
+**Writes / mutation**
+
+| Capability | Description | Risk |
+|---|---|---|
 | `MUTATE_IDENTITY` | IAM, roles, permissions | 80 |
 | `MUTATE_CLOUD_RESOURCE` | AWS/Azure/GCP resources | 75 |
-| `EXPORT_DATA` | Bulk export/dump data | 70 |
-| `SEND_EMAIL` | Send emails | 65 |
-| `SEND_HTTP` | Make HTTP requests | 60 |
+| `MUTATE_REPOSITORY` | Create/delete/push to a remote repo | 65 |
 | `WRITE_LOCAL_FILE` | Write to local filesystem | 55 |
-| `WRITE_REMOTE_DATA` | Write to remote systems | 55 |
+| `WRITE_REMOTE_DATA` | Write to remote systems | 50 |
+| `MUTATE_REMOTE_STATE` | Generic remote state mutation | 45 |
+| `MUTATE_ISSUE_OR_PR` | Create/edit issues, PRs, comments, reviews | 40 |
+
+**Network / send**
+
+| Capability | Description | Risk |
+|---|---|---|
+| `SEND_EXTERNAL` | Send data to a destination outside the trust boundary | 65 |
+| `SEND_EMAIL` | Send email | 60 |
+| `SEND_HTTP` | Make HTTP requests | 55 |
+
+**Query**
+
+| Capability | Description | Risk |
+|---|---|---|
 | `QUERY_DATABASE` | Execute SQL queries | 50 |
-| `CREATE_TICKET` | Create issues/PRs/tickets | 40 |
-| `READ_REMOTE_DATA` | Read from remote sources | 35 |
-| `READ_LOCAL_FILE` | Read local filesystem | 30 |
+| `QUERY_REMOTE_SYSTEM` | Read-only search/list/get on remote SaaS | 20 |
+
+**Other**
+
+| Capability | Description | Risk |
+|---|---|---|
+| `EXPORT_DATA` | Bulk export/dump | 70 |
+| `CREATE_TICKET` | Create issues/PRs/tickets (legacy) | 35 |
 | `UNKNOWN` | Unclassified | 10 |
+
+## Trust boundaries
+
+Each MCP server is annotated with a `trustBoundary`:
+
+- `LOCAL` — stdio servers, or HTTP servers on localhost
+- `INTERNAL` — internal network (heuristic, currently unused)
+- `EXTERNAL` — non-localhost HTTP server, not a known SaaS
+- `SAAS` — known SaaS host (`github.com`, `gitlab.com`, `slack.com`, …)
+- `UNKNOWN`
+
+Findings prefer paths that cross trust boundaries, especially `LOCAL`/`INTERNAL` → `SAAS`/`EXTERNAL` data movement.
 
 ## Risk categories
 
 | Category | Description |
 |---|---|
-| `DATA_EXFILTRATION` | Server can read files AND make HTTP requests |
-| `PRIVILEGED_MUTATION` | Tools that mutate cloud or identity resources |
-| `CODE_EXECUTION` | Tools with shell/code execution capability |
+| `DATA_EXFILTRATION` | Path from sensitive read → external send (across trust boundary) |
+| `PRIVILEGED_MUTATION` | Remote-state mutation tools exposed to the agent |
+| `CODE_EXECUTION` | Tools with real shell/code execution capability |
 | `TRUST_BOUNDARY_CROSSING` | Server hosted at non-localhost URL |
-| `SENSITIVE_DATA_EXPOSURE` | Tools that can read secrets/credentials |
+| `SENSITIVE_DATA_EXPOSURE` | Tools that can read secrets/credentials/sensitive metadata |
 | `UNVERIFIED_SERVER` | Server not cryptographically verified |
 | `OVERBROAD_TOOL` | Single tool with 4+ capabilities |
-| `DANGEROUS_TOOL_CHAIN` | Server has READ_SECRET + SEND_HTTP (exfil chain) |
+| `DANGEROUS_TOOL_CHAIN` | Server has multiple capabilities forming a risky path |
+
+Findings now also carry: `confidence`, `staticPossible` / `observed` / `tested`, `sourceCapabilities`, `sinkCapabilities`, `boundaryCrossed`, and `pathSummary` (e.g. `READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL (SAAS)`).
 
 ## Configuration discovery
 

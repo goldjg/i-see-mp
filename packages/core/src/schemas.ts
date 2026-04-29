@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { NodeType, EdgeType, Capability, RiskCategory } from './types.js';
+import { NodeType, EdgeType, Capability, RiskCategory, TrustBoundary, Confidence } from './types.js';
 
 export const NodeTypeSchema = z.enum(
   Object.values(NodeType) as [string, ...string[]],
@@ -16,6 +16,14 @@ export const CapabilitySchema = z.enum(
 export const RiskCategorySchema = z.enum(
   Object.values(RiskCategory) as [string, ...string[]],
 ) as z.ZodEnum<[RiskCategory, ...RiskCategory[]]>;
+
+export const TrustBoundarySchema = z.enum(
+  Object.values(TrustBoundary) as [string, ...string[]],
+) as z.ZodEnum<[TrustBoundary, ...TrustBoundary[]]>;
+
+export const ConfidenceSchema = z.enum(
+  Object.values(Confidence) as [string, ...string[]],
+) as z.ZodEnum<[Confidence, ...Confidence[]]>;
 
 export const McpToolSchema = z.object({
   name: z.string(),
@@ -65,6 +73,7 @@ export const GraphNodeSchema = z.object({
   serverId: z.string().optional(),
   capabilities: z.array(CapabilitySchema).default([]),
   riskScore: z.number().min(0).max(100).default(0),
+  trustBoundary: TrustBoundarySchema.optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 export type GraphNode = z.infer<typeof GraphNodeSchema>;
@@ -86,8 +95,20 @@ export const FindingSchema = z.object({
   title: z.string(),
   description: z.string(),
   affectedNodeIds: z.array(z.string()),
+  affectedEdgeIds: z.array(z.string()).optional(),
   remediationHint: z.string().optional(),
   createdAt: z.string(),
+  // New, optional fields for richer findings
+  confidence: ConfidenceSchema.optional(),
+  staticPossible: z.boolean().optional(),
+  observed: z.boolean().optional(),
+  tested: z.boolean().optional(),
+  pathSummary: z.string().optional(),
+  sourceCapabilities: z.array(CapabilitySchema).optional(),
+  sinkCapabilities: z.array(CapabilitySchema).optional(),
+  boundaryCrossed: TrustBoundarySchema.optional(),
+  explanation: z.string().optional(),
+  evidence: z.array(z.string()).optional(),
 });
 export type Finding = z.infer<typeof FindingSchema>;
 

@@ -8,6 +8,7 @@ import {
   createNodesRepo,
   createEdgesRepo,
   createFindingsRepo,
+  findingToRow,
 } from '@iseemp/storage';
 import type { NodeRow, EdgeRow, FindingRow } from '@iseemp/storage';
 import { runFindingsRules } from '@iseemp/rules';
@@ -77,18 +78,8 @@ export async function analyze(options: {
   // Run findings rules
   const findings = runFindingsRules({ nodes, edges, servers, tools, collectionId });
 
-  // Persist findings
-  const findingRows: FindingRow[] = findings.map((f) => ({
-    id: f.id,
-    collection_id: f.collectionId,
-    category: f.category,
-    severity: f.severity,
-    title: f.title,
-    description: f.description,
-    affected_node_ids: JSON.stringify(f.affectedNodeIds),
-    remediation_hint: f.remediationHint ?? null,
-    created_at: f.createdAt,
-  }));
+  // Persist findings (with rich fields)
+  const findingRows: FindingRow[] = findings.map((f) => findingToRow(f));
   findingsRepo.deleteByCollection(collectionId);
   findingsRepo.insertMany(findingRows);
 
