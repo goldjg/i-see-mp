@@ -88,6 +88,8 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
             'text-outline-color': '#1e293b',
             'text-outline-width': 2,
             'font-size': 10,
+            'text-wrap': 'wrap',
+            'text-max-width': 110,
             'shape': (ele: cytoscape.NodeSingular) => (NODE_SHAPES[ele.data('type') as string] ?? 'ellipse') as cytoscape.Css.NodeShape,
             'width': (ele: cytoscape.NodeSingular) => Math.max(40, (ele.data('riskScore') as number) * 0.6),
             'height': (ele: cytoscape.NodeSingular) => Math.max(30, (ele.data('riskScore') as number) * 0.4),
@@ -115,7 +117,23 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
           },
         },
       ],
-      layout: { name: 'cose', animate: false, randomize: false } as cytoscape.LayoutOptions,
+      layout: {
+        name: 'cose',
+        animate: false,
+        randomize: true,
+        fit: true,
+        padding: 70,
+        nodeDimensionsIncludeLabels: true,
+        nodeRepulsion: 12000,
+        idealEdgeLength: 130,
+        edgeElasticity: 80,
+        gravity: 0.3,
+      } as cytoscape.LayoutOptions,
+      userZoomingEnabled: true,
+      userPanningEnabled: true,
+      minZoom: 0.2,
+      maxZoom: 2.5,
+      wheelSensitivity: 0.2,
     });
 
     cy.on('tap', 'node', (evt) => {
@@ -134,6 +152,21 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
 
   const allTypes = [...new Set(nodes.map((n) => n.type))];
   const allCaps = [...new Set(nodes.flatMap((n) => n.capabilities))];
+  const zoomBy = (factor: number) => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const next = cy.zoom() * factor;
+    cy.zoom({
+      level: Math.max(cy.minZoom(), Math.min(cy.maxZoom(), next)),
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+    });
+  };
+  const resetView = () => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.fit(undefined, 70);
+    cy.center();
+  };
 
   return (
     <div className="graph-view">
@@ -147,6 +180,9 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
           {allCaps.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <button onClick={() => { setFilterType(''); setFilterCap(''); }}>Reset filters</button>
+        <button onClick={() => zoomBy(1.2)}>Zoom in</button>
+        <button onClick={() => zoomBy(1 / 1.2)}>Zoom out</button>
+        <button onClick={resetView}>Reset view</button>
       </div>
       <div className="graph-container">
         <div ref={containerRef} className="cytoscape-canvas" />
