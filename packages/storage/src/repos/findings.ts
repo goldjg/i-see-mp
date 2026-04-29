@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { Finding } from '@mcphound/core';
+import type { Finding } from '@iseemp/core';
 
 export interface FindingRow {
   id: string;

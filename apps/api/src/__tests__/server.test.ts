@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { buildServer } from '../server.js';
-import { createMemoryDb, createCollectionsRepo, createServersRepo, createToolsRepo, createFindingsRepo } from '@mcphound/storage';
-import { Capability } from '@mcphound/core';
+import { createMemoryDb, createCollectionsRepo, createServersRepo, createToolsRepo, createFindingsRepo } from '@iseemp/storage';
+import { Capability } from '@iseemp/core';
 
 // Patch getDb to return memory db for tests
-import * as storage from '@mcphound/storage';
+import * as storage from '@iseemp/storage';
 import { vi } from 'vitest';
 
 describe('API routes', () => {

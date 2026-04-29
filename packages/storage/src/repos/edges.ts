@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { GraphEdge } from '@mcphound/core';
+import type { GraphEdge } from '@iseemp/core';
 
 export interface EdgeRow {
   id: string;

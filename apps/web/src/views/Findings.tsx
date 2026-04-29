@@ -43,7 +43,7 @@ export function Findings({ onShowOnGraph }: { onShowOnGraph?: (nodeIds: string[]
   return (
     <div className="findings-view">
       <h1>Findings ({findings.length})</h1>
-      {findings.length === 0 && <p className="empty-state">No findings — looks clean! Run <code>mcphound analyze</code> if you haven't already.</p>}
+      {findings.length === 0 && <p className="empty-state">No findings — looks clean! Run <code>iseemp analyze</code> if you haven't already.</p>}
       {SEVERITY_ORDER.map((sev) => {
         const group = grouped[sev] ?? [];
         if (group.length === 0) return null;

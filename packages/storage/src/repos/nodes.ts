@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { GraphNode } from '@mcphound/core';
+import type { GraphNode } from '@iseemp/core';
 
 export interface NodeRow {
   id: string;

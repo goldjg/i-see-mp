@@ -1,5 +1,5 @@
-import { Capability } from '@mcphound/core';
-import type { McpTool } from '@mcphound/core';
+import { Capability } from '@iseemp/core';
+import type { McpTool } from '@iseemp/core';
 
 export interface ClassificationResult {
   capabilities: Capability[];

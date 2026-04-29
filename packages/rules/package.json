@@ -1,5 +1,5 @@
 {
-  "name": "@mcphound/rules",
+  "name": "@iseemp/rules",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,7 +18,7 @@
     "typescript": "*"
   },
   "dependencies": {
-    "@mcphound/core": "workspace:*",
-    "@mcphound/storage": "workspace:*"
+    "@iseemp/core": "workspace:*",
+    "@iseemp/storage": "workspace:*"
   }
 }

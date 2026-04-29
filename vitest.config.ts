@@ -4,12 +4,12 @@ import { resolve } from 'node:path';
 export default defineConfig({
   resolve: {
     alias: {
-      '@mcphound/core': resolve(__dirname, 'packages/core/src/index.ts'),
-      '@mcphound/storage': resolve(__dirname, 'packages/storage/src/index.ts'),
-      '@mcphound/collector': resolve(__dirname, 'packages/collector/src/index.ts'),
-      '@mcphound/rules': resolve(__dirname, 'packages/rules/src/index.ts'),
-      '@mcphound/graph': resolve(__dirname, 'packages/graph/src/index.ts'),
-      '@mcphound/api': resolve(__dirname, 'apps/api/src/server.ts'),
+      '@iseemp/core': resolve(__dirname, 'packages/core/src/index.ts'),
+      '@iseemp/storage': resolve(__dirname, 'packages/storage/src/index.ts'),
+      '@iseemp/collector': resolve(__dirname, 'packages/collector/src/index.ts'),
+      '@iseemp/rules': resolve(__dirname, 'packages/rules/src/index.ts'),
+      '@iseemp/graph': resolve(__dirname, 'packages/graph/src/index.ts'),
+      '@iseemp/api': resolve(__dirname, 'apps/api/src/server.ts'),
     },
   },
   test: {

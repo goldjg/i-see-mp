@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildGraph } from '../builder.js';
 import { findAttackPaths } from '../queries.js';
-import { NodeType, EdgeType, Capability } from '@mcphound/core';
+import { NodeType, EdgeType, Capability } from '@iseemp/core';
 
 const now = new Date().toISOString();
 

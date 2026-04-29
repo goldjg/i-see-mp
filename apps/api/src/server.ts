@@ -9,13 +9,13 @@ import {
   createNodesRepo,
   createEdgesRepo,
   createFindingsRepo,
-} from '@mcphound/storage';
-import { buildGraph } from '@mcphound/graph';
+} from '@iseemp/storage';
+import { buildGraph } from '@iseemp/graph';
 
 export function buildServer(options: { dbPath?: string; staticDir?: string } = {}) {
   const app = Fastify({ logger: false });
 
-  const db = getDb(options.dbPath ?? 'mcphound.db');
+  const db = getDb(options.dbPath ?? 'iseemp.db');
   const collections = createCollectionsRepo(db);
   const servers = createServersRepo(db);
   const tools = createToolsRepo(db);

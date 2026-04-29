@@ -1,6 +1,6 @@
-import { RiskCategory, Capability } from '@mcphound/core';
-import type { GraphNode, GraphEdge, Finding } from '@mcphound/core';
-import type { ServerRow, ToolRow } from '@mcphound/storage';
+import { RiskCategory, Capability } from '@iseemp/core';
+import type { GraphNode, GraphEdge, Finding } from '@iseemp/core';
+import type { ServerRow, ToolRow } from '@iseemp/storage';
 
 interface FindingsContext {
   nodes: GraphNode[];

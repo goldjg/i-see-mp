@@ -3,7 +3,7 @@ import { SCHEMA_SQL } from './schema.js';
 
 let _db: Database.Database | null = null;
 
-export function getDb(path = 'mcphound.db'): Database.Database {
+export function getDb(path = 'iseemp.db'): Database.Database {
   if (_db) return _db;
   _db = new Database(path);
   _db.pragma('journal_mode = WAL');

@@ -51,7 +51,7 @@ export function Dashboard() {
     return (
       <div className="empty-state">
         <h2>No collections yet</h2>
-        <p>Run <code>mcphound collect</code> to scan your MCP servers.</p>
+        <p>Run <code>iseemp collect</code> to scan your MCP servers.</p>
       </div>
     );
   }

@@ -5,10 +5,10 @@
     "rootDir": "src",
     "composite": true,
     "paths": {
-      "@mcphound/core": ["../../packages/core/src/index.ts"],
-      "@mcphound/storage": ["../../packages/storage/src/index.ts"],
-      "@mcphound/graph": ["../../packages/graph/src/index.ts"],
-      "@mcphound/rules": ["../../packages/rules/src/index.ts"]
+      "@iseemp/core": ["../../packages/core/src/index.ts"],
+      "@iseemp/storage": ["../../packages/storage/src/index.ts"],
+      "@iseemp/graph": ["../../packages/graph/src/index.ts"],
+      "@iseemp/rules": ["../../packages/rules/src/index.ts"]
     }
   },
   "references": [
