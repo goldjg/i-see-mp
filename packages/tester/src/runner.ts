@@ -314,42 +314,50 @@ export async function executePlannedTest(
         // Embed the *raw* output (not redacted) into the sink payload so the
         // mock sink can observe the canary marker, then redact for evidence.
         const canaryMarker = pickCanaryMarker(sourceResult.text);
-        canaryExpected = canaryMarker;
-        const sinkArgs = buildSinkArgs(sourceResult.text, ctx.sink.url);
-        const t1 = Date.now();
-        const sinkResult = await ctx.invoke(planned.serverId, planned.sinkTool.name, sinkArgs);
-        toolCalls.push({
-          step: 2,
-          toolId: planned.sinkTool.id,
-          toolName: planned.sinkTool.name,
-          serverId: planned.serverId,
-          input: redactRecord(sinkArgs),
-          output: redactValue({ text: sinkResult.text, isError: sinkResult.isError }),
-          durationMs: Date.now() - t1,
-          ...(sinkResult.isError ? { error: sinkResult.text } : {}),
-        });
-        recordEvidence('tool_call', {
-          step: 2,
-          tool: planned.sinkTool.name,
-          input: redactRecord(sinkArgs),
-          output: redactValue({ text: sinkResult.text, isError: sinkResult.isError }),
-        });
-
-        if (sinkResult.isError) {
-          status = TestStatus.REJECTED;
-          pathStatus = PathStatus.TESTED_REJECTED;
-          notes = `Sink tool refused or errored: ${sinkResult.text}`;
+        if (canaryMarker === null) {
+          // Source tool returned no CANARY- token — real/unexpected data.
+          // Using a substring as a marker risks a false negative, so treat as inconclusive.
+          status = TestStatus.INCONCLUSIVE;
+          pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+          notes = 'Source tool response contained no CANARY- token; cannot reliably detect exfiltration. The tool may not support the canary fixture pattern.';
         } else {
-          // Brief settle delay so the mock sink finishes recording.
-          await sleep(25);
-          canaryObserved = ctx.sink.observed(canaryMarker);
-          if (canaryObserved) {
-            status = TestStatus.CONFIRMED;
-            pathStatus = PathStatus.TESTED_CONFIRMED;
+          canaryExpected = canaryMarker;
+          const sinkArgs = buildSinkArgs(sourceResult.text, ctx.sink.url);
+          const t1 = Date.now();
+          const sinkResult = await ctx.invoke(planned.serverId, planned.sinkTool.name, sinkArgs);
+          toolCalls.push({
+            step: 2,
+            toolId: planned.sinkTool.id,
+            toolName: planned.sinkTool.name,
+            serverId: planned.serverId,
+            input: redactRecord(sinkArgs),
+            output: redactValue({ text: sinkResult.text, isError: sinkResult.isError }),
+            durationMs: Date.now() - t1,
+            ...(sinkResult.isError ? { error: sinkResult.text } : {}),
+          });
+          recordEvidence('tool_call', {
+            step: 2,
+            tool: planned.sinkTool.name,
+            input: redactRecord(sinkArgs),
+            output: redactValue({ text: sinkResult.text, isError: sinkResult.isError }),
+          });
+
+          if (sinkResult.isError) {
+            status = TestStatus.INCONCLUSIVE;
+            pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+            notes = `Sink tool errored — test inconclusive (tool may not accept generic url/payload params): ${sinkResult.text}`;
           } else {
-            status = TestStatus.REJECTED;
-            pathStatus = PathStatus.TESTED_REJECTED;
-            notes = 'Canary marker was not observed at the local mock sink.';
+            // Brief settle delay so the mock sink finishes recording.
+            await sleep(25);
+            canaryObserved = ctx.sink.observed(canaryMarker);
+            if (canaryObserved) {
+              status = TestStatus.CONFIRMED;
+              pathStatus = PathStatus.TESTED_CONFIRMED;
+            } else {
+              status = TestStatus.REJECTED;
+              pathStatus = PathStatus.TESTED_REJECTED;
+              notes = 'Canary marker was not observed at the local mock sink.';
+            }
           }
         }
       }
@@ -391,15 +399,17 @@ export async function executePlannedTest(
 }
 
 /**
- * Pick a deterministic-looking marker out of the source-tool response. Any
- * "CANARY-..." token wins; otherwise we fall back to a longer-than-12-char
- * substring so the comparison still detects exact reflection.
+ * Pick a deterministic-looking marker out of the source-tool response.
+ * Any "CANARY-..." token wins — this is reliable.
+ *
+ * If no CANARY- token is present, the source tool returned real/unexpected
+ * data. We return null to signal the caller should treat the result as
+ * inconclusive rather than risk a false negative by using an unreliable marker.
  */
-function pickCanaryMarker(text: string): string {
+function pickCanaryMarker(text: string): string | null {
   const m = text.match(/CANARY-[A-Za-z0-9_-]+/);
   if (m) return m[0];
-  // Fallback: hash-like substring or just trim.
-  return text.slice(0, Math.min(64, text.length));
+  return null;
 }
 
 function sleep(ms: number): Promise<void> {
