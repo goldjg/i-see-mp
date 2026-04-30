@@ -20,6 +20,7 @@ import {
   bumpConfidence,
   bumpSeverity,
   downgradeSeverity,
+  downgradeConfidence,
   type PlannedTest,
 } from './runner.js';
 import { connectServer, callTool, type ConnectedServer } from './mcp-runtime.js';
@@ -321,9 +322,10 @@ function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
   } else {
     next.observed = false;
     next.pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+    next.confidence = downgradeConfidence(finding.confidence);
     next.explanation = appendExplanation(
       finding.explanation,
-      `Test attempted but inconclusive (no canary signal); leaving static_possible severity intact.`,
+      `Test attempted but inconclusive (no canary signal); confidence downgraded, severity intact.`,
     );
   }
 

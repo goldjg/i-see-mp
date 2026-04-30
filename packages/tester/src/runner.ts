@@ -432,6 +432,12 @@ export function bumpConfidence(c: Confidence | undefined): Confidence {
   return 'medium';
 }
 
+export function downgradeConfidence(c: Confidence | undefined): Confidence {
+  if (c === 'high') return 'medium';
+  if (c === 'medium') return 'low';
+  return 'low';
+}
+
 export function bumpSeverity(s: 'critical' | 'high' | 'medium' | 'low' | 'info'): 'critical' | 'high' | 'medium' | 'low' | 'info' {
   if (s === 'low' || s === 'info') return 'medium';
   if (s === 'medium') return 'high';
