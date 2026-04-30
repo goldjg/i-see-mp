@@ -64,6 +64,7 @@ if (command === 'collect') {
     });
     console.log(`✅ Collection complete: ${collectionId}`);
     console.log('Run `iseemp analyze` to build the attack graph and find risks.');
+    process.exit(0);
   } catch (err) {
     console.error('❌ Collection failed:', err instanceof Error ? err.message : err);
     process.exit(1);
@@ -86,6 +87,7 @@ if (command === 'collect') {
     if (findings.some((f) => f.severity === 'critical')) {
       console.log('\n⚠️  Critical findings detected! Run `iseemp serve` to investigate.');
     }
+    process.exit(0);
   } catch (err) {
     console.error('❌ Analysis failed:', err instanceof Error ? err.message : err);
     process.exit(1);
@@ -118,6 +120,7 @@ if (command === 'collect') {
       }
       console.log('\nRun `iseemp serve` to inspect findings, badges, and evidence in the UI.');
     }
+    process.exit(0);
   } catch (err) {
     console.error('❌ Tests failed:', err instanceof Error ? err.message : err);
     process.exit(1);
