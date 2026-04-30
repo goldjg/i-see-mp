@@ -4,11 +4,7 @@
     "outDir": "dist",
     "rootDir": "src",
     "composite": true,
-    "lib": ["ES2022", "DOM"],
-    "paths": {
-      "@iseemp/core": ["../core/src/index.ts"],
-      "@iseemp/storage": ["../storage/src/index.ts"]
-    }
+    "lib": ["ES2022", "DOM"]
   },
   "references": [
     { "path": "../core" },
