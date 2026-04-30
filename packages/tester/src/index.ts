@@ -37,6 +37,7 @@ export interface TestSummary {
   confirmed: number;
   rejected: number;
   inconclusive: number;
+  skipped: number;
   testRuns: TestRun[];
 }
 
@@ -96,11 +97,12 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
   const connected = new Map<string, ConnectedServer>();
   const allTestRuns: TestRun[] = [];
   const allEvidence: Evidence[] = [];
+  let skipped = 0;
 
   try {
     for (const p of planned) {
       const conn = await ensureConnection(connected, servers, p);
-      if (!conn) continue;
+      if (!conn) { skipped++; continue; }
 
       const ctx = {
         collectionId: col.id,
@@ -144,6 +146,7 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     confirmed,
     rejected,
     inconclusive,
+    skipped,
     testRuns: allTestRuns,
   };
 }
@@ -192,7 +195,7 @@ async function ensureConnection(
     connected.set(planned.serverId, conn);
     return conn;
   } catch (err) {
-    console.error(`Failed to connect to server ${server.name}:`, err);
+    console.warn(`⚠️  Skipping server "${server.name}": ${err instanceof Error ? err.message : String(err)}`);
     return undefined;
   }
 }

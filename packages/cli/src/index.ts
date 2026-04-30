@@ -114,6 +114,9 @@ if (command === 'collect') {
       console.log(`  confirmed   : ${summary.confirmed}`);
       console.log(`  rejected    : ${summary.rejected}`);
       console.log(`  inconclusive: ${summary.inconclusive}`);
+      if (summary.skipped > 0) {
+        console.log(`  skipped     : ${summary.skipped} (server unavailable or missing credentials)`);
+      }
       for (const r of summary.testRuns) {
         const obs = r.canaryObserved ? '🚨 canary observed' : '— canary not observed';
         console.log(`   - [${r.pathStatus}] ${r.testCaseName} (${r.id}) ${obs}`);
