@@ -6,3 +6,4 @@ dist/
 coverage/
 .DS_Store
 apps/web/dist/
+*.tsbuildinfo
