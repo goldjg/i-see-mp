@@ -86,6 +86,7 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
       confirmed: 0,
       rejected: 0,
       inconclusive: 0,
+      skipped: 0,
       testRuns: [],
     };
   }
