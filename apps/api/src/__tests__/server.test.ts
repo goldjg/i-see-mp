@@ -1,6 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { buildServer } from '../server.js';
-import { createMemoryDb, createCollectionsRepo, createServersRepo, createToolsRepo, createFindingsRepo } from '@iseemp/storage';
+import {
+  createMemoryDb,
+  createCollectionsRepo,
+  createServersRepo,
+  createToolsRepo,
+  createFindingsRepo,
+  createTestRunsRepo,
+  createEvidenceRepo,
+  testRunToRow,
+  evidenceToRow,
+} from '@iseemp/storage';
 import { Capability } from '@iseemp/core';
 
 // Patch getDb to return memory db for tests
@@ -92,6 +102,65 @@ describe('API routes', () => {
     const body = JSON.parse(res.body) as { nodes: unknown[]; edges: unknown[] };
     expect(Array.isArray(body.nodes)).toBe(true);
     expect(Array.isArray(body.edges)).toBe(true);
+    vi.restoreAllMocks();
+  });
+
+  it('GET /test-runs and /test-runs/:id and /evidence/:testRunId', async () => {
+    const db = createMemoryDb();
+    vi.spyOn(storage, 'getDb').mockReturnValue(db);
+
+    const now = new Date().toISOString();
+    createCollectionsRepo(db).create('col1', now);
+    const trRepo = createTestRunsRepo(db);
+    const evRepo = createEvidenceRepo(db);
+    trRepo.insert(
+      testRunToRow({
+        id: 'tr-1',
+        collectionId: 'col1',
+        profile: 'safe',
+        testCaseId: 'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
+        testCaseName: 'Secret read',
+        plan: 'plan',
+        toolCalls: [],
+        canaryObserved: true,
+        status: 'confirmed',
+        pathStatus: 'tested_confirmed',
+        startedAt: now,
+        findingId: 'f-1',
+      }),
+    );
+    evRepo.insert(
+      evidenceToRow({
+        id: 'ev-1',
+        testRunId: 'tr-1',
+        type: 'plan',
+        content: { hello: 'world' },
+        createdAt: now,
+      }),
+    );
+
+    const app = buildServer();
+
+    const list = await app.inject({ method: 'GET', url: '/test-runs' });
+    expect(list.statusCode).toBe(200);
+    expect(JSON.parse(list.body)).toHaveLength(1);
+
+    const byFinding = await app.inject({ method: 'GET', url: '/test-runs?findingId=f-1' });
+    expect(JSON.parse(byFinding.body)).toHaveLength(1);
+
+    const detail = await app.inject({ method: 'GET', url: '/test-runs/tr-1' });
+    expect(detail.statusCode).toBe(200);
+    const detailBody = JSON.parse(detail.body) as { id: string; evidence: Array<{ id: string }> };
+    expect(detailBody.id).toBe('tr-1');
+    expect(detailBody.evidence).toHaveLength(1);
+
+    const missing = await app.inject({ method: 'GET', url: '/test-runs/does-not-exist' });
+    expect(missing.statusCode).toBe(404);
+
+    const ev = await app.inject({ method: 'GET', url: '/evidence/tr-1' });
+    expect(ev.statusCode).toBe(200);
+    expect(JSON.parse(ev.body)).toHaveLength(1);
+
     vi.restoreAllMocks();
   });
 });

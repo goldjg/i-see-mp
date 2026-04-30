@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { Finding, Capability, TrustBoundary, Confidence } from '@iseemp/core';
+import type { Finding, Capability, TrustBoundary, Confidence, PathStatus } from '@iseemp/core';
 
 export interface FindingRow {
   id: string;
@@ -17,6 +17,8 @@ export interface FindingRow {
   static_possible?: number | null;
   observed?: number | null;
   tested?: number | null;
+  path_status?: string | null;
+  test_run_ids?: string | null; // JSON
   path_summary?: string | null;
   source_capabilities?: string | null; // JSON
   sink_capabilities?: string | null; // JSON
@@ -26,8 +28,8 @@ export interface FindingRow {
 }
 
 const COLUMNS =
-  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_summary, source_capabilities, sink_capabilities, boundary_crossed, explanation, evidence';
-const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
+  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, path_summary, source_capabilities, sink_capabilities, boundary_crossed, explanation, evidence';
+const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function bind(f: FindingRow): unknown[] {
   return [
@@ -45,6 +47,8 @@ function bind(f: FindingRow): unknown[] {
     f.static_possible ?? null,
     f.observed ?? null,
     f.tested ?? null,
+    f.path_status ?? null,
+    f.test_run_ids ?? null,
     f.path_summary ?? null,
     f.source_capabilities ?? null,
     f.sink_capabilities ?? null,
@@ -72,6 +76,8 @@ function rowToFinding(r: FindingRow): Finding {
     finding.staticPossible = r.static_possible === 1;
   if (r.observed !== null && r.observed !== undefined) finding.observed = r.observed === 1;
   if (r.tested !== null && r.tested !== undefined) finding.tested = r.tested === 1;
+  if (r.path_status) finding.pathStatus = r.path_status as PathStatus;
+  if (r.test_run_ids) finding.testRunIds = JSON.parse(r.test_run_ids) as string[];
   if (r.path_summary) finding.pathSummary = r.path_summary;
   if (r.source_capabilities)
     finding.sourceCapabilities = JSON.parse(r.source_capabilities) as Capability[];
@@ -99,6 +105,8 @@ export function findingToRow(f: Finding): FindingRow {
     static_possible: f.staticPossible === undefined ? null : f.staticPossible ? 1 : 0,
     observed: f.observed === undefined ? null : f.observed ? 1 : 0,
     tested: f.tested === undefined ? null : f.tested ? 1 : 0,
+    path_status: f.pathStatus ?? null,
+    test_run_ids: f.testRunIds ? JSON.stringify(f.testRunIds) : null,
     path_summary: f.pathSummary ?? null,
     source_capabilities: f.sourceCapabilities ? JSON.stringify(f.sourceCapabilities) : null,
     sink_capabilities: f.sinkCapabilities ? JSON.stringify(f.sinkCapabilities) : null,
@@ -129,6 +137,11 @@ export function createFindingsRepo(db: Database.Database) {
           CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END`)
         .all(collectionId) as FindingRow[];
       return rows.map(rowToFinding);
+    },
+
+    findById(id: string): Finding | undefined {
+      const row = db.prepare(`SELECT * FROM findings WHERE id=?`).get(id) as FindingRow | undefined;
+      return row ? rowToFinding(row) : undefined;
     },
 
     deleteByCollection(collectionId: string): void {

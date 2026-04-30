@@ -16,3 +16,7 @@ export { createEdgesRepo } from './repos/edges.js';
 export type { EdgeRow } from './repos/edges.js';
 export { createFindingsRepo, findingToRow } from './repos/findings.js';
 export type { FindingRow } from './repos/findings.js';
+export { createTestRunsRepo, testRunToRow } from './repos/test-runs.js';
+export type { TestRunRow } from './repos/test-runs.js';
+export { createEvidenceRepo, evidenceToRow } from './repos/evidence.js';
+export type { EvidenceRow } from './repos/evidence.js';

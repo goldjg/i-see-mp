@@ -9,6 +9,8 @@ import {
   createNodesRepo,
   createEdgesRepo,
   createFindingsRepo,
+  createTestRunsRepo,
+  createEvidenceRepo,
 } from '@iseemp/storage';
 import { buildGraph } from '@iseemp/graph';
 
@@ -23,6 +25,8 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
   const nodes = createNodesRepo(db);
   const edges = createEdgesRepo(db);
   const findings = createFindingsRepo(db);
+  const testRuns = createTestRunsRepo(db);
+  const evidence = createEvidenceRepo(db);
 
   app.get('/health', async () => ({
     status: 'ok',
@@ -104,6 +108,33 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
       : collections.latest();
     if (!col) return [];
     return findings.findByCollection(col.id);
+  });
+
+  app.get<{ Querystring: { collectionId?: string; findingId?: string } }>(
+    '/test-runs',
+    async (req) => {
+      const { collectionId, findingId } = req.query;
+      if (findingId) return testRuns.findByFinding(findingId);
+      const col = collectionId
+        ? collections.findById(collectionId)
+        : collections.latest();
+      if (!col) return [];
+      return testRuns.findByCollection(col.id);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>('/test-runs/:id', async (req, reply) => {
+    const run = testRuns.findById(req.params.id);
+    if (!run) {
+      reply.code(404);
+      return { error: 'test run not found' };
+    }
+    const ev = evidence.findByTestRun(run.id);
+    return { ...run, evidence: ev };
+  });
+
+  app.get<{ Params: { testRunId: string } }>('/evidence/:testRunId', async (req) => {
+    return evidence.findByTestRun(req.params.testRunId);
   });
 
   if (options.staticDir) {

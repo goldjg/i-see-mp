@@ -272,7 +272,8 @@ Config format (Claude Desktop compatible):
 ```text
 iseemp collect [--config <path>] [--server <url>] [--db <path>]
 iseemp analyze [--collection <id>] [--db <path>]
-iseemp serve [--port <n>] [--db <path>]
+iseemp test    [--collection <id>] [--profile safe] [--db <path>]
+iseemp serve   [--port <n>] [--db <path>]
 iseemp --help
 ```
 
@@ -280,7 +281,30 @@ iseemp --help
 
 - `collect` — discovers MCP servers, inventories tools/resources/prompts, and persists results
 - `analyze` — builds graph edges/nodes and runs findings rules
+- `test` — runs the deterministic test profile against the latest collection.
+  The `safe` profile drives canary-based tests for the three required paths
+  (`READ_SECRET_HIGH → SEND_EXTERNAL`, `READ_SENSITIVE_MEDIUM → SEND_EXTERNAL`,
+  and `MUTATE_REMOTE_STATE` exposed). It uses a local-only mock webhook sink
+  (no real external services), records redacted inputs/outputs as evidence,
+  and updates findings to `tested_confirmed` / `tested_rejected` /
+  `tested_inconclusive`. A demo MCP fixture lives in `examples/canary-mcp`.
 - `serve` — starts Fastify API and serves web UI (if `apps/web/dist` exists)
+
+### Testing the canary fixture end-to-end
+
+```bash
+pnpm --filter canary-mcp build
+
+cat > iseemp.config.json <<'EOF'
+{
+  "mcpServers": {
+    "canary-mcp": { "command": "node", "args": ["examples/canary-mcp/dist/index.js"] }
+  }
+}
+EOF
+
+iseemp collect && iseemp analyze && iseemp test --profile safe
+```
 
 ## HTTP API reference
 
