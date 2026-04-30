@@ -5,7 +5,7 @@
   "description": "ISeeMP — execution path analysis engine for AI systems",
   "engines": { "node": ">=20", "pnpm": ">=9" },
   "scripts": {
-    "build": "pnpm -r --filter='./packages/*' --filter='./apps/api' build",
+    "build": "pnpm -r --filter='./packages/*' --filter='./apps/api' --filter='./apps/web' build",
     "test": "vitest run",
     "lint": "eslint .",
     "typecheck": "tsc -b tsconfig.json",
