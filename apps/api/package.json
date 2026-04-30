@@ -17,6 +17,7 @@
     "typescript": "*"
   },
   "dependencies": {
+    "@iseemp/core": "workspace:*",
     "@iseemp/storage": "workspace:*",
     "@iseemp/graph": "workspace:*",
     "@iseemp/rules": "workspace:*",
