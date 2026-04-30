@@ -6,6 +6,7 @@
     { "path": "packages/collector" },
     { "path": "packages/rules" },
     { "path": "packages/graph" },
+    { "path": "packages/tester" },
     { "path": "packages/cli" },
     { "path": "apps/api" }
   ]

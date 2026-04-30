@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": true,
+    "lib": ["ES2022", "DOM"],
+    "paths": {
+      "@iseemp/core": ["../core/src/index.ts"],
+      "@iseemp/storage": ["../storage/src/index.ts"]
+    }
+  },
+  "references": [
+    { "path": "../core" },
+    { "path": "../storage" }
+  ],
+  "include": ["src"]
+}

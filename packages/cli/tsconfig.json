@@ -10,6 +10,7 @@
       "@iseemp/collector": ["../collector/src/index.ts"],
       "@iseemp/graph": ["../graph/src/index.ts"],
       "@iseemp/rules": ["../rules/src/index.ts"],
+      "@iseemp/tester": ["../tester/src/index.ts"],
       "@iseemp/api": ["../../apps/api/src/server.ts"]
     }
   },
@@ -19,6 +20,7 @@
     { "path": "../collector" },
     { "path": "../graph" },
     { "path": "../rules" },
+    { "path": "../tester" },
     { "path": "../../apps/api" }
   ],
   "include": ["src"]

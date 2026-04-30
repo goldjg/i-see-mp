@@ -78,3 +78,36 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 
 .loading, .empty-state { color: #64748b; padding: 32px; text-align: center; }
 .empty-state code { background: #1e293b; padding: 2px 6px; border-radius: 3px; color: #94a3b8; }
+
+.finding-badges { display: inline-flex; gap: 4px; margin-left: auto; flex-wrap: wrap; align-items: center; }
+.finding-badge { padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+.badge-static { background: #334155; color: #cbd5e1; }
+.badge-tested-confirmed { background: #b91c1c; color: #fff; }
+.badge-tested-rejected { background: #14532d; color: #bbf7d0; }
+.badge-tested-inconclusive { background: #6b21a8; color: #f3e8ff; }
+.badge-observed { background: #ca8a04; color: #fff; }
+.badge-confidence { background: #1e3a8a; color: #dbeafe; text-transform: lowercase; }
+.badge-path-tested_confirmed { background: #b91c1c; color: #fff; }
+.badge-path-tested_rejected { background: #14532d; color: #bbf7d0; }
+.badge-path-tested_inconclusive { background: #6b21a8; color: #f3e8ff; }
+.badge-path-static_possible { background: #334155; color: #cbd5e1; }
+
+.finding-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; }
+.finding-category { font-size: 11px; color: #64748b; }
+
+.evidence-summary { margin-top: 12px; padding: 12px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; }
+.evidence-summary h4 { font-size: 13px; margin-bottom: 8px; color: #f59e0b; }
+.evidence-run { padding: 8px 0; border-bottom: 1px solid #1e293b; }
+.evidence-run:last-child { border-bottom: none; }
+.evidence-run-header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.evidence-run-id { font-size: 10px; color: #64748b; font-family: monospace; }
+.evidence-path code { font-size: 11px; color: #94a3b8; }
+.evidence-summary details { margin-top: 4px; font-size: 12px; }
+.evidence-summary summary { cursor: pointer; color: #94a3b8; }
+.evidence-summary pre { background: #020617; padding: 8px; border-radius: 4px; font-size: 11px; max-height: 200px; overflow: auto; color: #cbd5e1; }
+.evidence-calls { padding-left: 20px; }
+.evidence-calls li { margin-bottom: 6px; }
+.evidence-error { color: #fca5a5; font-size: 12px; }
+.evidence-empty, .evidence-loading { color: #64748b; font-size: 12px; padding: 4px 0; }
+.evidence-notes { color: #fcd34d; font-size: 12px; }
+.explanation { color: #cbd5e1; }

@@ -1,11 +1,9 @@
 {
-  "name": "@iseemp/cli",
+  "name": "@iseemp/tester",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
-  "bin": {
-    "iseemp": "./dist/index.js"
-  },
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -20,11 +18,8 @@
     "typescript": "*"
   },
   "dependencies": {
-    "@iseemp/api": "workspace:*",
-    "@iseemp/collector": "workspace:*",
-    "@iseemp/graph": "workspace:*",
-    "@iseemp/rules": "workspace:*",
+    "@iseemp/core": "workspace:*",
     "@iseemp/storage": "workspace:*",
-    "@iseemp/tester": "workspace:*"
+    "@modelcontextprotocol/sdk": "^1.0.0"
   }
 }

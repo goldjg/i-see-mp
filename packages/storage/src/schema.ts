@@ -94,6 +94,8 @@ CREATE TABLE IF NOT EXISTS findings (
   static_possible INTEGER,
   observed INTEGER,
   tested INTEGER,
+  path_status TEXT,
+  test_run_ids TEXT,
   path_summary TEXT,
   source_capabilities TEXT,
   sink_capabilities TEXT,
@@ -102,16 +104,25 @@ CREATE TABLE IF NOT EXISTS findings (
   evidence TEXT
 );
 
--- Reserved for post-MVP tester (unused in MVP)
+-- Test-run model (deterministic path testing).
+-- A test_run captures one execution of a deterministic plan against a target server/finding.
 CREATE TABLE IF NOT EXISTS test_runs (
   id TEXT PRIMARY KEY,
   collection_id TEXT NOT NULL REFERENCES collections(id),
-  tool_id TEXT NOT NULL REFERENCES tools(id),
+  profile TEXT NOT NULL,
+  test_case_id TEXT NOT NULL,
+  test_case_name TEXT NOT NULL,
+  finding_id TEXT,
+  path_summary TEXT,
+  plan TEXT NOT NULL,
+  tool_calls TEXT NOT NULL DEFAULT '[]',
+  canary_expected TEXT,
+  canary_observed INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'pending',
-  started_at TEXT,
+  path_status TEXT NOT NULL DEFAULT 'static_possible',
+  started_at TEXT NOT NULL,
   completed_at TEXT,
-  result TEXT,
-  evidence TEXT
+  notes TEXT
 );
 
 CREATE TABLE IF NOT EXISTS evidence (

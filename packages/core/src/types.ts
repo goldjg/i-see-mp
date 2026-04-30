@@ -80,6 +80,29 @@ export const Confidence = {
 } as const;
 export type Confidence = (typeof Confidence)[keyof typeof Confidence];
 
+export const PathStatus = {
+  STATIC_POSSIBLE: 'static_possible',
+  TESTED_CONFIRMED: 'tested_confirmed',
+  TESTED_REJECTED: 'tested_rejected',
+  TESTED_INCONCLUSIVE: 'tested_inconclusive',
+} as const;
+export type PathStatus = (typeof PathStatus)[keyof typeof PathStatus];
+
+export const TestProfile = {
+  SAFE: 'safe',
+} as const;
+export type TestProfile = (typeof TestProfile)[keyof typeof TestProfile];
+
+export const TestStatus = {
+  PENDING: 'pending',
+  RUNNING: 'running',
+  CONFIRMED: 'confirmed',
+  REJECTED: 'rejected',
+  INCONCLUSIVE: 'inconclusive',
+  ERROR: 'error',
+} as const;
+export type TestStatus = (typeof TestStatus)[keyof typeof TestStatus];
+
 export const RiskCategory = {
   DATA_EXFILTRATION: 'DATA_EXFILTRATION',
   PRIVILEGED_MUTATION: 'PRIVILEGED_MUTATION',
