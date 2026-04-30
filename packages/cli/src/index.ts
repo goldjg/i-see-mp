@@ -129,7 +129,7 @@ if (command === 'collect') {
   const port = parseInt(args.port as string, 10);
   // Static dir: apps/web/dist relative to this file
   const __dir = dirname(fileURLToPath(import.meta.url));
-  const staticDir = join(__dir, '..', '..', 'apps', 'web', 'dist');
+  const staticDir = join(__dir, '..', '..', '..', 'apps', 'web', 'dist');
 
   const { existsSync } = await import('node:fs');
   const app = buildServer({
