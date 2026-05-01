@@ -252,6 +252,7 @@ async function assertDemoConfigExists(): Promise<void> {
   }
 }
 
+/** Returns true when the prebuilt bundled demo MCP server entry artifact is present. */
 async function demoServerBuilt(): Promise<boolean> {
   try {
     await access(DEMO_SERVER_ENTRY, constants.F_OK);

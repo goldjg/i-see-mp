@@ -9,6 +9,7 @@ COPY apps ./apps
 COPY packages ./packages
 COPY examples ./examples
 
+# Avoid workspace prepare-time CLI compilation during install; we compile all packages explicitly below.
 RUN node -e "const fs=require('fs');const p='./packages/cli/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));if(j.scripts){delete j.scripts.prepare;}fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
 RUN pnpm install --frozen-lockfile
 RUN pnpm exec tsc -b tsconfig.json --force
