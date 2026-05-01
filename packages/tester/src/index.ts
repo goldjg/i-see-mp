@@ -16,6 +16,7 @@ import { Confidence, PathStatus, RiskCategory, TestOutcome, TestStatus } from '@
 import { startMockSink } from './sink.js';
 import {
   planSafeProfile,
+  planDemoConfirmProfile,
   executePlannedTest,
   bumpConfidence,
   bumpSeverity,
@@ -27,13 +28,13 @@ import { connectServer, callTool, type ConnectedServer } from './mcp-runtime.js'
 
 export interface TestOptions {
   collectionId?: string;
-  profile?: 'safe';
+  profile?: 'safe' | 'demo-confirm';
   dbPath?: string;
 }
 
 export interface TestSummary {
   collectionId: string;
-  profile: 'safe';
+  profile: 'safe' | 'demo-confirm';
   totalPlanned: number;
   confirmed: number;
   rejected: number;
@@ -50,7 +51,7 @@ export interface TestSummary {
  */
 export async function runTests(options: TestOptions): Promise<TestSummary> {
   const profile = options.profile ?? 'safe';
-  if (profile !== 'safe') {
+  if (profile !== 'safe' && profile !== 'demo-confirm') {
     throw new Error(`Unknown test profile: ${profile}`);
   }
 
@@ -78,7 +79,10 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     toolsByServer.set(t.server_id, arr);
   }
 
-  const planned = planSafeProfile(servers, toolsByServer);
+  const planned =
+    profile === 'demo-confirm'
+      ? planDemoConfirmProfile(servers, toolsByServer)
+      : planSafeProfile(servers, toolsByServer);
   if (planned.length === 0) {
     return {
       collectionId: col.id,
@@ -111,7 +115,7 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
         allTestRuns.push({
           id: testRunId,
           collectionId: col.id,
-          profile: 'safe',
+          profile,
           testCaseId: p.caseDef.id,
           testCaseName: p.caseDef.name,
           candidatePathId: p.candidatePathId,
@@ -148,7 +152,7 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
 
       const ctx = {
         collectionId: col.id,
-        profile: 'safe' as const,
+        profile,
         invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
           return callTool(conn.client, toolName, args);
         },
@@ -318,7 +322,8 @@ function categoryMatches(category: string, testCaseId: string): boolean {
   if (
     category === RiskCategory.DATA_EXFILTRATION &&
     (testCaseId === 'READ_SECRET_HIGH_TO_SEND_EXTERNAL' ||
-      testCaseId === 'READ_SENSITIVE_MEDIUM_TO_SEND_EXTERNAL')
+      testCaseId === 'READ_SENSITIVE_MEDIUM_TO_SEND_EXTERNAL' ||
+      testCaseId === 'READ_METADATA_LOW_TO_SEND_EXTERNAL')
   ) {
     return true;
   }

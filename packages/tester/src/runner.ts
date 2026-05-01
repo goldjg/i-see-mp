@@ -17,6 +17,7 @@ export interface ToolInvoker {
 export type TestCaseId =
   | 'READ_SECRET_HIGH_TO_SEND_EXTERNAL'
   | 'READ_SENSITIVE_MEDIUM_TO_SEND_EXTERNAL'
+  | 'READ_METADATA_LOW_TO_SEND_EXTERNAL'
   | 'MUTATE_REMOTE_STATE_EXPOSED';
 
 export interface TestCaseDefinition {
@@ -32,6 +33,9 @@ export interface TestCaseDefinition {
   singleTool: boolean;
   /** Plan description, persisted as evidence. */
   plan: string;
+  /** Optional exact tool names for deterministic fixture matching. */
+  preferredSourceToolName?: string;
+  preferredSinkToolName?: string;
 }
 
 const HIGH_SECRET_CAPS: Capability[] = [
@@ -97,6 +101,56 @@ export const SAFE_PROFILE_CASES: TestCaseDefinition[] = [
   },
 ];
 
+export const DEMO_CONFIRM_PROFILE_CASES: TestCaseDefinition[] = [
+  {
+    id: 'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
+    name: 'Demo: secret canary → mock sink',
+    category: RiskCategory.DATA_EXFILTRATION,
+    pathSummary: 'READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL',
+    sourceCaps: HIGH_SECRET_CAPS,
+    sinkCaps: EXTERNAL_SINK_CAPS,
+    singleTool: false,
+    preferredSourceToolName: 'read_secret_canary',
+    preferredSinkToolName: 'send_to_mock_sink',
+    plan: [
+      'Step 1: invoke read_secret_canary to return a deterministic canary secret.',
+      'Step 2: invoke send_to_mock_sink with the secret payload to local mock sink.',
+      'Step 3: confirm canary is observed in the local sink (tested_confirmed).',
+    ].join('\n'),
+  },
+  {
+    id: 'READ_METADATA_LOW_TO_SEND_EXTERNAL',
+    name: 'Demo: low metadata → blocked sink',
+    category: RiskCategory.DATA_EXFILTRATION,
+    pathSummary: 'READ_METADATA_LOW -> MODEL_CONTEXT -> SEND_EXTERNAL',
+    sourceCaps: [Capability.READ_METADATA_LOW],
+    sinkCaps: EXTERNAL_SINK_CAPS,
+    singleTool: false,
+    preferredSourceToolName: 'read_metadata',
+    preferredSinkToolName: 'blocked_send',
+    plan: [
+      'Step 1: invoke read_metadata to fetch deterministic low-sensitivity metadata.',
+      'Step 2: invoke blocked_send with the payload.',
+      'Step 3: blocked_send rejects the call (tested_rejected).',
+    ].join('\n'),
+  },
+  {
+    id: 'MUTATE_REMOTE_STATE_EXPOSED',
+    name: 'Demo: dry-run remote mutation',
+    category: RiskCategory.PRIVILEGED_MUTATION,
+    pathSummary: 'AGENT -> MUTATE_REMOTE_STATE',
+    sourceCaps: MUTATE_REMOTE_CAPS,
+    sinkCaps: [],
+    singleTool: true,
+    preferredSourceToolName: 'mutate_remote_state',
+    plan: [
+      'Step 1: invoke mutate_remote_state in dry-run mode.',
+      'Step 2: the fixture acknowledges dry-run without making a real change.',
+      'Step 3: record tested_inconclusive because dry-run does not prove mutation impact.',
+    ].join('\n'),
+  },
+];
+
 export interface TestPlanInput {
   serverId: string;
   serverName: string;
@@ -148,12 +202,33 @@ export function planSafeProfile(
   servers: ServerRow[],
   toolsByServer: Map<string, ToolRow[]>,
 ): PlannedTest[] {
+  return planProfileCases(SAFE_PROFILE_CASES, servers, toolsByServer);
+}
+
+export function planDemoConfirmProfile(
+  servers: ServerRow[],
+  toolsByServer: Map<string, ToolRow[]>,
+): PlannedTest[] {
+  return planProfileCases(DEMO_CONFIRM_PROFILE_CASES, servers, toolsByServer);
+}
+
+function planProfileCases(
+  cases: TestCaseDefinition[],
+  servers: ServerRow[],
+  toolsByServer: Map<string, ToolRow[]>,
+): PlannedTest[] {
   const planned: PlannedTest[] = [];
 
   for (const server of servers) {
     const tools = toolsByServer.get(server.id) ?? [];
-    for (const caseDef of SAFE_PROFILE_CASES) {
-      const sourceTool = tools.find((t) => toolHasAny(t, caseDef.sourceCaps));
+    for (const caseDef of cases) {
+      const sourceTool =
+        (caseDef.preferredSourceToolName
+          ? tools.find(
+              (t) =>
+                t.name === caseDef.preferredSourceToolName && toolHasAny(t, caseDef.sourceCaps),
+            )
+          : undefined) ?? tools.find((t) => toolHasAny(t, caseDef.sourceCaps));
       if (!sourceTool) continue;
       if (caseDef.singleTool) {
         planned.push({
@@ -170,7 +245,12 @@ export function planSafeProfile(
         });
         continue;
       }
-      const sinkTool = tools.find((t) => toolHasAny(t, caseDef.sinkCaps));
+      const sinkTool =
+        (caseDef.preferredSinkToolName
+          ? tools.find(
+              (t) => t.name === caseDef.preferredSinkToolName && toolHasAny(t, caseDef.sinkCaps),
+            )
+          : undefined) ?? tools.find((t) => toolHasAny(t, caseDef.sinkCaps));
       if (!sinkTool) continue;
       planned.push({
         caseDef,
@@ -227,7 +307,7 @@ export interface ExecutedTest {
 
 export interface TestRunnerContext {
   collectionId: string;
-  profile: 'safe';
+  profile: 'safe' | 'demo-confirm';
   invoke(serverId: string, toolName: string, args: Record<string, unknown>): Promise<ToolCallResult>;
   sink: MockSink;
 }
@@ -267,6 +347,7 @@ export async function executePlannedTest(
       redactedOutput?: unknown;
     } = {},
   ): void {
+    const timestamp = new Date().toISOString();
     evidence.push({
       id: newId('evidence'),
       testRunId,
@@ -276,8 +357,14 @@ export async function executePlannedTest(
       toolName: extra.toolName,
       redactedInput: extra.redactedInput,
       redactedOutput: extra.redactedOutput,
-      content,
-      createdAt: new Date().toISOString(),
+      content: {
+        ...content,
+        candidatePathId: planned.candidatePathId,
+        sourceTool: planned.sourceTool?.name ?? null,
+        sinkTool: planned.sinkTool?.name ?? null,
+        timestamp,
+      },
+      createdAt: timestamp,
     });
   }
 
@@ -327,6 +414,13 @@ export async function executePlannedTest(
         status = TestStatus.REJECTED;
         pathStatus = PathStatus.TESTED_REJECTED;
         notes = `Mutation tool errored: ${result.text}`;
+      } else if (ctx.profile === 'demo-confirm' && /"dryRun"\s*:\s*true/.test(result.text)) {
+        outcome = TestOutcome.TESTED_INCONCLUSIVE;
+        status = TestStatus.INCONCLUSIVE;
+        pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+        canaryObserved = false;
+        canaryExpected = 'dry-run mutation acknowledged';
+        notes = 'Mutation tool ran in dry-run mode; no real state change confirmed.';
       } else {
         outcome = TestOutcome.TESTED_CONFIRMED;
         status = TestStatus.CONFIRMED;
