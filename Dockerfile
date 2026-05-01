@@ -20,6 +20,7 @@ FROM node:20-bookworm-slim AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
+ENV ISEEMP_DB=/data/iseemp.db
 
 COPY --from=build /app /app
 

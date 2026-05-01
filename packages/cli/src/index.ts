@@ -15,7 +15,7 @@ const { values: args, positionals } = parseArgs({
   options: {
     config: { type: 'string', short: 'c' },
     server: { type: 'string', short: 's' },
-    db: { type: 'string', short: 'd', default: 'iseemp.db' },
+    db: { type: 'string', short: 'd', default: process.env.ISEEMP_DB ?? 'iseemp.db' },
     port: { type: 'string', short: 'p', default: '7474' },
     collection: { type: 'string' },
     profile: { type: 'string', default: 'safe' },
