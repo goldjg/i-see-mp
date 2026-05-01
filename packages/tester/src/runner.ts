@@ -1061,7 +1061,13 @@ export async function executeGithubSafeCanaryPlannedTest(
         let writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
         let usedDefaultBranchFallback = false;
         if (writeRes.isError && isBranchNotFound(writeRes.text)) {
-          const { branch: _ignored, ...fallbackInput } = writeInput;
+          const fallbackInput = {
+            owner: args.config.owner,
+            repo: args.config.repo,
+            path: artifacts.filePath,
+            message: `${args.config.canaryPrefix}: canary write ${args.testRunId}`,
+            content: Buffer.from(`${marker}\n`).toString('base64'),
+          };
           writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, fallbackInput);
           usedDefaultBranchFallback = !writeRes.isError;
         }
