@@ -39,6 +39,7 @@ server.tool(
           region: 'local-dev',
           service: 'iseemp-demo',
           note: 'low-sensitivity metadata',
+          marker: 'CANARY-DEMO-METADATA-0002',
         }),
       },
     ],

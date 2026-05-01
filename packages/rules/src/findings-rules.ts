@@ -76,6 +76,10 @@ function makeCandidatePathId(parts: {
   ].join('|');
 }
 
+function pickToolByNameOrFirst(tools: ToolRow[], nameIncludes: string): ToolRow | undefined {
+  return tools.find((t) => t.name.includes(nameIncludes)) ?? tools[0];
+}
+
 export function runFindingsRules(context: FindingsContext): Finding[] {
   const { servers, tools, collectionId } = context;
   const findings: Finding[] = [];
@@ -362,11 +366,11 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         boundaryCrossed: boundary,
         pathSummary: `READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL (${boundary})`,
         candidatePathId:
-          sourceTools[0] && sinkTools[0]
+          sourceTools[0] && pickToolByNameOrFirst(sinkTools, 'send_to_mock_sink')
             ? makeCandidatePathId({
                 category: RiskCategory.DATA_EXFILTRATION,
                 sourceToolId: sourceTools[0].id,
-                sinkToolId: sinkTools[0].id,
+                sinkToolId: pickToolByNameOrFirst(sinkTools, 'send_to_mock_sink')!.id,
                 serverId: server.id,
                 pathSummary: 'READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL',
               })
@@ -442,11 +446,11 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         boundaryCrossed: boundary,
         pathSummary: `READ_METADATA_LOW -> MODEL_CONTEXT -> SEND_EXTERNAL (${boundary})`,
         candidatePathId:
-          sourceTools[0] && sinkTools[0]
+          sourceTools[0] && pickToolByNameOrFirst(sinkTools, 'blocked_send')
             ? makeCandidatePathId({
                 category: RiskCategory.DATA_EXFILTRATION,
                 sourceToolId: sourceTools[0].id,
-                sinkToolId: sinkTools[0].id,
+                sinkToolId: pickToolByNameOrFirst(sinkTools, 'blocked_send')!.id,
                 serverId: server.id,
                 pathSummary: 'READ_METADATA_LOW -> MODEL_CONTEXT -> SEND_EXTERNAL',
               })

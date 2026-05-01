@@ -108,6 +108,19 @@ importers:
         specifier: '*'
         version: 5.9.3
 
+  examples/demo-mcp-server:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.0.0
+        version: 1.29.0(zod@3.25.76)
+      zod:
+        specifier: ^3.22.0
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: '*'
+        version: 5.9.3
+
   examples/safe-mcp:
     dependencies:
       '@modelcontextprotocol/sdk':
