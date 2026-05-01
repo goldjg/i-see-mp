@@ -4,9 +4,12 @@ import type { ToolRow, ServerRow } from '@iseemp/storage';
 import {
   planSafeProfile,
   planDemoConfirmProfile,
+  planGithubSafeCanaryProfile,
+  assessGithubSafeCanaryRefusal,
   executePlannedTest,
   SAFE_PROFILE_CASES,
   DEMO_CONFIRM_PROFILE_CASES,
+  GITHUB_SAFE_CANARY_PROFILE_CASES,
 } from '../runner.js';
 import { startMockSink } from '../sink.js';
 
@@ -83,6 +86,50 @@ describe('planDemoConfirmProfile', () => {
       'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
     ].sort());
     expect(DEMO_CONFIRM_PROFILE_CASES).toHaveLength(3);
+  });
+});
+
+describe('github-safe-canary planning and refusal gates', () => {
+  it('refuses when explicit selection/config/safe-repo gates are not met', () => {
+    const refusal = assessGithubSafeCanaryRefusal('github-safe-canary', undefined, false);
+    expect(refusal.refused).toBe(true);
+    expect(refusal.reasons.length).toBeGreaterThan(0);
+  });
+
+  it('allows run when config is complete and repo matches safe pattern', () => {
+    const refusal = assessGithubSafeCanaryRefusal(
+      'github-safe-canary',
+      {
+        owner: 'octo-org',
+        repo: 'canary-sandbox',
+        branchPrefix: 'iseemp-',
+        issuePrefix: 'ISEEMP-',
+        canaryPrefix: 'ISEEMP',
+      },
+      true,
+    );
+    expect(refusal.refused).toBe(false);
+  });
+
+  it('plans only against github-like servers and discovered tool categories', () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const otherSrv = { ...server(), id: 'srv2', name: 'not-github', collection_id: 'col1' };
+    const githubTools = [
+      tool('t1', 'get_file_contents', [Capability.READ_REMOTE_DATA]),
+      tool('t2', 'create_issue', [Capability.MUTATE_ISSUE_OR_PR]),
+      tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY]),
+    ];
+    const nonGithubTools = [tool('x1', 'read_file', [Capability.READ_LOCAL_FILE])];
+    const planned = planGithubSafeCanaryProfile(
+      [githubSrv, otherSrv],
+      new Map([
+        ['srv1', githubTools],
+        ['srv2', nonGithubTools],
+      ]),
+    );
+    expect(planned.length).toBe(3);
+    expect(planned.every((p) => p.serverId === 'srv1')).toBe(true);
+    expect(GITHUB_SAFE_CANARY_PROFILE_CASES.length).toBe(4);
   });
 });
 

@@ -17,24 +17,31 @@ import { startMockSink } from './sink.js';
 import {
   planSafeProfile,
   planDemoConfirmProfile,
+  planGithubSafeCanaryProfile,
+  assessGithubSafeCanaryRefusal,
   executePlannedTest,
+  executeGithubSafeCanaryPlannedTest,
   bumpConfidence,
   bumpSeverity,
   downgradeSeverity,
   downgradeConfidence,
+  type GithubSafeCanaryConfig,
+  type TesterProfile,
   type PlannedTest,
 } from './runner.js';
 import { connectServer, callTool, type ConnectedServer } from './mcp-runtime.js';
 
 export interface TestOptions {
   collectionId?: string;
-  profile?: 'safe' | 'demo-confirm';
+  profile?: TesterProfile;
+  profileExplicitlySelected?: boolean;
+  githubSafeCanary?: GithubSafeCanaryConfig;
   dbPath?: string;
 }
 
 export interface TestSummary {
   collectionId: string;
-  profile: 'safe' | 'demo-confirm';
+  profile: TesterProfile;
   totalPlanned: number;
   confirmed: number;
   rejected: number;
@@ -51,8 +58,16 @@ export interface TestSummary {
  */
 export async function runTests(options: TestOptions): Promise<TestSummary> {
   const profile = options.profile ?? 'safe';
-  if (profile !== 'safe' && profile !== 'demo-confirm') {
+  if (profile !== 'safe' && profile !== 'demo-confirm' && profile !== 'github-safe-canary') {
     throw new Error(`Unknown test profile: ${profile}`);
+  }
+  const refusal = assessGithubSafeCanaryRefusal(
+    profile,
+    options.githubSafeCanary,
+    options.profileExplicitlySelected === true,
+  );
+  if (refusal.refused) {
+    throw new Error(refusal.reasons.join(' '));
   }
 
   const db = getDb(options.dbPath ?? 'iseemp.db');
@@ -82,7 +97,9 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
   const planned =
     profile === 'demo-confirm'
       ? planDemoConfirmProfile(servers, toolsByServer)
-      : planSafeProfile(servers, toolsByServer);
+      : profile === 'github-safe-canary'
+        ? planGithubSafeCanaryProfile(servers, toolsByServer)
+        : planSafeProfile(servers, toolsByServer);
   if (planned.length === 0) {
     return {
       collectionId: col.id,
@@ -159,7 +176,15 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
         sink,
       };
 
-      const executed = await executePlannedTest(ctx, p);
+      const executed =
+        profile === 'github-safe-canary'
+          ? await executeGithubSafeCanaryPlannedTest({
+              ctx,
+              planned: p,
+              testRunId: `testrun:ghsafe:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
+              config: options.githubSafeCanary!,
+            })
+          : await executePlannedTest(ctx, p);
       allTestRuns.push(executed.testRun);
       allEvidence.push(...executed.evidence);
     }

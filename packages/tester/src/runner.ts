@@ -18,7 +18,29 @@ export type TestCaseId =
   | 'READ_SECRET_HIGH_TO_SEND_EXTERNAL'
   | 'READ_SENSITIVE_MEDIUM_TO_SEND_EXTERNAL'
   | 'READ_METADATA_LOW_TO_SEND_EXTERNAL'
-  | 'MUTATE_REMOTE_STATE_EXPOSED';
+  | 'MUTATE_REMOTE_STATE_EXPOSED'
+  | 'GITHUB_READ_CONTROLLED_ARTIFACT'
+  | 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT'
+  | 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT'
+  | 'GITHUB_EXTERNAL_SEND_LIKE_CONTROLLED_ARTIFACT';
+
+export type TesterProfile = 'safe' | 'demo-confirm' | 'github-safe-canary';
+
+export interface GithubSafeCanaryConfig {
+  owner: string;
+  repo: string;
+  branchPrefix: string;
+  issuePrefix: string;
+  canaryPrefix: string;
+  allowUnsafeTestRepo?: boolean;
+  keepArtifacts?: boolean;
+  createPullRequest?: boolean;
+}
+
+export interface GithubSafeCanaryRefusal {
+  refused: boolean;
+  reasons: string[];
+}
 
 export interface TestCaseDefinition {
   id: TestCaseId;
@@ -151,6 +173,65 @@ export const DEMO_CONFIRM_PROFILE_CASES: TestCaseDefinition[] = [
   },
 ];
 
+export const GITHUB_SAFE_CANARY_PROFILE_CASES: TestCaseDefinition[] = [
+  {
+    id: 'GITHUB_READ_CONTROLLED_ARTIFACT',
+    name: 'GitHub controlled canary read/search',
+    category: RiskCategory.DATA_EXFILTRATION,
+    pathSummary: 'READ_REMOTE_DATA -> CONTROLLED_GITHUB_ARTIFACT',
+    sourceCaps: [Capability.READ_REMOTE_DATA, Capability.QUERY_REMOTE_SYSTEM, Capability.READ_METADATA_LOW],
+    sinkCaps: [],
+    singleTool: true,
+    plan: [
+      'Step 1: create/reuse controlled canary artifacts in a disposable GitHub test repository.',
+      'Step 2: invoke discovered GitHub read/search tooling against controlled artifacts.',
+      'Step 3: confirm only when testRunId canary marker is observed in returned controlled artifact content.',
+    ].join('\n'),
+  },
+  {
+    id: 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT',
+    name: 'GitHub issue/comment/PR write controls',
+    category: RiskCategory.PRIVILEGED_MUTATION,
+    pathSummary: 'MUTATE_ISSUE_OR_PR -> CONTROLLED_GITHUB_ARTIFACT',
+    sourceCaps: [Capability.MUTATE_ISSUE_OR_PR],
+    sinkCaps: [],
+    singleTool: true,
+    plan: [
+      'Step 1: create/reuse controlled canary issue/PR artefacts with unique testRunId markers.',
+      'Step 2: invoke discovered issue/comment/PR write tooling only against controlled targets.',
+      'Step 3: confirm only when marker is observed in the created/updated controlled artefact response.',
+    ].join('\n'),
+  },
+  {
+    id: 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    name: 'GitHub repository mutation controls',
+    category: RiskCategory.PRIVILEGED_MUTATION,
+    pathSummary: 'MUTATE_REPOSITORY -> CONTROLLED_GITHUB_ARTIFACT',
+    sourceCaps: [Capability.MUTATE_REPOSITORY, Capability.MUTATE_REMOTE_STATE],
+    sinkCaps: [],
+    singleTool: true,
+    plan: [
+      'Step 1: create/update a controlled canary file and optional test branch in disposable repository.',
+      'Step 2: verify canary marker through discovered read/search tool when available.',
+      'Step 3: mark confirmed only when marker is observed in controlled repo artefact.',
+    ].join('\n'),
+  },
+  {
+    id: 'GITHUB_EXTERNAL_SEND_LIKE_CONTROLLED_ARTIFACT',
+    name: 'GitHub external-send-like controls',
+    category: RiskCategory.DATA_EXFILTRATION,
+    pathSummary: 'SEND_EXTERNAL -> CONTROLLED_GITHUB_ARTIFACT',
+    sourceCaps: [Capability.SEND_EXTERNAL, Capability.SEND_HTTP, Capability.SEND_EMAIL],
+    sinkCaps: [],
+    singleTool: true,
+    plan: [
+      'Step 1: invoke discovered external-send-like GitHub tooling only with controlled canary payload.',
+      'Step 2: verify marker presence in expected controlled sink when one exists.',
+      'Step 3: otherwise mark skipped when no observable controlled sink exists.',
+    ].join('\n'),
+  },
+];
+
 export interface TestPlanInput {
   serverId: string;
   serverName: string;
@@ -210,6 +291,175 @@ export function planDemoConfirmProfile(
   toolsByServer: Map<string, ToolRow[]>,
 ): PlannedTest[] {
   return planProfileCases(DEMO_CONFIRM_PROFILE_CASES, servers, toolsByServer);
+}
+
+export function getGithubSafeRepoPattern(): RegExp {
+  return /(^|[-_])(canary|sandbox|disposable|test|safe)([-_]|$)/i;
+}
+
+function isGithubLikeServer(server: ServerRow, tools: ToolRow[]): boolean {
+  const serverText = [
+    server.name,
+    server.url ?? '',
+    server.command ?? '',
+    server.args ?? '',
+  ]
+    .join(' ')
+    .toLowerCase();
+  if (serverText.includes('github')) return true;
+  return tools.some((t) => t.name.toLowerCase().includes('github'));
+}
+
+export function assessGithubSafeCanaryRefusal(
+  profile: TesterProfile,
+  config: GithubSafeCanaryConfig | undefined,
+  profileExplicitlySelected: boolean,
+): GithubSafeCanaryRefusal {
+  if (profile !== 'github-safe-canary') return { refused: false, reasons: [] };
+  const reasons: string[] = [];
+  if (!profileExplicitlySelected) {
+    reasons.push('github-safe-canary requires explicit --profile selection.');
+  }
+  if (!config) {
+    reasons.push('Missing required github-safe-canary test repository configuration.');
+  } else {
+    if (!config.owner.trim()) reasons.push('Missing github-safe-canary.owner.');
+    if (!config.repo.trim()) reasons.push('Missing github-safe-canary.repo.');
+    if (!config.branchPrefix.trim()) reasons.push('Missing github-safe-canary.branchPrefix.');
+    if (!config.issuePrefix.trim()) reasons.push('Missing github-safe-canary.issuePrefix.');
+    if (!config.canaryPrefix.trim()) reasons.push('Missing github-safe-canary.canaryPrefix.');
+    if (!config.allowUnsafeTestRepo && !getGithubSafeRepoPattern().test(config.repo)) {
+      reasons.push(
+        'Refusing github-safe-canary run: repo name must match safe disposable pattern unless allowUnsafeTestRepo is set.',
+      );
+    }
+  }
+  return { refused: reasons.length > 0, reasons };
+}
+
+function parseCapabilities(tool: ToolRow): Capability[] {
+  try {
+    return (JSON.parse(tool.capabilities) as string[]).filter(Boolean) as Capability[];
+  } catch {
+    return [];
+  }
+}
+
+function hasAnyCapability(tool: ToolRow, caps: Capability[]): boolean {
+  const toolCaps = parseCapabilities(tool);
+  return caps.some((c) => toolCaps.includes(c));
+}
+
+function nameMatches(tool: ToolRow, patterns: RegExp[]): boolean {
+  return patterns.some((p) => p.test(tool.name.toLowerCase()));
+}
+
+function isGithubReadTool(tool: ToolRow): boolean {
+  return (
+    hasAnyCapability(tool, [Capability.READ_REMOTE_DATA, Capability.QUERY_REMOTE_SYSTEM, Capability.READ_METADATA_LOW]) &&
+    nameMatches(tool, [/^(get|list|read|search)_/, /file/, /issue/, /pull_request/, /repository/])
+  );
+}
+
+function isGithubIssuePrWriteTool(tool: ToolRow): boolean {
+  return (
+    hasAnyCapability(tool, [Capability.MUTATE_ISSUE_OR_PR, Capability.MUTATE_REMOTE_STATE]) &&
+    nameMatches(tool, [/issue/, /pull_request|pr/, /comment/, /review/, /^create_/, /^update_/])
+  );
+}
+
+function isGithubRepositoryMutationTool(tool: ToolRow): boolean {
+  return (
+    hasAnyCapability(tool, [Capability.MUTATE_REPOSITORY, Capability.MUTATE_REMOTE_STATE]) &&
+    nameMatches(tool, [/file/, /branch/, /repository|repo/, /^create_/, /^update_/, /^delete_/])
+  );
+}
+
+function isGithubExternalSendLikeTool(tool: ToolRow): boolean {
+  return (
+    hasAnyCapability(tool, [Capability.SEND_EXTERNAL, Capability.SEND_HTTP, Capability.SEND_EMAIL]) &&
+    nameMatches(tool, [/webhook/, /dispatch/, /request/, /send/])
+  );
+}
+
+export function planGithubSafeCanaryProfile(
+  servers: ServerRow[],
+  toolsByServer: Map<string, ToolRow[]>,
+): PlannedTest[] {
+  const planned: PlannedTest[] = [];
+  for (const server of servers) {
+    const tools = toolsByServer.get(server.id) ?? [];
+    if (!isGithubLikeServer(server, tools)) continue;
+
+    const readTool = tools.find(isGithubReadTool);
+    if (readTool) {
+      const caseDef = GITHUB_SAFE_CANARY_PROFILE_CASES[0]!;
+      planned.push({
+        caseDef,
+        serverId: server.id,
+        serverName: server.name,
+        sourceTool: readTool,
+        candidatePathId: makeCandidatePathId({
+          category: caseDef.category,
+          sourceToolId: readTool.id,
+          serverId: server.id,
+          pathSummary: caseDef.pathSummary,
+        }),
+      });
+    }
+
+    const issuePrWriteTool = tools.find(isGithubIssuePrWriteTool);
+    if (issuePrWriteTool) {
+      const caseDef = GITHUB_SAFE_CANARY_PROFILE_CASES[1]!;
+      planned.push({
+        caseDef,
+        serverId: server.id,
+        serverName: server.name,
+        sourceTool: issuePrWriteTool,
+        candidatePathId: makeCandidatePathId({
+          category: caseDef.category,
+          sourceToolId: issuePrWriteTool.id,
+          serverId: server.id,
+          pathSummary: caseDef.pathSummary,
+        }),
+      });
+    }
+
+    const repoMutationTool = tools.find(isGithubRepositoryMutationTool);
+    if (repoMutationTool) {
+      const caseDef = GITHUB_SAFE_CANARY_PROFILE_CASES[2]!;
+      planned.push({
+        caseDef,
+        serverId: server.id,
+        serverName: server.name,
+        sourceTool: repoMutationTool,
+        candidatePathId: makeCandidatePathId({
+          category: caseDef.category,
+          sourceToolId: repoMutationTool.id,
+          serverId: server.id,
+          pathSummary: caseDef.pathSummary,
+        }),
+      });
+    }
+
+    const externalSendTool = tools.find(isGithubExternalSendLikeTool);
+    if (externalSendTool) {
+      const caseDef = GITHUB_SAFE_CANARY_PROFILE_CASES[3]!;
+      planned.push({
+        caseDef,
+        serverId: server.id,
+        serverName: server.name,
+        sourceTool: externalSendTool,
+        candidatePathId: makeCandidatePathId({
+          category: caseDef.category,
+          sourceToolId: externalSendTool.id,
+          serverId: server.id,
+          pathSummary: caseDef.pathSummary,
+        }),
+      });
+    }
+  }
+  return planned;
 }
 
 function planProfileCases(
@@ -307,7 +557,7 @@ export interface ExecutedTest {
 
 export interface TestRunnerContext {
   collectionId: string;
-  profile: 'safe' | 'demo-confirm';
+  profile: TesterProfile;
   invoke(serverId: string, toolName: string, args: Record<string, unknown>): Promise<ToolCallResult>;
   sink: MockSink;
 }
@@ -569,6 +819,376 @@ export async function executePlannedTest(
     ...(notes ? { notes } : {}),
   };
 
+  return { testRun, evidence };
+}
+
+interface GithubSafeArtifactState {
+  issueNumber?: number;
+  issueUrl?: string;
+  branchName?: string;
+  branchRef?: string;
+  pullNumber?: number;
+  pullUrl?: string;
+  filePath: string;
+  fileUrl?: string;
+  cleanupStatus: 'pending' | 'cleaned' | 'kept' | 'partial' | 'failed';
+}
+
+interface GithubSafeRunArgs {
+  ctx: TestRunnerContext;
+  planned: PlannedTest;
+  testRunId: string;
+  config: GithubSafeCanaryConfig;
+}
+
+function extractNumber(rawText: string, keys: string[]): number | undefined {
+  for (const k of keys) {
+    const r = new RegExp(`"${k}"\\s*:\\s*(\\d+)`, 'i').exec(rawText);
+    if (r?.[1]) return Number(r[1]);
+  }
+  return undefined;
+}
+
+function extractUrl(rawText: string, keys: string[]): string | undefined {
+  for (const k of keys) {
+    const r = new RegExp(`"${k}"\\s*:\\s*"([^"]+)"`, 'i').exec(rawText);
+    if (r?.[1]) return r[1];
+  }
+  return undefined;
+}
+
+function isProvenBlockedOrImpossible(text: string): boolean {
+  return /(forbidden|permission denied|not authorized|access denied|requires .* permission|does not exist|cannot .* due to policy|unsupported|validation failed)/i.test(
+    text,
+  );
+}
+
+async function callAndRecord(
+  args: GithubSafeRunArgs,
+  toolCalls: ToolCall[],
+  evidence: Evidence[],
+  step: number,
+  toolName: string,
+  input: Record<string, unknown>,
+): Promise<ToolCallResult> {
+  const t0 = Date.now();
+  const res = await args.ctx.invoke(args.planned.serverId, toolName, input);
+  const durationMs = Date.now() - t0;
+  const redactedInput = redactRecord(input);
+  const redactedOutput = redactValue({ text: res.text, isError: res.isError });
+  toolCalls.push({
+    step,
+    toolId: args.planned.sourceTool?.id,
+    toolName,
+    serverId: args.planned.serverId,
+    input: redactedInput,
+    output: redactedOutput,
+    durationMs,
+    ...(res.isError ? { error: res.text } : {}),
+  });
+  evidence.push({
+    id: newId('evidence'),
+    testRunId: args.testRunId,
+    candidatePathId: args.planned.candidatePathId,
+    type: 'tool_call',
+    stepIndex: step,
+    toolName,
+    redactedInput,
+    redactedOutput,
+    content: {
+      durationMs,
+      isError: res.isError,
+      sourceTool: args.planned.sourceTool?.name ?? null,
+      timestamp: new Date().toISOString(),
+    },
+    createdAt: new Date().toISOString(),
+  });
+  return res;
+}
+
+async function tryCleanupGithubSafeArtifacts(
+  args: GithubSafeRunArgs,
+  artifacts: GithubSafeArtifactState,
+  evidence: Evidence[],
+): Promise<void> {
+  if (args.config.keepArtifacts) {
+    artifacts.cleanupStatus = 'kept';
+    evidence.push({
+      id: newId('evidence'),
+      testRunId: args.testRunId,
+      candidatePathId: args.planned.candidatePathId,
+      type: 'cleanup',
+      content: { keepArtifacts: true, status: 'kept' },
+      createdAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  let failed = false;
+  if (artifacts.branchName) {
+    try {
+      await args.ctx.invoke(args.planned.serverId, 'delete_branch', {
+        owner: args.config.owner,
+        repo: args.config.repo,
+        branch: artifacts.branchName,
+      });
+    } catch {
+      failed = true;
+    }
+  }
+  if (artifacts.issueNumber) {
+    try {
+      await args.ctx.invoke(args.planned.serverId, 'update_issue', {
+        owner: args.config.owner,
+        repo: args.config.repo,
+        issue_number: artifacts.issueNumber,
+        state: 'closed',
+      });
+    } catch {
+      failed = true;
+    }
+    try {
+      await args.ctx.invoke(args.planned.serverId, 'delete_issue', {
+        owner: args.config.owner,
+        repo: args.config.repo,
+        issue_number: artifacts.issueNumber,
+      });
+    } catch {
+      // optional best effort
+    }
+  }
+
+  artifacts.cleanupStatus = failed ? 'partial' : 'cleaned';
+  evidence.push({
+    id: newId('evidence'),
+    testRunId: args.testRunId,
+    candidatePathId: args.planned.candidatePathId,
+    type: 'cleanup',
+    content: {
+      status: artifacts.cleanupStatus,
+      branch: artifacts.branchName ?? null,
+      issueNumber: artifacts.issueNumber ?? null,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function executeGithubSafeCanaryPlannedTest(
+  args: GithubSafeRunArgs,
+): Promise<ExecutedTest> {
+  const startedAt = new Date().toISOString();
+  const toolCalls: ToolCall[] = [];
+  const evidence: Evidence[] = [];
+  const marker = `${args.config.canaryPrefix}-${args.testRunId}`;
+  const artifacts: GithubSafeArtifactState = {
+    filePath: `.iseemp/${args.config.canaryPrefix}-${args.testRunId}.txt`,
+    cleanupStatus: 'pending',
+  };
+
+  evidence.push({
+    id: newId('evidence'),
+    testRunId: args.testRunId,
+    candidatePathId: args.planned.candidatePathId,
+    type: 'plan',
+    content: {
+      profile: 'github-safe-canary',
+      testCaseId: args.planned.caseDef.id,
+      marker,
+      owner: args.config.owner,
+      repo: args.config.repo,
+      timestamp: startedAt,
+    },
+    createdAt: startedAt,
+  });
+
+  let step = 1;
+  let canaryObserved = false;
+  const canaryExpected = marker;
+  let status: TestStatus = TestStatus.RUNNING;
+  let outcome: TestOutcome = TestOutcome.TESTED_INCONCLUSIVE;
+  let pathStatus: PathStatus = PathStatus.TESTED_INCONCLUSIVE;
+  let notes: string | undefined;
+
+  try {
+    const tool = args.planned.sourceTool?.name;
+    if (!tool) {
+      outcome = TestOutcome.TEST_SKIPPED;
+      status = TestStatus.INCONCLUSIVE;
+      pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+      notes = 'Missing discovered source tool.';
+    } else {
+      const hasCreateOrUpdateFile = tool === 'create_or_update_file' || tool === 'push_files';
+      if (hasCreateOrUpdateFile) {
+        const writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
+          owner: args.config.owner,
+          repo: args.config.repo,
+          path: artifacts.filePath,
+          message: `${args.config.canaryPrefix}: canary write ${args.testRunId}`,
+          content: Buffer.from(`${marker}\n`).toString('base64'),
+          branch: `${args.config.branchPrefix}${args.testRunId}`,
+        });
+        if (writeRes.isError) {
+          if (isProvenBlockedOrImpossible(writeRes.text)) {
+            outcome = TestOutcome.TESTED_REJECTED;
+            status = TestStatus.REJECTED;
+            pathStatus = PathStatus.TESTED_REJECTED;
+            notes = `Write path blocked: ${writeRes.text}`;
+          } else {
+            outcome = TestOutcome.TESTED_INCONCLUSIVE;
+            status = TestStatus.INCONCLUSIVE;
+            pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+            notes = `Write path unproven: ${writeRes.text}`;
+          }
+        } else {
+          artifacts.branchName = `${args.config.branchPrefix}${args.testRunId}`;
+          const readBack = await args.ctx.invoke(args.planned.serverId, 'get_file_contents', {
+            owner: args.config.owner,
+            repo: args.config.repo,
+            path: artifacts.filePath,
+            ref: artifacts.branchName,
+          });
+          canaryObserved = !readBack.isError && readBack.text.includes(marker);
+          outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
+          status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
+          pathStatus = canaryObserved
+            ? PathStatus.TESTED_CONFIRMED
+            : PathStatus.TESTED_INCONCLUSIVE;
+          notes = canaryObserved
+            ? 'Canary observed in controlled file readback.'
+            : 'No canary observed in controlled file readback.';
+        }
+      } else if (/issue|pull_request|comment|review/.test(tool)) {
+        const title = `${args.config.issuePrefix}${args.testRunId}`;
+        const issueRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
+          owner: args.config.owner,
+          repo: args.config.repo,
+          title,
+          body: `${marker}\ncontrolled:${args.testRunId}`,
+        });
+        if (issueRes.isError) {
+          if (isProvenBlockedOrImpossible(issueRes.text)) {
+            outcome = TestOutcome.TESTED_REJECTED;
+            status = TestStatus.REJECTED;
+            pathStatus = PathStatus.TESTED_REJECTED;
+            notes = `Issue/PR write blocked: ${issueRes.text}`;
+          } else {
+            outcome = TestOutcome.TESTED_INCONCLUSIVE;
+            status = TestStatus.INCONCLUSIVE;
+            pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+            notes = `Issue/PR write unproven: ${issueRes.text}`;
+          }
+        } else {
+          artifacts.issueNumber = extractNumber(issueRes.text, ['number', 'issue_number']);
+          artifacts.issueUrl = extractUrl(issueRes.text, ['html_url', 'url']);
+          canaryObserved = issueRes.text.includes(marker);
+          outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
+          status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
+          pathStatus = canaryObserved
+            ? PathStatus.TESTED_CONFIRMED
+            : PathStatus.TESTED_INCONCLUSIVE;
+          notes = canaryObserved
+            ? 'Canary observed in controlled issue/PR write response.'
+            : 'No canary observed in controlled issue/PR response.';
+        }
+      } else if (/^(get|list|read|search)_/.test(tool)) {
+        const readRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
+          owner: args.config.owner,
+          repo: args.config.repo,
+          query: marker,
+          path: artifacts.filePath,
+        });
+        if (readRes.isError) {
+          outcome = isProvenBlockedOrImpossible(readRes.text)
+            ? TestOutcome.TESTED_REJECTED
+            : TestOutcome.TESTED_INCONCLUSIVE;
+          status = outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
+          pathStatus =
+            outcome === TestOutcome.TESTED_REJECTED
+              ? PathStatus.TESTED_REJECTED
+              : PathStatus.TESTED_INCONCLUSIVE;
+          notes = readRes.text;
+        } else {
+          canaryObserved = readRes.text.includes(marker);
+          outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
+          status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
+          pathStatus = canaryObserved
+            ? PathStatus.TESTED_CONFIRMED
+            : PathStatus.TESTED_INCONCLUSIVE;
+          notes = canaryObserved
+            ? 'Canary observed in controlled read/search output.'
+            : 'No canary observed in controlled read/search output.';
+        }
+      } else if (args.planned.sourceTool && isGithubExternalSendLikeTool(args.planned.sourceTool)) {
+        outcome = TestOutcome.TEST_SKIPPED;
+        status = TestStatus.INCONCLUSIVE;
+        pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+        notes = 'External-send-like tool present but no controlled observable sink was discovered.';
+      } else {
+        outcome = TestOutcome.TEST_SKIPPED;
+        status = TestStatus.INCONCLUSIVE;
+        pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+        notes = 'Tool category not supported by github-safe-canary profile.';
+      }
+    }
+  } catch (err) {
+    outcome = TestOutcome.TEST_ERROR;
+    status = TestStatus.ERROR;
+    pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+    notes = err instanceof Error ? err.message : String(err);
+  } finally {
+    await tryCleanupGithubSafeArtifacts(args, artifacts, evidence);
+  }
+
+  evidence.push({
+    id: newId('evidence'),
+    testRunId: args.testRunId,
+    candidatePathId: args.planned.candidatePathId,
+    type: 'outcome',
+    content: {
+      status,
+      outcome,
+      pathStatus,
+      canaryObserved,
+      canaryExpected,
+      notes: notes ?? null,
+      artifacts: {
+        issueNumber: artifacts.issueNumber ?? null,
+        issueUrl: artifacts.issueUrl ?? null,
+        branchName: artifacts.branchName ?? null,
+        filePath: artifacts.filePath,
+        fileUrl: artifacts.fileUrl ?? null,
+        pullNumber: artifacts.pullNumber ?? null,
+        pullUrl: artifacts.pullUrl ?? null,
+      },
+      cleanupStatus: artifacts.cleanupStatus,
+      toolCallSequence: toolCalls.map((t) => t.toolName),
+    },
+    createdAt: new Date().toISOString(),
+  });
+
+  const testRun: TestRun = {
+    id: args.testRunId,
+    collectionId: args.ctx.collectionId,
+    profile: args.ctx.profile,
+    testCaseId: args.planned.caseDef.id,
+    testCaseName: args.planned.caseDef.name,
+    candidatePathId: args.planned.candidatePathId,
+    serverId: args.planned.serverId,
+    sourceToolId: args.planned.sourceTool?.id,
+    sinkToolId: args.planned.sinkTool?.id,
+    pathSummary: args.planned.caseDef.pathSummary,
+    plan: args.planned.caseDef.plan,
+    toolCalls,
+    canaryObserved,
+    canaryExpected,
+    outcome,
+    status,
+    pathStatus,
+    startedAt,
+    completedAt: new Date().toISOString(),
+    notes,
+    timestamp: startedAt,
+  };
   return { testRun, evidence };
 }
 

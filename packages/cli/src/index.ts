@@ -18,7 +18,15 @@ const { values: args, positionals } = parseArgs({
     db: { type: 'string', short: 'd', default: process.env.ISEEMP_DB ?? 'iseemp.db' },
     port: { type: 'string', short: 'p', default: '7474' },
     collection: { type: 'string' },
-    profile: { type: 'string', default: 'safe' },
+    profile: { type: 'string' },
+    'test-repo-owner': { type: 'string' },
+    'test-repo-name': { type: 'string' },
+    'test-branch-prefix': { type: 'string' },
+    'test-issue-prefix': { type: 'string' },
+    'test-canary-prefix': { type: 'string' },
+    'allow-unsafe-test-repo': { type: 'boolean' },
+    'keep-artifacts': { type: 'boolean' },
+    'create-test-pr': { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
   },
 });
@@ -45,7 +53,15 @@ Options:
   -d, --db <path>           SQLite database path (default: iseemp.db)
   -p, --port <n>            API server port (default: 7474)
   --collection <id>         Collection ID to analyze/test (default: latest)
-  --profile <name>          Test profile to run (default: safe; also: demo-confirm)
+  --profile <name>          Test profile to run (default: safe; also: demo-confirm, github-safe-canary)
+  --test-repo-owner <name>  Disposable GitHub owner for github-safe-canary
+  --test-repo-name <name>   Disposable GitHub repo for github-safe-canary
+  --test-branch-prefix <p>  Branch prefix for github-safe-canary artefacts
+  --test-issue-prefix <p>   Issue title prefix for github-safe-canary artefacts
+  --test-canary-prefix <p>  Canary marker prefix for github-safe-canary artefacts
+  --allow-unsafe-test-repo  Allow repo names outside disposable safety pattern
+  --keep-artifacts          Keep controlled test artefacts (skip cleanup)
+  --create-test-pr          Optionally create canary PR/branch where supported
   -h, --help                Show this help message
 
 Examples:
@@ -54,6 +70,7 @@ Examples:
   iseemp collect --server http://localhost:3000/sse
   iseemp analyze
   iseemp test --profile safe
+  iseemp test --profile github-safe-canary --test-repo-owner octo-org --test-repo-name canary-sandbox --test-branch-prefix iseemp-canary- --test-issue-prefix ISEEMP-CANARY- --test-canary-prefix ISEEMP-CANARY
   iseemp demo up
   iseemp demo collect
   iseemp demo test
@@ -105,22 +122,38 @@ if (command === 'collect') {
     process.exit(1);
   }
 } else if (command === 'test') {
-  const profile = args.profile as string;
-  if (profile !== 'safe' && profile !== 'demo-confirm') {
-    console.error(`Unknown test profile: ${profile}. Supported: safe, demo-confirm`);
+  const profile = (args.profile as string | undefined) ?? 'safe';
+  if (profile !== 'safe' && profile !== 'demo-confirm' && profile !== 'github-safe-canary') {
+    console.error(`Unknown test profile: ${profile}. Supported: safe, demo-confirm, github-safe-canary`);
     process.exit(1);
   }
   try {
     console.log(`🧪 Running deterministic test profile: ${profile}…`);
     const summary = await runTests({
       collectionId: args.collection as string | undefined,
-      profile: profile as 'safe' | 'demo-confirm',
+      profile: profile as 'safe' | 'demo-confirm' | 'github-safe-canary',
+      profileExplicitlySelected: typeof args.profile === 'string',
+      githubSafeCanary:
+        profile === 'github-safe-canary'
+          ? {
+              owner: (args['test-repo-owner'] as string | undefined) ?? '',
+              repo: (args['test-repo-name'] as string | undefined) ?? '',
+              branchPrefix: (args['test-branch-prefix'] as string | undefined) ?? '',
+              issuePrefix: (args['test-issue-prefix'] as string | undefined) ?? '',
+              canaryPrefix: (args['test-canary-prefix'] as string | undefined) ?? '',
+              allowUnsafeTestRepo: args['allow-unsafe-test-repo'] === true,
+              keepArtifacts: args['keep-artifacts'] === true,
+              createPullRequest: args['create-test-pr'] === true,
+            }
+          : undefined,
       dbPath,
     });
     if (summary.totalPlanned === 0) {
       console.log(`ℹ️  No tools matched any test case in the ${profile} profile.`);
       if (profile === 'demo-confirm') {
         console.log('   Run `iseemp demo up` then `iseemp demo collect` and retry.');
+      } else if (profile === 'github-safe-canary') {
+        console.log('   Ensure a GitHub MCP server is collected and required github-safe-canary flags are set.');
       } else {
         console.log('   Add the canary-mcp fixture to your iseemp.config.json and re-run collect.');
       }
