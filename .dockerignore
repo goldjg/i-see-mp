@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+.git
+.github
+coverage
+*.db
+*.db-shm
+*.db-wal
+apps/web/dist
+**/dist
+*.tsbuildinfo
+**/*.tsbuildinfo

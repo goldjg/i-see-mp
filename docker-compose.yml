@@ -1,0 +1,15 @@
+services:
+  iseemp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: iseemp:local
+    container_name: iseemp
+    ports:
+      - "7474:7474"
+    volumes:
+      - iseemp_data:/data
+    restart: unless-stopped
+
+volumes:
+  iseemp_data:
