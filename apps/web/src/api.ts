@@ -63,6 +63,7 @@ export interface Finding {
   tested?: boolean;
   pathStatus?: 'static_possible' | 'tested_confirmed' | 'tested_rejected' | 'tested_inconclusive';
   testRunIds?: string[];
+  candidatePathId?: string;
   pathSummary?: string;
   explanation?: string;
 }
@@ -83,6 +84,11 @@ export interface TestRun {
   profile: string;
   testCaseId: string;
   testCaseName: string;
+  candidatePathId?: string;
+  serverId?: string;
+  sourceToolId?: string;
+  sinkToolId?: string;
+  outcome?: 'TESTED_CONFIRMED' | 'TESTED_REJECTED' | 'TESTED_INCONCLUSIVE' | 'TEST_SKIPPED' | 'TEST_ERROR';
   pathSummary?: string;
   plan: string;
   toolCalls: ToolCallRecord[];
@@ -90,6 +96,7 @@ export interface TestRun {
   canaryObserved: boolean;
   status: string;
   pathStatus: 'static_possible' | 'tested_confirmed' | 'tested_rejected' | 'tested_inconclusive';
+  timestamp?: string;
   startedAt: string;
   completedAt?: string;
   notes?: string;

@@ -26,19 +26,19 @@ function FindingBadges({ finding }: { finding: Finding }) {
   if (finding.tested) {
     if (finding.pathStatus === 'tested_confirmed') {
       badges.push({
-        label: 'Tested ✓',
+        label: 'Confirmed',
         cls: 'badge-tested-confirmed',
         title: 'Path confirmed by deterministic test (canary observed at mock sink).',
       });
     } else if (finding.pathStatus === 'tested_rejected') {
       badges.push({
-        label: 'Tested ✗',
+        label: 'Rejected',
         cls: 'badge-tested-rejected',
-        title: 'Path tested but canary was not observed; finding downgraded.',
+        title: 'Path execution was blocked before sink; finding downgraded.',
       });
     } else {
       badges.push({
-        label: 'Tested ?',
+        label: 'Inconclusive',
         cls: 'badge-tested-inconclusive',
         title: 'Test attempted but results were inconclusive.',
       });
@@ -114,7 +114,7 @@ function EvidenceSummary({ findingId }: { findingId: string }) {
 
   return (
     <div className="evidence-summary">
-      <h4>Test runs ({runs.length})</h4>
+      <h4>Test Evidence ({runs.length})</h4>
       {runs.map((r) => (
         <div key={r.id} className="evidence-run">
           <div className="evidence-run-header">
@@ -122,6 +122,8 @@ function EvidenceSummary({ findingId }: { findingId: string }) {
             <span className={`finding-badge badge-path-${r.pathStatus}`}>{r.pathStatus}</span>
             <span className="evidence-run-id">{r.id}</span>
           </div>
+          {r.outcome && <p><strong>Outcome:</strong> {r.outcome}</p>}
+          <p><strong>Timestamp:</strong> {r.timestamp ?? r.startedAt}</p>
           {r.pathSummary && <p className="evidence-path"><code>{r.pathSummary}</code></p>}
           <details>
             <summary>Plan</summary>

@@ -19,6 +19,7 @@ export interface FindingRow {
   tested?: number | null;
   path_status?: string | null;
   test_run_ids?: string | null; // JSON
+  candidate_path_id?: string | null;
   path_summary?: string | null;
   source_capabilities?: string | null; // JSON
   sink_capabilities?: string | null; // JSON
@@ -28,8 +29,8 @@ export interface FindingRow {
 }
 
 const COLUMNS =
-  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, path_summary, source_capabilities, sink_capabilities, boundary_crossed, explanation, evidence';
-const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
+  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, explanation, evidence';
+const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function bind(f: FindingRow): unknown[] {
   return [
@@ -49,6 +50,7 @@ function bind(f: FindingRow): unknown[] {
     f.tested ?? null,
     f.path_status ?? null,
     f.test_run_ids ?? null,
+    f.candidate_path_id ?? null,
     f.path_summary ?? null,
     f.source_capabilities ?? null,
     f.sink_capabilities ?? null,
@@ -78,6 +80,7 @@ function rowToFinding(r: FindingRow): Finding {
   if (r.tested !== null && r.tested !== undefined) finding.tested = r.tested === 1;
   if (r.path_status) finding.pathStatus = r.path_status as PathStatus;
   if (r.test_run_ids) finding.testRunIds = JSON.parse(r.test_run_ids) as string[];
+  if (r.candidate_path_id) finding.candidatePathId = r.candidate_path_id;
   if (r.path_summary) finding.pathSummary = r.path_summary;
   if (r.source_capabilities)
     finding.sourceCapabilities = JSON.parse(r.source_capabilities) as Capability[];
@@ -107,6 +110,7 @@ export function findingToRow(f: Finding): FindingRow {
     tested: f.tested === undefined ? null : f.tested ? 1 : 0,
     path_status: f.pathStatus ?? null,
     test_run_ids: f.testRunIds ? JSON.stringify(f.testRunIds) : null,
+    candidate_path_id: f.candidatePathId ?? null,
     path_summary: f.pathSummary ?? null,
     source_capabilities: f.sourceCapabilities ? JSON.stringify(f.sourceCapabilities) : null,
     sink_capabilities: f.sinkCapabilities ? JSON.stringify(f.sinkCapabilities) : null,

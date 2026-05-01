@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { buildServer } from '../server.js';
 import {
   createMemoryDb,
@@ -113,6 +113,21 @@ describe('API routes', () => {
     createCollectionsRepo(db).create('col1', now);
     const trRepo = createTestRunsRepo(db);
     const evRepo = createEvidenceRepo(db);
+    const findingsRepo = createFindingsRepo(db);
+    findingsRepo.insert({
+      id: 'f-1',
+      collection_id: 'col1',
+      category: 'DATA_EXFILTRATION',
+      severity: 'high',
+      title: 'test',
+      description: 'test',
+      affected_node_ids: '[]',
+      remediation_hint: null,
+      created_at: now,
+      tested: 1,
+      path_status: 'tested_confirmed',
+      candidate_path_id: 'cp-1',
+    });
     trRepo.insert(
       testRunToRow({
         id: 'tr-1',
@@ -120,19 +135,21 @@ describe('API routes', () => {
         profile: 'safe',
         testCaseId: 'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
         testCaseName: 'Secret read',
+        candidatePathId: 'cp-1',
         plan: 'plan',
         toolCalls: [],
         canaryObserved: true,
+        outcome: 'TESTED_CONFIRMED',
         status: 'confirmed',
         pathStatus: 'tested_confirmed',
         startedAt: now,
-        findingId: 'f-1',
       }),
     );
     evRepo.insert(
       evidenceToRow({
         id: 'ev-1',
         testRunId: 'tr-1',
+        candidatePathId: 'cp-1',
         type: 'plan',
         content: { hello: 'world' },
         createdAt: now,

@@ -29,6 +29,7 @@ function makeRun(id: string, collectionId: string, opts: Partial<TestRun> = {}):
       },
     ],
     canaryObserved: true,
+    outcome: 'TESTED_CONFIRMED',
     status: 'confirmed',
     pathStatus: 'tested_confirmed',
     startedAt: new Date().toISOString(),
@@ -41,8 +42,12 @@ describe('TestRunsRepo', () => {
     const collections = createCollectionsRepo(db);
     collections.create('col-T', new Date().toISOString());
     const repo = createTestRunsRepo(db);
-    const r1 = makeRun('tr-1', 'col-T', { findingId: 'finding-1' });
-    const r2 = makeRun('tr-2', 'col-T', { canaryObserved: false, pathStatus: 'tested_rejected' });
+    const r1 = makeRun('tr-1', 'col-T', { findingId: 'finding-1', candidatePathId: 'cp-1' });
+    const r2 = makeRun('tr-2', 'col-T', {
+      canaryObserved: false,
+      outcome: 'TESTED_REJECTED',
+      pathStatus: 'tested_rejected',
+    });
     repo.insertMany([testRunToRow(r1), testRunToRow(r2)]);
 
     const all = repo.findByCollection('col-T');
@@ -55,6 +60,8 @@ describe('TestRunsRepo', () => {
     const byId = repo.findById('tr-2');
     expect(byId?.canaryObserved).toBe(false);
     expect(byId?.pathStatus).toBe('tested_rejected');
+    expect(repo.getByCandidatePathId('cp-1')).toHaveLength(1);
+    expect(repo.getByFindingId('finding-1')).toHaveLength(1);
   });
 
   it('round-trips toolCalls JSON', () => {
@@ -99,6 +106,7 @@ describe('EvidenceRepo', () => {
     const ev: Evidence = {
       id: 'ev-9',
       testRunId: 'tr-9',
+      candidatePathId: 'cp-9',
       type: 'tool_call',
       content: { tool: 'read_secret', input: { name: 'X' }, output: { ok: true } },
       createdAt: new Date().toISOString(),
@@ -107,5 +115,6 @@ describe('EvidenceRepo', () => {
     const found = repo.findByTestRun('tr-9');
     expect(found).toHaveLength(1);
     expect(found[0]?.content['tool']).toBe('read_secret');
+    expect(repo.getByCandidatePathId('cp-9')).toHaveLength(1);
   });
 });

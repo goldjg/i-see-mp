@@ -114,7 +114,7 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
     '/test-runs',
     async (req) => {
       const { collectionId, findingId } = req.query;
-      if (findingId) return testRuns.findByFinding(findingId);
+      if (findingId) return testRuns.getByFindingId(findingId);
       const col = collectionId
         ? collections.findById(collectionId)
         : collections.latest();

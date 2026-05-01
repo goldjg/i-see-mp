@@ -9,12 +9,29 @@ const FINDINGS_NEW_COLUMNS: Array<[string, string]> = [
   ['tested', 'INTEGER'],
   ['path_status', 'TEXT'],
   ['test_run_ids', 'TEXT'],
+  ['candidate_path_id', 'TEXT'],
   ['path_summary', 'TEXT'],
   ['source_capabilities', 'TEXT'],
   ['sink_capabilities', 'TEXT'],
   ['boundary_crossed', 'TEXT'],
   ['explanation', 'TEXT'],
   ['evidence', 'TEXT'],
+];
+
+const TEST_RUNS_NEW_COLUMNS: Array<[string, string]> = [
+  ['candidate_path_id', 'TEXT'],
+  ['server_id', 'TEXT'],
+  ['source_tool_id', 'TEXT'],
+  ['sink_tool_id', 'TEXT'],
+  ['outcome', 'TEXT'],
+];
+
+const EVIDENCE_NEW_COLUMNS: Array<[string, string]> = [
+  ['candidate_path_id', 'TEXT'],
+  ['step_index', 'INTEGER'],
+  ['tool_name', 'TEXT'],
+  ['redacted_input', 'TEXT'],
+  ['redacted_output', 'TEXT'],
 ];
 
 const TEST_RUN_REQUIRED_COLUMNS = [
@@ -28,14 +45,18 @@ const TEST_RUN_REQUIRED_COLUMNS = [
 ];
 
 function migrate(db: Database.Database): void {
-  // Ensure new findings columns exist on legacy databases (idempotent)
-  const cols = db.prepare(`PRAGMA table_info(findings)`).all() as Array<{ name: string }>;
-  const existing = new Set(cols.map((c) => c.name));
-  for (const [col, type] of FINDINGS_NEW_COLUMNS) {
-    if (!existing.has(col)) {
-      db.exec(`ALTER TABLE findings ADD COLUMN ${col} ${type}`);
+  function ensureColumns(table: string, columns: Array<[string, string]>): void {
+    const tableCols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    const tableExisting = new Set(tableCols.map((c) => c.name));
+    for (const [col, type] of columns) {
+      if (!tableExisting.has(col)) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+      }
     }
   }
+
+  // Ensure new findings columns exist on legacy databases (idempotent)
+  ensureColumns('findings', FINDINGS_NEW_COLUMNS);
 
   // Legacy test_runs table (reserved/unused in MVP) had a different shape.
   // If the new required columns aren't present, drop and let SCHEMA_SQL recreate it.
@@ -50,6 +71,9 @@ function migrate(db: Database.Database): void {
       db.exec(SCHEMA_SQL);
     }
   }
+
+  ensureColumns('test_runs', TEST_RUNS_NEW_COLUMNS);
+  ensureColumns('evidence', EVIDENCE_NEW_COLUMNS);
 }
 
 let _db: Database.Database | null = null;
