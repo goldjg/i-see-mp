@@ -291,9 +291,18 @@ function categoryMatches(category: string, testCaseId: string): boolean {
   return false;
 }
 
+function stripTestExplanation(explanation: string | undefined): string | undefined {
+  if (!explanation) return explanation;
+  // Remove any lines previously appended by the test runner (they start with "Test ").
+  const lines = explanation.split('\n').filter((l) => !l.startsWith('Test '));
+  const trimmed = lines.join('\n').trimEnd();
+  return trimmed || undefined;
+}
+
 function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
   const confirmed = runs.find((r) => r.pathStatus === PathStatus.TESTED_CONFIRMED);
   const rejected = runs.find((r) => r.pathStatus === PathStatus.TESTED_REJECTED);
+  const baseExplanation = stripTestExplanation(finding.explanation);
   const next: Finding = {
     ...finding,
     tested: true,
@@ -307,7 +316,7 @@ function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
     next.severity = bumpSeverity(finding.severity);
     next.staticPossible = true;
     next.explanation = appendExplanation(
-      finding.explanation,
+      baseExplanation,
       `Test ${confirmed.testCaseId} confirmed this path: canary observed at the local mock sink (testRunId=${confirmed.id}).`,
     );
   } else if (rejected) {
@@ -316,7 +325,7 @@ function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
     next.confidence = Confidence.LOW;
     next.severity = downgradeSeverity(finding.severity);
     next.explanation = appendExplanation(
-      finding.explanation,
+      baseExplanation,
       `Test ${rejected.testCaseId} rejected this path: tool chain executed but canary was not observed (testRunId=${rejected.id}). Static finding downgraded.`,
     );
   } else {
@@ -324,7 +333,7 @@ function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
     next.pathStatus = PathStatus.TESTED_INCONCLUSIVE;
     next.confidence = downgradeConfidence(finding.confidence);
     next.explanation = appendExplanation(
-      finding.explanation,
+      baseExplanation,
       `Test attempted but inconclusive (no canary signal); confidence downgraded, severity intact.`,
     );
   }
