@@ -882,13 +882,34 @@ function isBranchNotFound(text: string): boolean {
   return BRANCH_NOT_FOUND_RE.test(text);
 }
 
+function sanitizeBranchToken(value: string): string {
+  let out = '';
+  let prevDash = false;
+  for (const ch of value) {
+    const isAllowed =
+      (ch >= 'a' && ch <= 'z') ||
+      (ch >= 'A' && ch <= 'Z') ||
+      (ch >= '0' && ch <= '9') ||
+      ch === '.' ||
+      ch === '_' ||
+      ch === '-';
+    const next = isAllowed ? ch : '-';
+    if (next === '-') {
+      if (prevDash) continue;
+      prevDash = true;
+    } else {
+      prevDash = false;
+    }
+    out += next;
+  }
+  while (out.startsWith('-')) out = out.slice(1);
+  while (out.endsWith('-')) out = out.slice(0, -1);
+  return out;
+}
+
 function buildGithubSafeBranchName(branchPrefix: string, testRunId: string): string {
-  const raw = `${branchPrefix}${testRunId}`;
-  const sanitized = raw
-    .replace(/[^A-Za-z0-9._-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  const fallback = branchPrefix.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+  const sanitized = sanitizeBranchToken(`${branchPrefix}${testRunId}`);
+  const fallback = sanitizeBranchToken(branchPrefix);
   return (sanitized || fallback || 'iseemp-canary').slice(0, 200);
 }
 
@@ -1084,6 +1105,8 @@ export async function executeGithubSafeCanaryPlannedTest(
             notes = `Write path unproven: ${writeRes.text}`;
           }
         } else {
+          // Only keep a branch handle when the branch-targeted write succeeded;
+          // default-branch fallback does not create an isolated branch to clean up.
           if (!usedDefaultBranchFallback) {
             artifacts.branchName = branchName;
           }
