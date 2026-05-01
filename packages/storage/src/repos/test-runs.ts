@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
-import type { TestRun, ToolCall, PathStatus, TestStatus, TestProfile, TestOutcome } from '@iseemp/core';
+import { PathStatus, TestStatus } from '@iseemp/core';
+import type { TestRun, ToolCall, TestProfile, TestOutcome } from '@iseemp/core';
 
 export interface TestRunRow {
   id: string;
@@ -31,11 +32,11 @@ const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function rowToTestRun(r: TestRunRow): TestRun {
   const outcome = (r.outcome ??
-    (r.path_status === 'tested_confirmed'
+    (r.path_status === PathStatus.TESTED_CONFIRMED
       ? 'TESTED_CONFIRMED'
-      : r.path_status === 'tested_rejected'
+      : r.path_status === PathStatus.TESTED_REJECTED
         ? 'TESTED_REJECTED'
-        : r.status === 'error'
+        : r.status === TestStatus.ERROR
           ? 'TEST_ERROR'
           : 'TESTED_INCONCLUSIVE')) as TestOutcome;
   const run: TestRun = {

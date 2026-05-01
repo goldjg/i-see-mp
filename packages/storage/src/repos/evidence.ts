@@ -99,8 +99,8 @@ export function createEvidenceRepo(db: Database.Database) {
       const rows = db
         .prepare(
           `SELECT e.* FROM evidence e
-           INNER JOIN findings f ON f.id=?
-           WHERE e.candidate_path_id = f.candidate_path_id
+           INNER JOIN findings f ON e.candidate_path_id = f.candidate_path_id
+           WHERE f.id=?
            ORDER BY e.created_at ASC`,
         )
         .all(findingId) as EvidenceRow[];
