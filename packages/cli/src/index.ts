@@ -64,6 +64,7 @@ if (command === 'collect') {
     });
     console.log(`✅ Collection complete: ${collectionId}`);
     console.log('Run `iseemp analyze` to build the attack graph and find risks.');
+    process.exit(0);
   } catch (err) {
     console.error('❌ Collection failed:', err instanceof Error ? err.message : err);
     process.exit(1);
@@ -86,6 +87,7 @@ if (command === 'collect') {
     if (findings.some((f) => f.severity === 'critical')) {
       console.log('\n⚠️  Critical findings detected! Run `iseemp serve` to investigate.');
     }
+    process.exit(0);
   } catch (err) {
     console.error('❌ Analysis failed:', err instanceof Error ? err.message : err);
     process.exit(1);
@@ -112,12 +114,16 @@ if (command === 'collect') {
       console.log(`  confirmed   : ${summary.confirmed}`);
       console.log(`  rejected    : ${summary.rejected}`);
       console.log(`  inconclusive: ${summary.inconclusive}`);
+      if (summary.skipped > 0) {
+        console.log(`  skipped     : ${summary.skipped} (server unavailable or missing credentials)`);
+      }
       for (const r of summary.testRuns) {
         const obs = r.canaryObserved ? '🚨 canary observed' : '— canary not observed';
         console.log(`   - [${r.pathStatus}] ${r.testCaseName} (${r.id}) ${obs}`);
       }
       console.log('\nRun `iseemp serve` to inspect findings, badges, and evidence in the UI.');
     }
+    process.exit(0);
   } catch (err) {
     console.error('❌ Tests failed:', err instanceof Error ? err.message : err);
     process.exit(1);
@@ -126,7 +132,7 @@ if (command === 'collect') {
   const port = parseInt(args.port as string, 10);
   // Static dir: apps/web/dist relative to this file
   const __dir = dirname(fileURLToPath(import.meta.url));
-  const staticDir = join(__dir, '..', '..', 'apps', 'web', 'dist');
+  const staticDir = join(__dir, '..', '..', '..', 'apps', 'web', 'dist');
 
   const { existsSync } = await import('node:fs');
   const app = buildServer({

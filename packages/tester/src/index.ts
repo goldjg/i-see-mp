@@ -20,6 +20,7 @@ import {
   bumpConfidence,
   bumpSeverity,
   downgradeSeverity,
+  downgradeConfidence,
   type PlannedTest,
 } from './runner.js';
 import { connectServer, callTool, type ConnectedServer } from './mcp-runtime.js';
@@ -37,6 +38,7 @@ export interface TestSummary {
   confirmed: number;
   rejected: number;
   inconclusive: number;
+  skipped: number;
   testRuns: TestRun[];
 }
 
@@ -85,6 +87,7 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
       confirmed: 0,
       rejected: 0,
       inconclusive: 0,
+      skipped: 0,
       testRuns: [],
     };
   }
@@ -96,11 +99,12 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
   const connected = new Map<string, ConnectedServer>();
   const allTestRuns: TestRun[] = [];
   const allEvidence: Evidence[] = [];
+  let skipped = 0;
 
   try {
     for (const p of planned) {
       const conn = await ensureConnection(connected, servers, p);
-      if (!conn) continue;
+      if (!conn) { skipped++; continue; }
 
       const ctx = {
         collectionId: col.id,
@@ -144,6 +148,7 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     confirmed,
     rejected,
     inconclusive,
+    skipped,
     testRuns: allTestRuns,
   };
 }
@@ -192,7 +197,7 @@ async function ensureConnection(
     connected.set(planned.serverId, conn);
     return conn;
   } catch (err) {
-    console.error(`Failed to connect to server ${server.name}:`, err);
+    console.warn(`⚠️  Skipping server "${server.name}": ${err instanceof Error ? err.message : String(err)}`);
     return undefined;
   }
 }
@@ -286,9 +291,18 @@ function categoryMatches(category: string, testCaseId: string): boolean {
   return false;
 }
 
+function stripTestExplanation(explanation: string | undefined): string | undefined {
+  if (!explanation) return explanation;
+  // Remove any lines previously appended by the test runner (they start with "Test ").
+  const lines = explanation.split('\n').filter((l) => !l.startsWith('Test '));
+  const trimmed = lines.join('\n').trimEnd();
+  return trimmed || undefined;
+}
+
 function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
   const confirmed = runs.find((r) => r.pathStatus === PathStatus.TESTED_CONFIRMED);
   const rejected = runs.find((r) => r.pathStatus === PathStatus.TESTED_REJECTED);
+  const baseExplanation = stripTestExplanation(finding.explanation);
   const next: Finding = {
     ...finding,
     tested: true,
@@ -302,7 +316,7 @@ function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
     next.severity = bumpSeverity(finding.severity);
     next.staticPossible = true;
     next.explanation = appendExplanation(
-      finding.explanation,
+      baseExplanation,
       `Test ${confirmed.testCaseId} confirmed this path: canary observed at the local mock sink (testRunId=${confirmed.id}).`,
     );
   } else if (rejected) {
@@ -311,15 +325,16 @@ function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
     next.confidence = Confidence.LOW;
     next.severity = downgradeSeverity(finding.severity);
     next.explanation = appendExplanation(
-      finding.explanation,
+      baseExplanation,
       `Test ${rejected.testCaseId} rejected this path: tool chain executed but canary was not observed (testRunId=${rejected.id}). Static finding downgraded.`,
     );
   } else {
     next.observed = false;
     next.pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+    next.confidence = downgradeConfidence(finding.confidence);
     next.explanation = appendExplanation(
-      finding.explanation,
-      `Test attempted but inconclusive (no canary signal); leaving static_possible severity intact.`,
+      baseExplanation,
+      `Test attempted but inconclusive (no canary signal); confidence downgraded, severity intact.`,
     );
   }
 

@@ -13,6 +13,7 @@
     }
   },
   "scripts": {
+    "prepare": "tsc -p tsconfig.json",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -22,6 +23,7 @@
   "dependencies": {
     "@iseemp/api": "workspace:*",
     "@iseemp/collector": "workspace:*",
+    "@iseemp/core": "workspace:*",
     "@iseemp/graph": "workspace:*",
     "@iseemp/rules": "workspace:*",
     "@iseemp/storage": "workspace:*",

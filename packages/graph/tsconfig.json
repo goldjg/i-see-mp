@@ -3,12 +3,7 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "composite": true,
-    "paths": {
-      "@iseemp/core": ["../core/src/index.ts"],
-      "@iseemp/storage": ["../storage/src/index.ts"],
-      "@iseemp/rules": ["../rules/src/index.ts"]
-    }
+    "composite": true
   },
   "references": [
     { "path": "../core" },
