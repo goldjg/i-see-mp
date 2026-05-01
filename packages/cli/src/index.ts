@@ -56,11 +56,11 @@ Options:
   --profile <name>          Test profile to run (default: safe; also: demo-confirm, github-safe-canary)
   --test-repo-owner <name>  Disposable GitHub owner for github-safe-canary
   --test-repo-name <name>   Disposable GitHub repo for github-safe-canary
-  --test-branch-prefix <p>  Branch prefix for github-safe-canary artefacts
-  --test-issue-prefix <p>   Issue title prefix for github-safe-canary artefacts
-  --test-canary-prefix <p>  Canary marker prefix for github-safe-canary artefacts
+  --test-branch-prefix <p>  Branch prefix for github-safe-canary artifacts
+  --test-issue-prefix <p>   Issue title prefix for github-safe-canary artifacts
+  --test-canary-prefix <p>  Canary marker prefix for github-safe-canary artifacts
   --allow-unsafe-test-repo  Allow repo names outside disposable safety pattern
-  --keep-artifacts          Keep controlled test artefacts (skip cleanup)
+  --keep-artifacts          Keep controlled test artifacts (skip cleanup)
   --create-test-pr          Optionally create canary PR/branch where supported
   -h, --help                Show this help message
 
@@ -136,11 +136,11 @@ if (command === 'collect') {
       githubSafeCanary:
         profile === 'github-safe-canary'
           ? {
-              owner: (args['test-repo-owner'] as string | undefined) ?? '',
-              repo: (args['test-repo-name'] as string | undefined) ?? '',
-              branchPrefix: (args['test-branch-prefix'] as string | undefined) ?? '',
-              issuePrefix: (args['test-issue-prefix'] as string | undefined) ?? '',
-              canaryPrefix: (args['test-canary-prefix'] as string | undefined) ?? '',
+              owner: args['test-repo-owner'] as string | undefined,
+              repo: args['test-repo-name'] as string | undefined,
+              branchPrefix: args['test-branch-prefix'] as string | undefined,
+              issuePrefix: args['test-issue-prefix'] as string | undefined,
+              canaryPrefix: args['test-canary-prefix'] as string | undefined,
               allowUnsafeTestRepo: args['allow-unsafe-test-repo'] === true,
               keepArtifacts: args['keep-artifacts'] === true,
               createPullRequest: args['create-test-pr'] === true,

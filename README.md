@@ -399,7 +399,7 @@ iseemp test \
 
 Expected outcomes in this profile:
 
-- `TESTED_CONFIRMED` only when the unique canary marker is observed in expected controlled artefacts
+- `TESTED_CONFIRMED` only when the unique canary marker is observed in expected controlled artifacts
 - `TESTED_REJECTED` only when execution is proven blocked/impossible
 - `TESTED_INCONCLUSIVE` when marker is absent without proof of blockage
 - `TEST_SKIPPED` when required permissions/tools are missing
@@ -494,7 +494,7 @@ examples/safe-mcp     Deterministic MCP fixture with known tools
 ## Safety notes
 
 - Static analysis remains read-only by default (`collect`/`analyze` and `safe` profile).
-- `github-safe-canary` is an explicit opt-in profile that performs controlled writes to disposable GitHub artefacts.
+- `github-safe-canary` is an explicit opt-in profile that performs controlled writes to disposable GitHub artifacts.
 - Secrets in config env vars are **redacted** before storage.
 - SQLite database is local; no automatic outbound data export.
 - Remote collection uses metadata endpoints only (`listTools`, `listResources`, `listPrompts`).

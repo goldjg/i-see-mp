@@ -27,11 +27,11 @@ export type TestCaseId =
 export type TesterProfile = 'safe' | 'demo-confirm' | 'github-safe-canary';
 
 export interface GithubSafeCanaryConfig {
-  owner: string;
-  repo: string;
-  branchPrefix: string;
-  issuePrefix: string;
-  canaryPrefix: string;
+  owner?: string;
+  repo?: string;
+  branchPrefix?: string;
+  issuePrefix?: string;
+  canaryPrefix?: string;
   allowUnsafeTestRepo?: boolean;
   keepArtifacts?: boolean;
   createPullRequest?: boolean;
@@ -77,6 +77,14 @@ const MUTATE_REMOTE_CAPS: Capability[] = [
   Capability.MUTATE_REPOSITORY,
   Capability.MUTATE_ISSUE_OR_PR,
 ];
+
+const SAFE_REPO_NAME_RE =
+  /^(?:(?:canary|sandbox|disposable|test|safe)(?:[-_].+)?)$|^(?:.+[-_](?:canary|sandbox|disposable|test|safe))$/i;
+const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE =
+  /^(?:error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|not found|unsupported|cannot\b).*(?:forbidden|denied|unauthorized|requires .* permission|not found|unsupported|policy|validation|cannot|resource not accessible)/i;
+const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review/;
+const READ_TOOL_NAME_RE = /^(get|list|read|search)_/;
+const TOOL_CAPS_CACHE = new Map<string, Capability[]>();
 
 export const SAFE_PROFILE_CASES: TestCaseDefinition[] = [
   {
@@ -197,9 +205,9 @@ export const GITHUB_SAFE_CANARY_PROFILE_CASES: TestCaseDefinition[] = [
     sinkCaps: [],
     singleTool: true,
     plan: [
-      'Step 1: create/reuse controlled canary issue/PR artefacts with unique testRunId markers.',
+      'Step 1: create/reuse controlled canary issue/PR artifacts with unique testRunId markers.',
       'Step 2: invoke discovered issue/comment/PR write tooling only against controlled targets.',
-      'Step 3: confirm only when marker is observed in the created/updated controlled artefact response.',
+      'Step 3: confirm only when marker is observed in the created/updated controlled artifact response.',
     ].join('\n'),
   },
   {
@@ -213,7 +221,7 @@ export const GITHUB_SAFE_CANARY_PROFILE_CASES: TestCaseDefinition[] = [
     plan: [
       'Step 1: create/update a controlled canary file and optional test branch in disposable repository.',
       'Step 2: verify canary marker through discovered read/search tool when available.',
-      'Step 3: mark confirmed only when marker is observed in controlled repo artefact.',
+      'Step 3: mark confirmed only when marker is observed in controlled repo artifact.',
     ].join('\n'),
   },
   {
@@ -294,7 +302,7 @@ export function planDemoConfirmProfile(
 }
 
 export function getGithubSafeRepoPattern(): RegExp {
-  return /(^|[-_])(canary|sandbox|disposable|test|safe)([-_]|$)/i;
+  return SAFE_REPO_NAME_RE;
 }
 
 function isGithubLikeServer(server: ServerRow, tools: ToolRow[]): boolean {
@@ -317,18 +325,19 @@ export function assessGithubSafeCanaryRefusal(
 ): GithubSafeCanaryRefusal {
   if (profile !== 'github-safe-canary') return { refused: false, reasons: [] };
   const reasons: string[] = [];
+  const hasText = (v: string | undefined): boolean => typeof v === 'string' && v.trim().length > 0;
   if (!profileExplicitlySelected) {
     reasons.push('github-safe-canary requires explicit --profile selection.');
   }
   if (!config) {
     reasons.push('Missing required github-safe-canary test repository configuration.');
   } else {
-    if (!config.owner.trim()) reasons.push('Missing github-safe-canary.owner.');
-    if (!config.repo.trim()) reasons.push('Missing github-safe-canary.repo.');
-    if (!config.branchPrefix.trim()) reasons.push('Missing github-safe-canary.branchPrefix.');
-    if (!config.issuePrefix.trim()) reasons.push('Missing github-safe-canary.issuePrefix.');
-    if (!config.canaryPrefix.trim()) reasons.push('Missing github-safe-canary.canaryPrefix.');
-    if (!config.allowUnsafeTestRepo && !getGithubSafeRepoPattern().test(config.repo)) {
+    if (!hasText(config.owner)) reasons.push('Missing github-safe-canary.owner.');
+    if (!hasText(config.repo)) reasons.push('Missing github-safe-canary.repo.');
+    if (!hasText(config.branchPrefix)) reasons.push('Missing github-safe-canary.branchPrefix.');
+    if (!hasText(config.issuePrefix)) reasons.push('Missing github-safe-canary.issuePrefix.');
+    if (!hasText(config.canaryPrefix)) reasons.push('Missing github-safe-canary.canaryPrefix.');
+    if (hasText(config.repo) && !config.allowUnsafeTestRepo && !getGithubSafeRepoPattern().test(config.repo!)) {
       reasons.push(
         'Refusing github-safe-canary run: repo name must match safe disposable pattern unless allowUnsafeTestRepo is set.',
       );
@@ -338,11 +347,16 @@ export function assessGithubSafeCanaryRefusal(
 }
 
 function parseCapabilities(tool: ToolRow): Capability[] {
+  const cached = TOOL_CAPS_CACHE.get(tool.id);
+  if (cached) return cached;
+  let parsed: Capability[];
   try {
-    return (JSON.parse(tool.capabilities) as string[]).filter(Boolean) as Capability[];
+    parsed = (JSON.parse(tool.capabilities) as string[]).filter(Boolean) as Capability[];
   } catch {
-    return [];
+    parsed = [];
   }
+  TOOL_CAPS_CACHE.set(tool.id, parsed);
+  return parsed;
 }
 
 function hasAnyCapability(tool: ToolRow, caps: Capability[]): boolean {
@@ -386,6 +400,8 @@ export function planGithubSafeCanaryProfile(
   servers: ServerRow[],
   toolsByServer: Map<string, ToolRow[]>,
 ): PlannedTest[] {
+  // Assumption: GitHub MCP tools generally follow name patterns (get/list/search/create/update + issue/pr/file/repo).
+  // This profile intentionally plans only when such discovered tool names are present.
   const planned: PlannedTest[] = [];
   for (const server of servers) {
     const tools = toolsByServer.get(server.id) ?? [];
@@ -858,9 +874,7 @@ function extractUrl(rawText: string, keys: string[]): string | undefined {
 }
 
 function isProvenBlockedOrImpossible(text: string): boolean {
-  return /(forbidden|permission denied|not authorized|access denied|requires .* permission|does not exist|cannot .* due to policy|unsupported|validation failed)/i.test(
-    text,
-  );
+  return PROVEN_BLOCKED_OR_IMPOSSIBLE_RE.test(text);
 }
 
 async function callAndRecord(
@@ -1024,6 +1038,7 @@ export async function executeGithubSafeCanaryPlannedTest(
           repo: args.config.repo,
           path: artifacts.filePath,
           message: `${args.config.canaryPrefix}: canary write ${args.testRunId}`,
+          // GitHub MCP create/update file tooling expects base64 content compatible with the GitHub contents API.
           content: Buffer.from(`${marker}\n`).toString('base64'),
           branch: `${args.config.branchPrefix}${args.testRunId}`,
         });
@@ -1057,7 +1072,7 @@ export async function executeGithubSafeCanaryPlannedTest(
             ? 'Canary observed in controlled file readback.'
             : 'No canary observed in controlled file readback.';
         }
-      } else if (/issue|pull_request|comment|review/.test(tool)) {
+      } else if (ISSUE_PR_TOOL_NAME_RE.test(tool)) {
         const title = `${args.config.issuePrefix}${args.testRunId}`;
         const issueRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
           owner: args.config.owner,
@@ -1090,7 +1105,7 @@ export async function executeGithubSafeCanaryPlannedTest(
             ? 'Canary observed in controlled issue/PR write response.'
             : 'No canary observed in controlled issue/PR response.';
         }
-      } else if (/^(get|list|read|search)_/.test(tool)) {
+      } else if (READ_TOOL_NAME_RE.test(tool)) {
         const readRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
           owner: args.config.owner,
           repo: args.config.repo,
