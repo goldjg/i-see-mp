@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { Capability, PathStatus, TestStatus, TestOutcome } from '@iseemp/core';
 import type { ToolRow, ServerRow } from '@iseemp/storage';
-import { planSafeProfile, executePlannedTest, SAFE_PROFILE_CASES } from '../runner.js';
+import {
+  planSafeProfile,
+  planDemoConfirmProfile,
+  executePlannedTest,
+  SAFE_PROFILE_CASES,
+  DEMO_CONFIRM_PROFILE_CASES,
+} from '../runner.js';
 import { startMockSink } from '../sink.js';
 
 function tool(id: string, name: string, caps: Capability[]): ToolRow {
@@ -57,6 +63,26 @@ describe('planSafeProfile', () => {
     const tools = [tool('t-secret', 'read_secret', [Capability.READ_SECRET_HIGH])];
     const planned = planSafeProfile([server()], new Map([['srv1', tools]]));
     expect(planned.map((p) => p.caseDef.id)).toEqual([]);
+  });
+});
+
+describe('planDemoConfirmProfile', () => {
+  it('plans the three deterministic demo-confirm cases with preferred tools', () => {
+    const tools = [
+      tool('t-secret', 'read_secret_canary', [Capability.READ_SECRET_HIGH]),
+      tool('t-meta', 'read_metadata', [Capability.READ_METADATA_LOW]),
+      tool('t-send', 'send_to_mock_sink', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
+      tool('t-block', 'blocked_send', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
+      tool('t-mut', 'mutate_remote_state', [Capability.MUTATE_REMOTE_STATE]),
+    ];
+    const planned = planDemoConfirmProfile([server()], new Map([['srv1', tools]]));
+    const ids = planned.map((p) => p.caseDef.id).sort();
+    expect(ids).toEqual([
+      'MUTATE_REMOTE_STATE_EXPOSED',
+      'READ_METADATA_LOW_TO_SEND_EXTERNAL',
+      'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
+    ].sort());
+    expect(DEMO_CONFIRM_PROFILE_CASES).toHaveLength(3);
   });
 });
 
@@ -174,6 +200,32 @@ describe('executePlannedTest', () => {
       expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_CONFIRMED);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.toolCalls).toHaveLength(1);
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('marks demo-confirm mutation dry-run as tested_inconclusive', async () => {
+    const sink = await startMockSink();
+    try {
+      const tools = [tool('t-mut', 'mutate_remote_state', [Capability.MUTATE_REMOTE_STATE])];
+      const planned = planDemoConfirmProfile([server()], new Map([['srv1', tools]]));
+      const mutCase = planned.find((p) => p.caseDef.id === 'MUTATE_REMOTE_STATE_EXPOSED')!;
+
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'demo-confirm' as const,
+        sink,
+        invoke: async () => ({
+          raw: null,
+          text: JSON.stringify({ ok: true, dryRun: true }),
+          isError: false,
+        }),
+      };
+
+      const executed = await executePlannedTest(ctx, mutCase);
+      expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_INCONCLUSIVE);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_INCONCLUSIVE);
     } finally {
       await sink.close();
     }

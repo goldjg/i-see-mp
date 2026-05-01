@@ -193,6 +193,7 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   // ---------- Low-sensitivity public metadata ----------
   // Public, low-risk metadata reads on remote SaaS (releases, tags, labels, public branches, ...)
   const lowMetadataPatterns = [
+    'read_metadata',
     'list_releases',
     'get_release',
     'get_latest_release',
@@ -259,6 +260,10 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   ];
   if (matchesAny(name, mutateIssuePrPatterns)) {
     caps.add(Capability.MUTATE_ISSUE_OR_PR);
+    caps.add(Capability.MUTATE_REMOTE_STATE);
+  }
+
+  if (matchesAny(name, ['mutate_remote_state', 'update_remote_state', 'modify_remote_state'])) {
     caps.add(Capability.MUTATE_REMOTE_STATE);
   }
 

@@ -103,6 +103,7 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
     const serverCapsArr = Array.from(allCaps);
     const hasServerHighSecret = hasAny(serverCapsArr, HIGH_SECRET_CAPS);
     const hasServerSensitiveMedium = serverCapsArr.includes(Capability.READ_SENSITIVE_MEDIUM);
+    const hasServerLowMetadata = serverCapsArr.includes(Capability.READ_METADATA_LOW);
     const hasServerLocalFile = serverCapsArr.includes(Capability.READ_LOCAL_FILE);
     const hasServerExternalSink = hasAny(serverCapsArr, EXTERNAL_SINK_CAPS);
     const hasServerExec = hasAny(serverCapsArr, EXEC_CAPS);
@@ -408,6 +409,46 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
                 sinkToolId: sinkTools[0].id,
                 serverId: server.id,
                 pathSummary: 'READ_SENSITIVE_MEDIUM -> MODEL_CONTEXT -> SEND_EXTERNAL',
+              })
+            : undefined,
+      });
+    }
+
+    // -------- Low-sensitivity metadata + external send --------
+    if (hasServerLowMetadata && hasServerExternalSink) {
+      const sourceTools = serverTools.filter((t) =>
+        parseCaps(t.capabilities).includes(Capability.READ_METADATA_LOW),
+      );
+      const sinkTools = serverTools.filter((t) =>
+        hasAny(parseCaps(t.capabilities), EXTERNAL_SINK_CAPS),
+      );
+      findings.push({
+        id: `finding:${collectionId}:chain:metadata_low_external:${server.id}`,
+        collectionId,
+        category: RiskCategory.DATA_EXFILTRATION,
+        severity: 'low',
+        title: `Low-sensitivity metadata can reach external-send tools on ${server.name}`,
+        description: `Server "${server.name}" exposes low-sensitivity metadata reads and external-send tools. This path is lower risk than secret/sensitive flows but is still relevant for deterministic path testing and trust-boundary review.`,
+        affectedNodeIds: [`server:${server.id}`],
+        remediationHint:
+          'Prefer explicit allow-lists for outbound destinations and avoid unnecessary metadata forwarding.',
+        createdAt: now,
+        confidence: Confidence.LOW,
+        staticPossible: true,
+        observed: false,
+        tested: false,
+        sourceCapabilities: [Capability.READ_METADATA_LOW],
+        sinkCapabilities: EXTERNAL_SINK_CAPS.filter((c) => serverCapsArr.includes(c)),
+        boundaryCrossed: boundary,
+        pathSummary: `READ_METADATA_LOW -> MODEL_CONTEXT -> SEND_EXTERNAL (${boundary})`,
+        candidatePathId:
+          sourceTools[0] && sinkTools[0]
+            ? makeCandidatePathId({
+                category: RiskCategory.DATA_EXFILTRATION,
+                sourceToolId: sourceTools[0].id,
+                sinkToolId: sinkTools[0].id,
+                serverId: server.id,
+                pathSummary: 'READ_METADATA_LOW -> MODEL_CONTEXT -> SEND_EXTERNAL',
               })
             : undefined,
       });

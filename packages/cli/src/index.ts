@@ -6,6 +6,9 @@ import { runTests } from '@iseemp/tester';
 import { buildServer } from '@iseemp/api';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
+import { writeFile, access } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { spawn } from 'node:child_process';
 
 const { values: args, positionals } = parseArgs({
   allowPositionals: true,
@@ -21,6 +24,7 @@ const { values: args, positionals } = parseArgs({
 });
 
 const command = positionals[0];
+const demoSubcommand = positionals[1];
 
 if (args.help || !command) {
   console.log(`
@@ -30,6 +34,9 @@ Usage:
   iseemp collect [options]              Enumerate MCP servers and persist inventory
   iseemp analyze [options]              Build graph and run findings rules
   iseemp test [options]                 Run deterministic path tests against a collection
+  iseemp demo up                        Build demo MCP fixture + write local demo config
+  iseemp demo collect [options]         Collect inventory from demo MCP fixture
+  iseemp demo test [options]            Run demo-confirm deterministic tests
   iseemp serve [options]                Start the web UI + API server
 
 Options:
@@ -38,7 +45,7 @@ Options:
   -d, --db <path>           SQLite database path (default: iseemp.db)
   -p, --port <n>            API server port (default: 7474)
   --collection <id>         Collection ID to analyze/test (default: latest)
-  --profile <name>          Test profile to run (default: safe)
+  --profile <name>          Test profile to run (default: safe; also: demo-confirm)
   -h, --help                Show this help message
 
 Examples:
@@ -47,12 +54,17 @@ Examples:
   iseemp collect --server http://localhost:3000/sse
   iseemp analyze
   iseemp test --profile safe
+  iseemp demo up
+  iseemp demo collect
+  iseemp demo test
   iseemp serve --port 7474
 `);
   process.exit(0);
 }
 
 const dbPath = args.db as string;
+const DEMO_CONFIG_PATH = 'iseemp.demo.config.json';
+const DEMO_SERVER_ENTRY = 'examples/demo-mcp-server/dist/index.js';
 
 if (command === 'collect') {
   try {
@@ -94,20 +106,24 @@ if (command === 'collect') {
   }
 } else if (command === 'test') {
   const profile = args.profile as string;
-  if (profile !== 'safe') {
-    console.error(`Unknown test profile: ${profile}. Supported: safe`);
+  if (profile !== 'safe' && profile !== 'demo-confirm') {
+    console.error(`Unknown test profile: ${profile}. Supported: safe, demo-confirm`);
     process.exit(1);
   }
   try {
     console.log(`🧪 Running deterministic test profile: ${profile}…`);
     const summary = await runTests({
       collectionId: args.collection as string | undefined,
-      profile: 'safe',
+      profile: profile as 'safe' | 'demo-confirm',
       dbPath,
     });
     if (summary.totalPlanned === 0) {
-      console.log('ℹ️  No tools matched any test case in the safe profile.');
-      console.log('   Add the canary-mcp fixture to your iseemp.config.json and re-run collect.');
+      console.log(`ℹ️  No tools matched any test case in the ${profile} profile.`);
+      if (profile === 'demo-confirm') {
+        console.log('   Run `iseemp demo up` then `iseemp demo collect` and retry.');
+      } else {
+        console.log('   Add the canary-mcp fixture to your iseemp.config.json and re-run collect.');
+      }
     } else {
       console.log(`\n✅ Test run complete:`);
       console.log(`  planned     : ${summary.totalPlanned}`);
@@ -126,6 +142,70 @@ if (command === 'collect') {
     process.exit(0);
   } catch (err) {
     console.error('❌ Tests failed:', err instanceof Error ? err.message : err);
+    process.exit(1);
+  }
+} else if (command === 'demo') {
+  if (demoSubcommand === 'up') {
+    try {
+      console.log('🧩 Building demo MCP fixture…');
+      await runShellCommand('pnpm', ['--filter', 'demo-mcp-server', 'build']);
+      const config = {
+        mcpServers: {
+          'demo-mcp-server': {
+            command: 'node',
+            args: [DEMO_SERVER_ENTRY],
+          },
+        },
+      };
+      await writeFile(DEMO_CONFIG_PATH, JSON.stringify(config, null, 2) + '\n', 'utf8');
+      console.log(`✅ Demo fixture ready. Wrote ${DEMO_CONFIG_PATH}`);
+      console.log('Next: `iseemp demo collect`, `iseemp analyze`, `iseemp demo test`, `iseemp serve`.');
+      process.exit(0);
+    } catch (err) {
+      console.error('❌ Demo setup failed:', err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  } else if (demoSubcommand === 'collect') {
+    try {
+      await assertDemoConfigExists();
+      console.log('🔍 Collecting from bundled demo MCP fixture…');
+      const collectionId = await collect({
+        configPath: DEMO_CONFIG_PATH,
+        dbPath,
+      });
+      console.log(`✅ Demo collection complete: ${collectionId}`);
+      console.log('Run `iseemp analyze` then `iseemp demo test`.');
+      process.exit(0);
+    } catch (err) {
+      console.error('❌ Demo collect failed:', err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  } else if (demoSubcommand === 'test') {
+    try {
+      console.log('🧪 Running deterministic test profile: demo-confirm…');
+      const summary = await runTests({
+        collectionId: args.collection as string | undefined,
+        profile: 'demo-confirm',
+        dbPath,
+      });
+      if (summary.totalPlanned === 0) {
+        console.log('ℹ️  No tools matched demo-confirm profile.');
+        console.log('   Run `iseemp demo up` then `iseemp demo collect`, then `iseemp analyze`.');
+      } else {
+        console.log(`\n✅ Demo test run complete:`);
+        console.log(`  planned     : ${summary.totalPlanned}`);
+        console.log(`  confirmed   : ${summary.confirmed}`);
+        console.log(`  rejected    : ${summary.rejected}`);
+        console.log(`  inconclusive: ${summary.inconclusive}`);
+      }
+      process.exit(0);
+    } catch (err) {
+      console.error('❌ Demo test failed:', err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
+  } else {
+    console.error(`Unknown demo command: ${demoSubcommand ?? '(none)'}`);
+    console.error('Supported demo commands: up, collect, test');
     process.exit(1);
   }
 } else if (command === 'serve') {
@@ -157,4 +237,23 @@ if (command === 'collect') {
   console.error(`Unknown command: ${command}`);
   console.error('Run `iseemp --help` for usage.');
   process.exit(1);
+}
+
+async function assertDemoConfigExists(): Promise<void> {
+  try {
+    await access(DEMO_CONFIG_PATH, constants.F_OK);
+  } catch {
+    throw new Error(`Missing ${DEMO_CONFIG_PATH}. Run \`iseemp demo up\` first.`);
+  }
+}
+
+function runShellCommand(cmd: string, cmdArgs: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, cmdArgs, { stdio: 'inherit', shell: process.platform === 'win32' });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${cmd} ${cmdArgs.join(' ')} exited with code ${code ?? 'unknown'}`));
+    });
+  });
 }

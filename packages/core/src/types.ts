@@ -90,6 +90,7 @@ export type PathStatus = (typeof PathStatus)[keyof typeof PathStatus];
 
 export const TestProfile = {
   SAFE: 'safe',
+  DEMO_CONFIRM: 'demo-confirm',
 } as const;
 export type TestProfile = (typeof TestProfile)[keyof typeof TestProfile];
 

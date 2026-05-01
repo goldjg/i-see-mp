@@ -13,6 +13,7 @@ ISeeMP (I See Model Paths) is a read-only static analyzer for [Model Context Pro
 - [Prerequisites](#prerequisites)
 - [Quickstart](#quickstart)
 - [End-to-end local demo (safe fixture)](#end-to-end-local-demo-safe-fixture)
+- [Run the demo](#run-the-demo)
 - [Web UI screenshots](#web-ui-screenshots)
 - [Architecture](#architecture)
 - [Capability model](#capability-model)
@@ -116,6 +117,27 @@ node packages/cli/dist/index.js collect --config iseemp.config.json
 node packages/cli/dist/index.js analyze
 node packages/cli/dist/index.js serve --port 7474
 ```
+
+## Run the demo
+
+Use the bundled deterministic demo fixture in `examples/demo-mcp-server`.
+
+```sh
+# Build demo fixture + write iseemp.demo.config.json
+iseemp demo up
+
+# Collect, analyze, test, and serve
+iseemp demo collect
+iseemp analyze
+iseemp demo test
+iseemp serve --port 7474
+```
+
+Expected demo-confirm tested outcomes:
+
+- `TESTED_CONFIRMED`: `READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL` (canary observed)
+- `TESTED_REJECTED`: `READ_METADATA_LOW -> MODEL_CONTEXT -> SEND_EXTERNAL` (blocked sink path)
+- `TESTED_INCONCLUSIVE`: `AGENT -> MUTATE_REMOTE_STATE` (dry-run mutation acknowledged only)
 
 ## Web UI screenshots
 
@@ -272,7 +294,10 @@ Config format (Claude Desktop compatible):
 ```text
 iseemp collect [--config <path>] [--server <url>] [--db <path>]
 iseemp analyze [--collection <id>] [--db <path>]
-iseemp test    [--collection <id>] [--profile safe] [--db <path>]
+iseemp test    [--collection <id>] [--profile safe|demo-confirm] [--db <path>]
+iseemp demo up
+iseemp demo collect [--db <path>]
+iseemp demo test [--collection <id>] [--db <path>]
 iseemp serve   [--port <n>] [--db <path>]
 iseemp --help
 ```
@@ -287,7 +312,10 @@ iseemp --help
   and `MUTATE_REMOTE_STATE` exposed). It uses a local-only mock webhook sink
   (no real external services), records redacted inputs/outputs as evidence,
   and updates findings to `tested_confirmed` / `tested_rejected` /
-  `tested_inconclusive`. A demo MCP fixture lives in `examples/canary-mcp`.
+  `tested_inconclusive`.
+- `demo up` — builds `examples/demo-mcp-server` and writes `iseemp.demo.config.json`
+- `demo collect` — runs collection against the bundled demo fixture config
+- `demo test` — runs `--profile demo-confirm` with deterministic confirmed/rejected/inconclusive outcomes
 - `serve` — starts Fastify API and serves web UI (if `apps/web/dist` exists)
 
 ### Testing the canary fixture end-to-end
