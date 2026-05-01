@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Capability, PathStatus, TestStatus } from '@iseemp/core';
+import { Capability, PathStatus, TestStatus, TestOutcome } from '@iseemp/core';
 import type { ToolRow, ServerRow } from '@iseemp/storage';
 import { planSafeProfile, executePlannedTest, SAFE_PROFILE_CASES } from '../runner.js';
 import { startMockSink } from '../sink.js';
@@ -50,6 +50,7 @@ describe('planSafeProfile', () => {
       'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
     ].sort());
     expect(SAFE_PROFILE_CASES).toHaveLength(3);
+    expect(planned.every((p) => !!p.candidatePathId)).toBe(true);
   });
 
   it('skips chain test cases when no sink tool exists', () => {
@@ -98,6 +99,7 @@ describe('executePlannedTest', () => {
 
       const executed = await executePlannedTest(ctx, secretCase!);
       expect(executed.testRun.status).toBe(TestStatus.CONFIRMED);
+      expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_CONFIRMED);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.canaryObserved).toBe(true);
       expect(executed.testRun.toolCalls).toHaveLength(2);
@@ -111,7 +113,7 @@ describe('executePlannedTest', () => {
     }
   });
 
-  it('marks tested_rejected when canary never reaches the sink', async () => {
+  it('marks tested_inconclusive when canary never reaches the sink', async () => {
     const sink = await startMockSink();
     try {
       const tools = [
@@ -142,7 +144,8 @@ describe('executePlannedTest', () => {
       };
 
       const executed = await executePlannedTest(ctx, metaCase);
-      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_REJECTED);
+      expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_INCONCLUSIVE);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_INCONCLUSIVE);
       expect(executed.testRun.canaryObserved).toBe(false);
     } finally {
       await sink.close();
@@ -168,6 +171,7 @@ describe('executePlannedTest', () => {
       };
 
       const executed = await executePlannedTest(ctx, mutCase);
+      expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_CONFIRMED);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.toolCalls).toHaveLength(1);
     } finally {

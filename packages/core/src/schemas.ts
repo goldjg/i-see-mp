@@ -9,6 +9,7 @@ import {
   PathStatus,
   TestProfile,
   TestStatus,
+  TestOutcome,
 } from './types.js';
 
 export const NodeTypeSchema = z.enum(
@@ -46,6 +47,10 @@ export const TestProfileSchema = z.enum(
 export const TestStatusSchema = z.enum(
   Object.values(TestStatus) as [string, ...string[]],
 ) as z.ZodEnum<[TestStatus, ...TestStatus[]]>;
+
+export const TestOutcomeSchema = z.enum(
+  Object.values(TestOutcome) as [string, ...string[]],
+) as z.ZodEnum<[TestOutcome, ...TestOutcome[]]>;
 
 export const McpToolSchema = z.object({
   name: z.string(),
@@ -133,6 +138,7 @@ export const FindingSchema = z.object({
   boundaryCrossed: TrustBoundarySchema.optional(),
   explanation: z.string().optional(),
   evidence: z.array(z.string()).optional(),
+  candidatePathId: z.string().optional(),
 });
 export type Finding = z.infer<typeof FindingSchema>;
 
@@ -168,13 +174,19 @@ export const TestRunSchema = z.object({
   testCaseId: z.string(),
   testCaseName: z.string(),
   findingId: z.string().optional(),
+  candidatePathId: z.string().optional(),
+  serverId: z.string().optional(),
+  sourceToolId: z.string().optional(),
+  sinkToolId: z.string().optional(),
   pathSummary: z.string().optional(),
   plan: z.string(),
   toolCalls: z.array(ToolCallSchema).default([]),
   canaryExpected: z.string().optional(),
   canaryObserved: z.boolean(),
+  outcome: TestOutcomeSchema,
   status: TestStatusSchema,
   pathStatus: PathStatusSchema,
+  timestamp: z.string().optional(),
   startedAt: z.string(),
   completedAt: z.string().optional(),
   notes: z.string().optional(),
@@ -184,7 +196,12 @@ export type TestRun = z.infer<typeof TestRunSchema>;
 export const EvidenceSchema = z.object({
   id: z.string(),
   testRunId: z.string(),
+  candidatePathId: z.string().optional(),
   type: z.string(),
+  stepIndex: z.number().optional(),
+  toolName: z.string().optional(),
+  redactedInput: z.record(z.unknown()).optional(),
+  redactedOutput: z.unknown().optional(),
   content: z.record(z.unknown()),
   createdAt: z.string(),
 });

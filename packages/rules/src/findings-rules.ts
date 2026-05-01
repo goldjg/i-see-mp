@@ -59,6 +59,23 @@ function hasAny(caps: Capability[], wanted: Capability[]): boolean {
   return wanted.some((w) => caps.includes(w));
 }
 
+function makeCandidatePathId(parts: {
+  category: string;
+  sourceToolId?: string;
+  sinkToolId?: string;
+  serverId: string;
+  pathSummary: string;
+}): string {
+  const cleanedPath = parts.pathSummary.replace(/\s+/g, ' ').trim();
+  return [
+    parts.category,
+    parts.sourceToolId ?? 'none',
+    parts.sinkToolId ?? 'none',
+    parts.serverId,
+    cleanedPath,
+  ].join('|');
+}
+
 export function runFindingsRules(context: FindingsContext): Finding[] {
   const { servers, tools, collectionId } = context;
   const findings: Finding[] = [];
@@ -251,6 +268,13 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
           sourceCapabilities: caps.filter((c) => MUTATE_REMOTE_CAPS.includes(c)),
           sinkCapabilities: [],
           boundaryCrossed: boundary,
+          pathSummary: 'AGENT -> MUTATE_REMOTE_STATE',
+          candidatePathId: makeCandidatePathId({
+            category: RiskCategory.PRIVILEGED_MUTATION,
+            sourceToolId: tool.id,
+            serverId: server.id,
+            pathSummary: 'AGENT -> MUTATE_REMOTE_STATE',
+          }),
         });
       }
 
@@ -336,11 +360,27 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         sinkCapabilities: EXTERNAL_SINK_CAPS.filter((c) => serverCapsArr.includes(c)),
         boundaryCrossed: boundary,
         pathSummary: `READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL (${boundary})`,
+        candidatePathId:
+          sourceTools[0] && sinkTools[0]
+            ? makeCandidatePathId({
+                category: RiskCategory.DATA_EXFILTRATION,
+                sourceToolId: sourceTools[0].id,
+                sinkToolId: sinkTools[0].id,
+                serverId: server.id,
+                pathSummary: 'READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL',
+              })
+            : undefined,
       });
     }
 
     // -------- Sensitive metadata + external send --------
     if (hasServerSensitiveMedium && hasServerExternalSink && !hasServerHighSecret) {
+      const sourceTools = serverTools.filter((t) =>
+        parseCaps(t.capabilities).includes(Capability.READ_SENSITIVE_MEDIUM),
+      );
+      const sinkTools = serverTools.filter((t) =>
+        hasAny(parseCaps(t.capabilities), EXTERNAL_SINK_CAPS),
+      );
       findings.push({
         id: `finding:${collectionId}:chain:sensitive_external:${server.id}`,
         collectionId,
@@ -360,6 +400,16 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         sinkCapabilities: EXTERNAL_SINK_CAPS.filter((c) => serverCapsArr.includes(c)),
         boundaryCrossed: boundary,
         pathSummary: `READ_SENSITIVE_MEDIUM -> MODEL_CONTEXT -> SEND_EXTERNAL (${boundary})`,
+        candidatePathId:
+          sourceTools[0] && sinkTools[0]
+            ? makeCandidatePathId({
+                category: RiskCategory.DATA_EXFILTRATION,
+                sourceToolId: sourceTools[0].id,
+                sinkToolId: sinkTools[0].id,
+                serverId: server.id,
+                pathSummary: 'READ_SENSITIVE_MEDIUM -> MODEL_CONTEXT -> SEND_EXTERNAL',
+              })
+            : undefined,
       });
     }
 

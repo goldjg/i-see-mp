@@ -1,4 +1,4 @@
-import { Capability, PathStatus, TestStatus } from '@iseemp/core';
+import { Capability, PathStatus, TestStatus, TestOutcome, RiskCategory } from '@iseemp/core';
 import type { ToolCall, TestRun, Evidence, Confidence } from '@iseemp/core';
 import type { ServerRow, ToolRow } from '@iseemp/storage';
 import type { ToolCallResult } from './mcp-runtime.js';
@@ -22,6 +22,7 @@ export type TestCaseId =
 export interface TestCaseDefinition {
   id: TestCaseId;
   name: string;
+  category: RiskCategory;
   pathSummary: string;
   /** Capabilities the source tool must have. */
   sourceCaps: Capability[];
@@ -55,6 +56,7 @@ export const SAFE_PROFILE_CASES: TestCaseDefinition[] = [
   {
     id: 'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
     name: 'Secret read → external send',
+    category: RiskCategory.DATA_EXFILTRATION,
     pathSummary: 'READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL',
     sourceCaps: HIGH_SECRET_CAPS,
     sinkCaps: EXTERNAL_SINK_CAPS,
@@ -62,12 +64,13 @@ export const SAFE_PROFILE_CASES: TestCaseDefinition[] = [
     plan: [
       'Step 1: invoke a credential/secret read tool to get a deterministic fake secret value.',
       'Step 2: invoke an external-send tool with the secret embedded in the payload, targeting the local mock sink.',
-      'Step 3: observe whether the local mock sink received the canary value (path tested_confirmed) or not (tested_rejected).',
+      'Step 3: observe whether the local mock sink received the canary value (path tested_confirmed) or treat as tested_inconclusive when sink reachability is unclear.',
     ].join('\n'),
   },
   {
     id: 'READ_SENSITIVE_MEDIUM_TO_SEND_EXTERNAL',
     name: 'Sensitive metadata → external send',
+    category: RiskCategory.DATA_EXFILTRATION,
     pathSummary: 'READ_SENSITIVE_MEDIUM -> MODEL_CONTEXT -> SEND_EXTERNAL',
     sourceCaps: [Capability.READ_SENSITIVE_MEDIUM],
     sinkCaps: EXTERNAL_SINK_CAPS,
@@ -75,12 +78,13 @@ export const SAFE_PROFILE_CASES: TestCaseDefinition[] = [
     plan: [
       'Step 1: invoke a sensitive-metadata read tool to fetch fake org/team data containing a canary marker.',
       'Step 2: invoke an external-send tool with that data, targeting the local mock sink.',
-      'Step 3: observe whether the canary marker appeared in the sink (tested_confirmed) or not (tested_rejected).',
+      'Step 3: observe whether the canary marker appeared in the sink (tested_confirmed) or mark tested_inconclusive when no marker is observed.',
     ].join('\n'),
   },
   {
     id: 'MUTATE_REMOTE_STATE_EXPOSED',
     name: 'Remote-state mutation tool exposed',
+    category: RiskCategory.PRIVILEGED_MUTATION,
     pathSummary: 'AGENT -> MUTATE_REMOTE_STATE',
     sourceCaps: MUTATE_REMOTE_CAPS,
     sinkCaps: [],
@@ -105,6 +109,24 @@ export interface PlannedTest {
   serverName: string;
   sourceTool?: ToolRow;
   sinkTool?: ToolRow;
+  candidatePathId: string;
+}
+
+export function makeCandidatePathId(parts: {
+  category: string;
+  sourceToolId?: string;
+  sinkToolId?: string;
+  serverId: string;
+  pathSummary: string;
+}): string {
+  const cleanedPath = parts.pathSummary.replace(/\s+/g, ' ').trim();
+  return [
+    parts.category,
+    parts.sourceToolId ?? 'none',
+    parts.sinkToolId ?? 'none',
+    parts.serverId,
+    cleanedPath,
+  ].join('|');
 }
 
 function toolHasAny(tool: ToolRow, caps: Capability[]): boolean {
@@ -139,6 +161,12 @@ export function planSafeProfile(
           serverId: server.id,
           serverName: server.name,
           sourceTool,
+          candidatePathId: makeCandidatePathId({
+            category: caseDef.category,
+            sourceToolId: sourceTool.id,
+            serverId: server.id,
+            pathSummary: caseDef.pathSummary,
+          }),
         });
         continue;
       }
@@ -150,6 +178,13 @@ export function planSafeProfile(
         serverName: server.name,
         sourceTool,
         sinkTool,
+        candidatePathId: makeCandidatePathId({
+          category: caseDef.category,
+          sourceToolId: sourceTool.id,
+          sinkToolId: sinkTool.id,
+          serverId: server.id,
+          pathSummary: caseDef.pathSummary,
+        }),
       });
     }
   }
@@ -218,14 +253,29 @@ export async function executePlannedTest(
   let canaryObserved = false;
   let canaryExpected: string | undefined;
   let status: TestStatus = TestStatus.RUNNING;
+  let outcome: TestOutcome = TestOutcome.TESTED_INCONCLUSIVE;
   let pathStatus: PathStatus = PathStatus.STATIC_POSSIBLE;
   let notes: string | undefined;
 
-  function recordEvidence(type: string, content: Record<string, unknown>): void {
+  function recordEvidence(
+    type: string,
+    content: Record<string, unknown>,
+    extra: {
+      stepIndex?: number;
+      toolName?: string;
+      redactedInput?: Record<string, unknown>;
+      redactedOutput?: unknown;
+    } = {},
+  ): void {
     evidence.push({
       id: newId('evidence'),
       testRunId,
+      candidatePathId: planned.candidatePathId,
       type,
+      stepIndex: extra.stepIndex,
+      toolName: extra.toolName,
+      redactedInput: extra.redactedInput,
+      redactedOutput: extra.redactedOutput,
       content,
       createdAt: new Date().toISOString(),
     });
@@ -266,12 +316,19 @@ export async function executePlannedTest(
         input: redactRecord(args),
         output: redactValue({ text: result.text, isError: result.isError }),
         durationMs,
+      }, {
+        stepIndex: 1,
+        toolName: planned.sourceTool.name,
+        redactedInput: redactRecord(args),
+        redactedOutput: redactValue({ text: result.text, isError: result.isError }),
       });
       if (result.isError) {
+        outcome = TestOutcome.TESTED_REJECTED;
         status = TestStatus.REJECTED;
         pathStatus = PathStatus.TESTED_REJECTED;
         notes = `Mutation tool errored: ${result.text}`;
       } else {
+        outcome = TestOutcome.TESTED_CONFIRMED;
         status = TestStatus.CONFIRMED;
         pathStatus = PathStatus.TESTED_CONFIRMED;
         canaryObserved = true; // The "canary" here is "the mutation call was accepted".
@@ -304,11 +361,17 @@ export async function executePlannedTest(
         tool: planned.sourceTool.name,
         input: redactRecord(sourceArgs),
         output: redactValue({ text: sourceResult.text, isError: sourceResult.isError }),
+      }, {
+        stepIndex: 1,
+        toolName: planned.sourceTool.name,
+        redactedInput: redactRecord(sourceArgs),
+        redactedOutput: redactValue({ text: sourceResult.text, isError: sourceResult.isError }),
       });
 
       if (sourceResult.isError) {
-        status = TestStatus.INCONCLUSIVE;
-        pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+        outcome = TestOutcome.TESTED_REJECTED;
+        status = TestStatus.REJECTED;
+        pathStatus = PathStatus.TESTED_REJECTED;
         notes = `Source tool errored: ${sourceResult.text}`;
       } else {
         // Embed the *raw* output (not redacted) into the sink payload so the
@@ -318,6 +381,7 @@ export async function executePlannedTest(
           // Source tool returned no CANARY- token — real/unexpected data.
           // Using a substring as a marker risks a false negative, so treat as inconclusive.
           status = TestStatus.INCONCLUSIVE;
+          outcome = TestOutcome.TESTED_INCONCLUSIVE;
           pathStatus = PathStatus.TESTED_INCONCLUSIVE;
           notes = 'Source tool response contained no CANARY- token; cannot reliably detect exfiltration. The tool may not support the canary fixture pattern.';
         } else {
@@ -340,29 +404,38 @@ export async function executePlannedTest(
             tool: planned.sinkTool.name,
             input: redactRecord(sinkArgs),
             output: redactValue({ text: sinkResult.text, isError: sinkResult.isError }),
+          }, {
+            stepIndex: 2,
+            toolName: planned.sinkTool.name,
+            redactedInput: redactRecord(sinkArgs),
+            redactedOutput: redactValue({ text: sinkResult.text, isError: sinkResult.isError }),
           });
 
           if (sinkResult.isError) {
-            status = TestStatus.INCONCLUSIVE;
-            pathStatus = PathStatus.TESTED_INCONCLUSIVE;
-            notes = `Sink tool errored — test inconclusive (tool may not accept generic url/payload params): ${sinkResult.text}`;
+            outcome = TestOutcome.TESTED_REJECTED;
+            status = TestStatus.REJECTED;
+            pathStatus = PathStatus.TESTED_REJECTED;
+            notes = `Sink tool errored and blocked path execution: ${sinkResult.text}`;
           } else {
             // Brief settle delay so the mock sink finishes recording.
             await sleep(25);
             canaryObserved = ctx.sink.observed(canaryMarker);
             if (canaryObserved) {
+              outcome = TestOutcome.TESTED_CONFIRMED;
               status = TestStatus.CONFIRMED;
               pathStatus = PathStatus.TESTED_CONFIRMED;
             } else {
-              status = TestStatus.REJECTED;
-              pathStatus = PathStatus.TESTED_REJECTED;
-              notes = 'Canary marker was not observed at the local mock sink.';
+              outcome = TestOutcome.TESTED_INCONCLUSIVE;
+              status = TestStatus.INCONCLUSIVE;
+              pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+              notes = 'Canary marker was not observed at the local mock sink; sink/tool behavior may be non-observable.';
             }
           }
         }
       }
     }
   } catch (err) {
+    outcome = TestOutcome.TEST_ERROR;
     status = TestStatus.ERROR;
     pathStatus = PathStatus.TESTED_INCONCLUSIVE;
     notes = err instanceof Error ? err.message : String(err);
@@ -371,6 +444,7 @@ export async function executePlannedTest(
 
   recordEvidence('outcome', {
     status,
+    outcome,
     pathStatus,
     canaryObserved,
     canaryExpected: canaryExpected ?? null,
@@ -383,12 +457,18 @@ export async function executePlannedTest(
     profile: ctx.profile,
     testCaseId: planned.caseDef.id,
     testCaseName: planned.caseDef.name,
+    candidatePathId: planned.candidatePathId,
+    serverId: planned.serverId,
+    sourceToolId: planned.sourceTool?.id,
+    sinkToolId: planned.sinkTool?.id,
     pathSummary: planned.caseDef.pathSummary,
     plan: planned.caseDef.plan,
     toolCalls,
     canaryObserved,
+    outcome,
     status,
     pathStatus,
+    timestamp: startedAt,
     startedAt,
     completedAt: new Date().toISOString(),
     ...(canaryExpected ? { canaryExpected } : {}),

@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type { TestRun, ToolCall, PathStatus, TestStatus, TestProfile } from '@iseemp/core';
+import type { TestRun, ToolCall, PathStatus, TestStatus, TestProfile, TestOutcome } from '@iseemp/core';
 
 export interface TestRunRow {
   id: string;
@@ -8,6 +8,11 @@ export interface TestRunRow {
   test_case_id: string;
   test_case_name: string;
   finding_id: string | null;
+  candidate_path_id: string | null;
+  server_id: string | null;
+  source_tool_id: string | null;
+  sink_tool_id: string | null;
+  outcome: string | null;
   path_summary: string | null;
   plan: string;
   tool_calls: string; // JSON
@@ -21,10 +26,18 @@ export interface TestRunRow {
 }
 
 const COLUMNS =
-  'id, collection_id, profile, test_case_id, test_case_name, finding_id, path_summary, plan, tool_calls, canary_expected, canary_observed, status, path_status, started_at, completed_at, notes';
-const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
+  'id, collection_id, profile, test_case_id, test_case_name, finding_id, candidate_path_id, server_id, source_tool_id, sink_tool_id, outcome, path_summary, plan, tool_calls, canary_expected, canary_observed, status, path_status, started_at, completed_at, notes';
+const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function rowToTestRun(r: TestRunRow): TestRun {
+  const outcome = (r.outcome ??
+    (r.path_status === 'tested_confirmed'
+      ? 'TESTED_CONFIRMED'
+      : r.path_status === 'tested_rejected'
+        ? 'TESTED_REJECTED'
+        : r.status === 'error'
+          ? 'TEST_ERROR'
+          : 'TESTED_INCONCLUSIVE')) as TestOutcome;
   const run: TestRun = {
     id: r.id,
     collectionId: r.collection_id,
@@ -34,15 +47,21 @@ function rowToTestRun(r: TestRunRow): TestRun {
     plan: r.plan,
     toolCalls: JSON.parse(r.tool_calls) as ToolCall[],
     canaryObserved: r.canary_observed === 1,
+    outcome,
     status: r.status as TestStatus,
     pathStatus: r.path_status as PathStatus,
     startedAt: r.started_at,
   };
   if (r.finding_id) run.findingId = r.finding_id;
+  if (r.candidate_path_id) run.candidatePathId = r.candidate_path_id;
+  if (r.server_id) run.serverId = r.server_id;
+  if (r.source_tool_id) run.sourceToolId = r.source_tool_id;
+  if (r.sink_tool_id) run.sinkToolId = r.sink_tool_id;
   if (r.path_summary) run.pathSummary = r.path_summary;
   if (r.canary_expected) run.canaryExpected = r.canary_expected;
   if (r.completed_at) run.completedAt = r.completed_at;
   if (r.notes) run.notes = r.notes;
+  run.timestamp = r.started_at;
   return run;
 }
 
@@ -54,6 +73,11 @@ export function testRunToRow(t: TestRun): TestRunRow {
     test_case_id: t.testCaseId,
     test_case_name: t.testCaseName,
     finding_id: t.findingId ?? null,
+    candidate_path_id: t.candidatePathId ?? null,
+    server_id: t.serverId ?? null,
+    source_tool_id: t.sourceToolId ?? null,
+    sink_tool_id: t.sinkToolId ?? null,
+    outcome: t.outcome ?? null,
     path_summary: t.pathSummary ?? null,
     plan: t.plan,
     tool_calls: JSON.stringify(t.toolCalls),
@@ -76,6 +100,11 @@ export function createTestRunsRepo(db: Database.Database) {
     r.test_case_id,
     r.test_case_name,
     r.finding_id,
+    r.candidate_path_id,
+    r.server_id,
+    r.source_tool_id,
+    r.sink_tool_id,
+    r.outcome,
     r.path_summary,
     r.plan,
     r.tool_calls,
@@ -112,6 +141,28 @@ export function createTestRunsRepo(db: Database.Database) {
       const rows = db
         .prepare(`SELECT * FROM test_runs WHERE finding_id=? ORDER BY started_at DESC`)
         .all(findingId) as TestRunRow[];
+      return rows.map(rowToTestRun);
+    },
+    getByFindingId(findingId: string): TestRun[] {
+      const directRows = db
+        .prepare(`SELECT * FROM test_runs WHERE finding_id=? ORDER BY started_at DESC`)
+        .all(findingId) as TestRunRow[];
+      if (directRows.length > 0) return directRows.map(rowToTestRun);
+      const byCandidateRows = db
+        .prepare(
+          `SELECT tr.* FROM test_runs tr
+           INNER JOIN findings f ON f.id=?
+           WHERE f.candidate_path_id IS NOT NULL
+             AND tr.candidate_path_id = f.candidate_path_id
+           ORDER BY tr.started_at DESC`,
+        )
+        .all(findingId) as TestRunRow[];
+      return byCandidateRows.map(rowToTestRun);
+    },
+    getByCandidatePathId(candidatePathId: string): TestRun[] {
+      const rows = db
+        .prepare(`SELECT * FROM test_runs WHERE candidate_path_id=? ORDER BY started_at DESC`)
+        .all(candidatePathId) as TestRunRow[];
       return rows.map(rowToTestRun);
     },
     deleteByCollection(collectionId: string): void {

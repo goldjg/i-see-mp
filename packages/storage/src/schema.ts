@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS findings (
   tested INTEGER,
   path_status TEXT,
   test_run_ids TEXT,
+  candidate_path_id TEXT,
   path_summary TEXT,
   source_capabilities TEXT,
   sink_capabilities TEXT,
@@ -113,6 +114,11 @@ CREATE TABLE IF NOT EXISTS test_runs (
   test_case_id TEXT NOT NULL,
   test_case_name TEXT NOT NULL,
   finding_id TEXT,
+  candidate_path_id TEXT,
+  server_id TEXT,
+  source_tool_id TEXT,
+  sink_tool_id TEXT,
+  outcome TEXT,
   path_summary TEXT,
   plan TEXT NOT NULL,
   tool_calls TEXT NOT NULL DEFAULT '[]',
@@ -128,7 +134,12 @@ CREATE TABLE IF NOT EXISTS test_runs (
 CREATE TABLE IF NOT EXISTS evidence (
   id TEXT PRIMARY KEY,
   test_run_id TEXT NOT NULL REFERENCES test_runs(id),
+  candidate_path_id TEXT,
   type TEXT NOT NULL,
+  step_index INTEGER,
+  tool_name TEXT,
+  redacted_input TEXT,
+  redacted_output TEXT,
   content TEXT NOT NULL,
   created_at TEXT NOT NULL
 );

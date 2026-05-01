@@ -103,6 +103,15 @@ export const TestStatus = {
 } as const;
 export type TestStatus = (typeof TestStatus)[keyof typeof TestStatus];
 
+export const TestOutcome = {
+  TESTED_CONFIRMED: 'TESTED_CONFIRMED',
+  TESTED_REJECTED: 'TESTED_REJECTED',
+  TESTED_INCONCLUSIVE: 'TESTED_INCONCLUSIVE',
+  TEST_SKIPPED: 'TEST_SKIPPED',
+  TEST_ERROR: 'TEST_ERROR',
+} as const;
+export type TestOutcome = (typeof TestOutcome)[keyof typeof TestOutcome];
+
 export const RiskCategory = {
   DATA_EXFILTRATION: 'DATA_EXFILTRATION',
   PRIVILEGED_MUTATION: 'PRIVILEGED_MUTATION',

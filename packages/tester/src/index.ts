@@ -12,7 +12,7 @@ import {
 } from '@iseemp/storage';
 import type { ServerRow, ToolRow } from '@iseemp/storage';
 import type { Finding, TestRun, Evidence } from '@iseemp/core';
-import { Confidence, PathStatus, RiskCategory } from '@iseemp/core';
+import { Confidence, PathStatus, RiskCategory, TestOutcome, TestStatus } from '@iseemp/core';
 import { startMockSink } from './sink.js';
 import {
   planSafeProfile,
@@ -104,7 +104,47 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
   try {
     for (const p of planned) {
       const conn = await ensureConnection(connected, servers, p);
-      if (!conn) { skipped++; continue; }
+      if (!conn) {
+        skipped++;
+        const startedAt = new Date().toISOString();
+        const testRunId = `testrun:skip:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
+        allTestRuns.push({
+          id: testRunId,
+          collectionId: col.id,
+          profile: 'safe',
+          testCaseId: p.caseDef.id,
+          testCaseName: p.caseDef.name,
+          candidatePathId: p.candidatePathId,
+          serverId: p.serverId,
+          sourceToolId: p.sourceTool?.id,
+          sinkToolId: p.sinkTool?.id,
+          pathSummary: p.caseDef.pathSummary,
+          plan: p.caseDef.plan,
+          toolCalls: [],
+          canaryObserved: false,
+          outcome: TestOutcome.TEST_SKIPPED,
+          status: TestStatus.INCONCLUSIVE,
+          pathStatus: PathStatus.TESTED_INCONCLUSIVE,
+          timestamp: startedAt,
+          startedAt,
+          completedAt: startedAt,
+          notes: 'Server connection failed; test skipped.',
+        });
+        allEvidence.push({
+          id: `evidence:skip:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
+          testRunId,
+          candidatePathId: p.candidatePathId,
+          type: 'skip',
+          content: {
+            reason: 'Server connection failed',
+            serverId: p.serverId,
+            sourceToolId: p.sourceTool?.id ?? null,
+            sinkToolId: p.sinkTool?.id ?? null,
+          },
+          createdAt: startedAt,
+        });
+        continue;
+      }
 
       const ctx = {
         collectionId: col.id,
@@ -135,11 +175,11 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
   evidenceRepo.insertMany(allEvidence.map(evidenceToRow));
 
   // Update findings based on results.
-  applyTestResultsToFindings(col.id, allTestRuns, planned, findingsRepo);
+  applyTestResultsToFindings(col.id, allTestRuns, findingsRepo);
 
-  const confirmed = allTestRuns.filter((r) => r.pathStatus === PathStatus.TESTED_CONFIRMED).length;
-  const rejected = allTestRuns.filter((r) => r.pathStatus === PathStatus.TESTED_REJECTED).length;
-  const inconclusive = allTestRuns.length - confirmed - rejected;
+  const confirmed = allTestRuns.filter((r) => r.outcome === TestOutcome.TESTED_CONFIRMED).length;
+  const rejected = allTestRuns.filter((r) => r.outcome === TestOutcome.TESTED_REJECTED).length;
+  const inconclusive = allTestRuns.filter((r) => r.outcome === TestOutcome.TESTED_INCONCLUSIVE || r.outcome === TestOutcome.TEST_ERROR).length;
 
   return {
     collectionId: col.id,
@@ -214,10 +254,9 @@ async function ensureConnection(
  *    pathStatus=tested_inconclusive.
  *  - static_possible (no test ran or no match): keep as-is.
  */
-function applyTestResultsToFindings(
+export function applyTestResultsToFindings(
   collectionId: string,
   testRuns: TestRun[],
-  planned: PlannedTest[],
   findingsRepo: ReturnType<typeof createFindingsRepo>,
 ): void {
   if (testRuns.length === 0) return;
@@ -225,7 +264,7 @@ function applyTestResultsToFindings(
 
   const updated: Finding[] = [];
   for (const finding of findings) {
-    const matched = matchRunsToFinding(finding, planned, testRuns);
+    const matched = matchRunsToFinding(finding, testRuns);
     if (matched.length === 0) continue;
     const newFinding = applyRunsToFinding(finding, matched);
     updated.push(newFinding);
@@ -236,12 +275,18 @@ function applyTestResultsToFindings(
   }
 }
 
-function matchRunsToFinding(
+export function matchRunsToFinding(
   finding: Finding,
-  planned: PlannedTest[],
   testRuns: TestRun[],
 ): TestRun[] {
-  // Match by category + server membership (affectedNodeIds includes server:<id>).
+  if (finding.candidatePathId) {
+    const deterministic = testRuns.filter(
+      (run) => run.candidatePathId && run.candidatePathId === finding.candidatePathId,
+    );
+    if (deterministic.length > 0) return deterministic;
+  }
+
+  // Fallback fuzzy matching by category + affected nodes.
   const targetServerIds = finding.affectedNodeIds
     .filter((n) => n.startsWith('server:'))
     .map((n) => n.slice('server:'.length));
@@ -250,17 +295,15 @@ function matchRunsToFinding(
     .map((n) => n.slice('tool:'.length));
 
   const out: TestRun[] = [];
-  for (let i = 0; i < testRuns.length; i++) {
-    const run = testRuns[i];
-    const plan = planned[i];
-    if (!run || !plan) continue;
+  for (const run of testRuns) {
+    if (run.candidatePathId) continue;
 
     const serverMatches =
-      targetServerIds.length === 0 || targetServerIds.includes(plan.serverId);
+      targetServerIds.length === 0 || (run.serverId ? targetServerIds.includes(run.serverId) : false);
     const toolMatches =
       targetToolIds.length === 0 ||
-      (plan.sourceTool && targetToolIds.includes(plan.sourceTool.id)) ||
-      (plan.sinkTool && targetToolIds.includes(plan.sinkTool.id));
+      (run.sourceToolId ? targetToolIds.includes(run.sourceToolId) : false) ||
+      (run.sinkToolId ? targetToolIds.includes(run.sinkToolId) : false);
 
     if (!serverMatches || !toolMatches) continue;
 
@@ -294,22 +337,25 @@ function categoryMatches(category: string, testCaseId: string): boolean {
 function stripTestExplanation(explanation: string | undefined): string | undefined {
   if (!explanation) return explanation;
   // Remove any lines previously appended by the test runner (they start with "Test ").
-  const lines = explanation.split('\n').filter((l) => !l.startsWith('Test '));
+  const lines = explanation.split('\n').filter((l) => !l.trimStart().startsWith('Test '));
   const trimmed = lines.join('\n').trimEnd();
   return trimmed || undefined;
 }
 
-function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
-  const confirmed = runs.find((r) => r.pathStatus === PathStatus.TESTED_CONFIRMED);
-  const rejected = runs.find((r) => r.pathStatus === PathStatus.TESTED_REJECTED);
+export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
+  const confirmed = runs.find((r) => r.outcome === TestOutcome.TESTED_CONFIRMED);
+  const rejected = runs.find((r) => r.outcome === TestOutcome.TESTED_REJECTED);
+  const inconclusive = runs.find((r) => r.outcome === TestOutcome.TESTED_INCONCLUSIVE || r.outcome === TestOutcome.TEST_ERROR);
+  const skipped = runs.find((r) => r.outcome === TestOutcome.TEST_SKIPPED);
   const baseExplanation = stripTestExplanation(finding.explanation);
   const next: Finding = {
     ...finding,
-    tested: true,
-    testRunIds: runs.map((r) => r.id),
+    testRunIds: Array.from(new Set(runs.map((r) => r.id))),
+    candidatePathId: finding.candidatePathId ?? runs[0]?.candidatePathId,
   };
 
   if (confirmed) {
+    next.tested = true;
     next.observed = true;
     next.pathStatus = PathStatus.TESTED_CONFIRMED;
     next.confidence = bumpConfidence(finding.confidence);
@@ -317,25 +363,31 @@ function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
     next.staticPossible = true;
     next.explanation = appendExplanation(
       baseExplanation,
-      `Test ${confirmed.testCaseId} confirmed this path: canary observed at the local mock sink (testRunId=${confirmed.id}).`,
+      'Test confirmed this path via canary observation.',
     );
   } else if (rejected) {
+    next.tested = true;
     next.observed = false;
     next.pathStatus = PathStatus.TESTED_REJECTED;
     next.confidence = Confidence.LOW;
     next.severity = downgradeSeverity(finding.severity);
     next.explanation = appendExplanation(
       baseExplanation,
-      `Test ${rejected.testCaseId} rejected this path: tool chain executed but canary was not observed (testRunId=${rejected.id}). Static finding downgraded.`,
+      'Test execution did not reach sink; path likely not viable.',
     );
-  } else {
+  } else if (inconclusive) {
+    next.tested = true;
     next.observed = false;
     next.pathStatus = PathStatus.TESTED_INCONCLUSIVE;
     next.confidence = downgradeConfidence(finding.confidence);
     next.explanation = appendExplanation(
       baseExplanation,
-      `Test attempted but inconclusive (no canary signal); confidence downgraded, severity intact.`,
+      'Test inconclusive; path not proven or disproven.',
     );
+  } else if (skipped) {
+    next.tested = false;
+    next.observed = false;
+    next.explanation = appendExplanation(baseExplanation, 'Test skipped due to unavailable execution environment.');
   }
 
   return next;
