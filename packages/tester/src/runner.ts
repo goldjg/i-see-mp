@@ -82,6 +82,7 @@ const SAFE_REPO_NAME_RE =
   /^(?:(?:canary|sandbox|disposable|test|safe)(?:[-_].+)?)$|^(?:.+[-_](?:canary|sandbox|disposable|test|safe))$/i;
 const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE =
   /^(?:error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|not found|unsupported|cannot\b).*(?:forbidden|denied|unauthorized|requires .* permission|not found|unsupported|policy|validation|cannot|resource not accessible)/i;
+const BRANCH_NOT_FOUND_RE = /resource not found:\s*branch\s.+not found|branch\s.+not found/i;
 const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review/;
 const READ_TOOL_NAME_RE = /^(get|list|read|search)_/;
 const TOOL_CAPS_CACHE = new Map<string, Capability[]>();
@@ -877,6 +878,20 @@ function isProvenBlockedOrImpossible(text: string): boolean {
   return PROVEN_BLOCKED_OR_IMPOSSIBLE_RE.test(text);
 }
 
+function isBranchNotFound(text: string): boolean {
+  return BRANCH_NOT_FOUND_RE.test(text);
+}
+
+function buildGithubSafeBranchName(branchPrefix: string, testRunId: string): string {
+  const raw = `${branchPrefix}${testRunId}`;
+  const sanitized = raw
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const fallback = branchPrefix.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+  return (sanitized || fallback || 'iseemp-canary').slice(0, 200);
+}
+
 async function callAndRecord(
   args: GithubSafeRunArgs,
   toolCalls: ToolCall[],
@@ -1033,15 +1048,23 @@ export async function executeGithubSafeCanaryPlannedTest(
     } else {
       const hasCreateOrUpdateFile = tool === 'create_or_update_file' || tool === 'push_files';
       if (hasCreateOrUpdateFile) {
-        const writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
+        const branchName = buildGithubSafeBranchName(args.config.branchPrefix ?? '', args.testRunId);
+        const writeInput = {
           owner: args.config.owner,
           repo: args.config.repo,
           path: artifacts.filePath,
           message: `${args.config.canaryPrefix}: canary write ${args.testRunId}`,
           // GitHub MCP create/update file tooling expects base64 content compatible with the GitHub contents API.
           content: Buffer.from(`${marker}\n`).toString('base64'),
-          branch: `${args.config.branchPrefix}${args.testRunId}`,
-        });
+          branch: branchName,
+        };
+        let writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
+        let usedDefaultBranchFallback = false;
+        if (writeRes.isError && isBranchNotFound(writeRes.text)) {
+          const { branch: _ignored, ...fallbackInput } = writeInput;
+          writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, fallbackInput);
+          usedDefaultBranchFallback = !writeRes.isError;
+        }
         if (writeRes.isError) {
           if (isProvenBlockedOrImpossible(writeRes.text)) {
             outcome = TestOutcome.TESTED_REJECTED;
@@ -1055,13 +1078,18 @@ export async function executeGithubSafeCanaryPlannedTest(
             notes = `Write path unproven: ${writeRes.text}`;
           }
         } else {
-          artifacts.branchName = `${args.config.branchPrefix}${args.testRunId}`;
-          const readBack = await args.ctx.invoke(args.planned.serverId, 'get_file_contents', {
+          if (!usedDefaultBranchFallback) {
+            artifacts.branchName = branchName;
+          }
+          const readBackInput: Record<string, unknown> = {
             owner: args.config.owner,
             repo: args.config.repo,
             path: artifacts.filePath,
-            ref: artifacts.branchName,
-          });
+          };
+          if (artifacts.branchName) {
+            readBackInput['ref'] = artifacts.branchName;
+          }
+          const readBack = await args.ctx.invoke(args.planned.serverId, 'get_file_contents', readBackInput);
           canaryObserved = !readBack.isError && readBack.text.includes(marker);
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
@@ -1069,8 +1097,12 @@ export async function executeGithubSafeCanaryPlannedTest(
             ? PathStatus.TESTED_CONFIRMED
             : PathStatus.TESTED_INCONCLUSIVE;
           notes = canaryObserved
-            ? 'Canary observed in controlled file readback.'
-            : 'No canary observed in controlled file readback.';
+            ? usedDefaultBranchFallback
+              ? 'Canary observed in controlled file readback after default-branch fallback.'
+              : 'Canary observed in controlled file readback.'
+            : usedDefaultBranchFallback
+              ? 'No canary observed in controlled file readback after default-branch fallback.'
+              : 'No canary observed in controlled file readback.';
         }
       } else if (ISSUE_PR_TOOL_NAME_RE.test(tool)) {
         const title = `${args.config.issuePrefix}${args.testRunId}`;

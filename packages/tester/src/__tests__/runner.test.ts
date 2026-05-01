@@ -7,6 +7,7 @@ import {
   planGithubSafeCanaryProfile,
   assessGithubSafeCanaryRefusal,
   executePlannedTest,
+  executeGithubSafeCanaryPlannedTest,
   SAFE_PROFILE_CASES,
   DEMO_CONFIRM_PROFILE_CASES,
   GITHUB_SAFE_CANARY_PROFILE_CASES,
@@ -273,6 +274,70 @@ describe('executePlannedTest', () => {
       const executed = await executePlannedTest(ctx, mutCase);
       expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_INCONCLUSIVE);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_INCONCLUSIVE);
+    } finally {
+      await sink.close();
+    }
+  });
+});
+
+describe('executeGithubSafeCanaryPlannedTest', () => {
+  it('sanitizes branch names and falls back to default branch when branch is missing', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const sink = await startMockSink();
+    try {
+      const createCalls: Record<string, unknown>[] = [];
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
+          if (toolName === 'create_or_update_file') {
+            createCalls.push(args);
+            if (createCalls.length === 1) {
+              return {
+                raw: null,
+                text: `MCP error -32603: Not Found: Resource not found: Branch ${String(args['branch'])} not found`,
+                isError: true,
+              };
+            }
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'get_file_contents') {
+            return {
+              raw: null,
+              text: 'ISEEMP-testrun:ghsafe:mone3a91:onlkq0',
+              isError: false,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: 'testrun:ghsafe:mone3a91:onlkq0',
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(createCalls).toHaveLength(2);
+      expect(String(createCalls[0]?.['branch'])).not.toContain(':');
+      expect(createCalls[1]?.['branch']).toBeUndefined();
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.notes).toContain('default-branch fallback');
     } finally {
       await sink.close();
     }
