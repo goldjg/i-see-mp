@@ -878,6 +878,44 @@ function isProvenBlockedOrImpossible(text: string): boolean {
   return PROVEN_BLOCKED_OR_IMPOSSIBLE_RE.test(text);
 }
 
+function responseContainsMarker(text: string, marker: string): boolean {
+  if (!text) return false;
+  if (text.includes(marker)) return true;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return valueContainsMarker(parsed, marker);
+  } catch {
+    return false;
+  }
+}
+
+function valueContainsMarker(value: unknown, marker: string): boolean {
+  if (typeof value === 'string') {
+    if (value.includes(marker)) return true;
+    if (/^[A-Za-z0-9+/=\r\n]+$/.test(value) && value.length >= 16) {
+      try {
+        const decoded = Buffer.from(value.replace(/\s+/g, ''), 'base64').toString('utf8');
+        if (decoded.includes(marker)) return true;
+      } catch {
+        // ignore invalid base64
+      }
+    }
+    return false;
+  }
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return value.some((v) => valueContainsMarker(v, marker));
+  const obj = value as Record<string, unknown>;
+  if (obj['encoding'] === 'base64' && typeof obj['content'] === 'string') {
+    try {
+      const decoded = Buffer.from(obj['content'].replace(/\s+/g, ''), 'base64').toString('utf8');
+      if (decoded.includes(marker)) return true;
+    } catch {
+      // ignore invalid base64
+    }
+  }
+  return Object.values(obj).some((v) => valueContainsMarker(v, marker));
+}
+
 function isBranchNotFound(text: string): boolean {
   return BRANCH_NOT_FOUND_RE.test(text);
 }
@@ -1119,7 +1157,7 @@ export async function executeGithubSafeCanaryPlannedTest(
             readBackInput['ref'] = artifacts.branchName;
           }
           const readBack = await args.ctx.invoke(args.planned.serverId, 'get_file_contents', readBackInput);
-          canaryObserved = !readBack.isError && readBack.text.includes(marker);
+          canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
           pathStatus = canaryObserved
@@ -1156,7 +1194,15 @@ export async function executeGithubSafeCanaryPlannedTest(
         } else {
           artifacts.issueNumber = extractNumber(issueRes.text, ['number', 'issue_number']);
           artifacts.issueUrl = extractUrl(issueRes.text, ['html_url', 'url']);
-          canaryObserved = issueRes.text.includes(marker);
+          canaryObserved = responseContainsMarker(issueRes.text, marker);
+          if (!canaryObserved && artifacts.issueNumber) {
+            const readIssueRes = await args.ctx.invoke(args.planned.serverId, 'get_issue', {
+              owner: args.config.owner,
+              repo: args.config.repo,
+              issue_number: artifacts.issueNumber,
+            });
+            canaryObserved = !readIssueRes.isError && responseContainsMarker(readIssueRes.text, marker);
+          }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
           pathStatus = canaryObserved
@@ -1167,6 +1213,17 @@ export async function executeGithubSafeCanaryPlannedTest(
             : 'No canary observed in controlled issue/PR response.';
         }
       } else if (READ_TOOL_NAME_RE.test(tool)) {
+        try {
+          await callAndRecord(args, toolCalls, evidence, step++, 'create_or_update_file', {
+            owner: args.config.owner,
+            repo: args.config.repo,
+            path: artifacts.filePath,
+            message: `${args.config.canaryPrefix}: canary seed ${args.testRunId}`,
+            content: Buffer.from(`${marker}\n`).toString('base64'),
+          });
+        } catch {
+          // best effort; not all read-only integrations expose mutation tooling
+        }
         const readRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
           owner: args.config.owner,
           repo: args.config.repo,
@@ -1184,7 +1241,15 @@ export async function executeGithubSafeCanaryPlannedTest(
               : PathStatus.TESTED_INCONCLUSIVE;
           notes = readRes.text;
         } else {
-          canaryObserved = readRes.text.includes(marker);
+          canaryObserved = responseContainsMarker(readRes.text, marker);
+          if (!canaryObserved) {
+            const readBack = await args.ctx.invoke(args.planned.serverId, 'get_file_contents', {
+              owner: args.config.owner,
+              repo: args.config.repo,
+              path: artifacts.filePath,
+            });
+            canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
+          }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
           pathStatus = canaryObserved
