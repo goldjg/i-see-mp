@@ -147,8 +147,13 @@ if (command === 'collect') {
 } else if (command === 'demo') {
   if (demoSubcommand === 'up') {
     try {
-      console.log('🧩 Building demo MCP fixture…');
-      await runShellCommand('pnpm', ['--filter', 'demo-mcp-server', 'build']);
+      const demoBuilt = await demoServerBuilt();
+      if (!demoBuilt) {
+        console.log('🧩 Building demo MCP fixture…');
+        await runShellCommand('pnpm', ['--filter', 'demo-mcp-server', 'build']);
+      } else {
+        console.log('🧩 Demo MCP fixture already built; reusing existing dist artifact.');
+      }
       const config = {
         mcpServers: {
           'demo-mcp-server': {
@@ -244,6 +249,16 @@ async function assertDemoConfigExists(): Promise<void> {
     await access(DEMO_CONFIG_PATH, constants.F_OK);
   } catch {
     throw new Error(`Missing ${DEMO_CONFIG_PATH}. Run \`iseemp demo up\` first.`);
+  }
+}
+
+/** Returns true when the demo MCP server entry artifact exists at DEMO_SERVER_ENTRY. */
+async function demoServerBuilt(): Promise<boolean> {
+  try {
+    await access(DEMO_SERVER_ENTRY, constants.F_OK);
+    return true;
+  } catch {
+    return false;
   }
 }
 

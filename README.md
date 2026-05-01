@@ -14,6 +14,7 @@ ISeeMP (I See Model Paths) is a read-only static analyzer for [Model Context Pro
 - [Quickstart](#quickstart)
 - [End-to-end local demo (safe fixture)](#end-to-end-local-demo-safe-fixture)
 - [Run the demo](#run-the-demo)
+- [Docker (local-first)](#docker-local-first)
 - [Web UI screenshots](#web-ui-screenshots)
 - [Architecture](#architecture)
 - [Capability model](#capability-model)
@@ -138,6 +139,38 @@ Expected demo-confirm tested outcomes:
 - `TESTED_CONFIRMED`: `READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL` (canary observed)
 - `TESTED_REJECTED`: `READ_METADATA_LOW -> MODEL_CONTEXT -> SEND_EXTERNAL` (blocked sink path)
 - `TESTED_INCONCLUSIVE`: `AGENT -> MUTATE_REMOTE_STATE` (dry-run mutation acknowledged only)
+
+## Docker (local-first)
+
+Run the API/UI/CLI fully local in Docker (no SaaS required for the deterministic demo).
+
+```sh
+# Build + start ISeeMP API/UI on http://localhost:7474
+docker compose up -d
+
+# Prepare bundled deterministic demo fixture config in-container
+docker compose exec iseemp iseemp demo up
+
+# Collect, analyze, and run deterministic demo tests
+docker compose exec iseemp iseemp demo collect
+docker compose exec iseemp iseemp analyze
+docker compose exec iseemp iseemp demo test
+```
+
+SQLite data is persisted in the named volume `iseemp_data` at `/data/iseemp.db`.
+
+Useful commands:
+
+```sh
+# Tail logs
+docker compose logs -f iseemp
+
+# Stop services
+docker compose down
+
+# Stop and remove DB volume
+docker compose down -v
+```
 
 ## Web UI screenshots
 
