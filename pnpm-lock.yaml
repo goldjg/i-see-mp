@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: ^9.0.0
         version: 9.39.4
+      '@iseemp/cli':
+        specifier: workspace:*
+        version: link:packages/cli
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.0.0
         version: 8.59.1(@typescript-eslint/parser@8.59.1(eslint@9.39.4)(typescript@5.9.3))(eslint@9.39.4)(typescript@5.9.3)
@@ -41,6 +44,9 @@ importers:
       '@fastify/static':
         specifier: ^7.0.0
         version: 7.0.4
+      '@iseemp/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@iseemp/graph':
         specifier: workspace:*
         version: link:../../packages/graph
@@ -126,6 +132,9 @@ importers:
       '@iseemp/collector':
         specifier: workspace:*
         version: link:../collector
+      '@iseemp/core':
+        specifier: workspace:*
+        version: link:../core
       '@iseemp/graph':
         specifier: workspace:*
         version: link:../graph
