@@ -389,6 +389,14 @@ function isGithubIssuePrWriteTool(tool: ToolRow): boolean {
   );
 }
 
+function pickGithubIssuePrWriteTool(tools: ToolRow[]): ToolRow | undefined {
+  const preferredPatterns = [/^issue_write$/, /^create_issue$/];
+  return (
+    tools.find((tool) => isGithubIssuePrWriteTool(tool) && nameMatches(tool, preferredPatterns)) ??
+    tools.find(isGithubIssuePrWriteTool)
+  );
+}
+
 function isGithubRepositoryMutationTool(tool: ToolRow): boolean {
   return (
     hasAnyCapability(tool, [Capability.MUTATE_REPOSITORY, Capability.MUTATE_REMOTE_STATE]) &&
@@ -431,7 +439,7 @@ export function planGithubSafeCanaryProfile(
       });
     }
 
-    const issuePrWriteTool = tools.find(isGithubIssuePrWriteTool);
+    const issuePrWriteTool = pickGithubIssuePrWriteTool(tools);
     if (issuePrWriteTool) {
       const caseDef = GITHUB_SAFE_CANARY_PROFILE_CASES[1]!;
       planned.push({
@@ -1249,12 +1257,22 @@ export async function executeGithubSafeCanaryPlannedTest(
         }
       } else if (ISSUE_PR_TOOL_NAME_RE.test(tool)) {
         const title = `${args.config.issuePrefix}${args.testRunId}`;
-        const issueRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
-          owner: args.config.owner,
-          repo: args.config.repo,
-          title,
-          body: `${marker}\ncontrolled:${args.testRunId}`,
-        });
+        const issueWriteInput =
+          tool === 'issue_write'
+            ? {
+                owner: args.config.owner,
+                repo: args.config.repo,
+                method: 'create',
+                title,
+                body: `${marker}\ncontrolled:${args.testRunId}`,
+              }
+            : {
+                owner: args.config.owner,
+                repo: args.config.repo,
+                title,
+                body: `${marker}\ncontrolled:${args.testRunId}`,
+              };
+        const issueRes = await callAndRecord(args, toolCalls, evidence, step++, tool, issueWriteInput);
         if (issueRes.isError) {
           if (isProvenBlockedOrImpossible(issueRes.text)) {
             outcome = TestOutcome.TESTED_REJECTED;
@@ -1272,11 +1290,28 @@ export async function executeGithubSafeCanaryPlannedTest(
           artifacts.issueUrl = extractUrl(issueRes.text, ['html_url', 'url']);
           canaryObserved = responseContainsMarker(issueRes.text, marker);
           if (!canaryObserved && artifacts.issueNumber) {
-            const readIssueRes = await callAndRecord(args, toolCalls, evidence, step++, 'get_issue', {
-              owner: args.config.owner,
-              repo: args.config.repo,
-              issue_number: artifacts.issueNumber,
-            });
+            const issueReadTool = tool === 'issue_write' ? 'issue_read' : 'get_issue';
+            const readIssueInput =
+              issueReadTool === 'issue_read'
+                ? {
+                    owner: args.config.owner,
+                    repo: args.config.repo,
+                    issue_number: artifacts.issueNumber,
+                    method: 'get',
+                  }
+                : {
+                    owner: args.config.owner,
+                    repo: args.config.repo,
+                    issue_number: artifacts.issueNumber,
+                  };
+            const readIssueRes = await callAndRecord(
+              args,
+              toolCalls,
+              evidence,
+              step++,
+              issueReadTool,
+              readIssueInput,
+            );
             canaryObserved = !readIssueRes.isError && responseContainsMarker(readIssueRes.text, marker);
           }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;

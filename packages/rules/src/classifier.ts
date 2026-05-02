@@ -233,6 +233,7 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   // ---------- Issue / PR / Comment / Review mutation ----------
   const mutateIssuePrPatterns = [
     'create_issue',
+    'issue_write',
     'update_issue',
     'close_issue',
     'reopen_issue',
@@ -261,6 +262,11 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   if (matchesAny(name, mutateIssuePrPatterns)) {
     caps.add(Capability.MUTATE_ISSUE_OR_PR);
     caps.add(Capability.MUTATE_REMOTE_STATE);
+  }
+
+  if (matchesAny(name, ['issue_read', 'pull_request_read'])) {
+    caps.add(Capability.QUERY_REMOTE_SYSTEM);
+    caps.add(Capability.READ_REMOTE_DATA);
   }
 
   if (matchesAny(name, ['mutate_remote_state', 'update_remote_state', 'modify_remote_state'])) {

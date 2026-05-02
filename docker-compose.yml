@@ -1,10 +1,27 @@
 services:
+  github-mcp:
+    image: ghcr.io/github/github-mcp-server
+    command: ["http", "--port", "8082"]
+    environment:
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN:-}
+      GITHUB_TOOLSETS: ${GITHUB_TOOLSETS:-all}
+      GITHUB_HOST: ${GITHUB_HOST:-}
+    expose:
+      - "8082"
+    restart: unless-stopped
+
   iseemp:
     build:
       context: .
       dockerfile: Dockerfile
     image: iseemp:local
     container_name: iseemp
+    depends_on:
+      - github-mcp
+    environment:
+      ISEEMP_DB: /data/iseemp.db
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN:-}
+      GITHUB_HOST: ${GITHUB_HOST:-}
     ports:
       - "7474:7474"
     volumes:

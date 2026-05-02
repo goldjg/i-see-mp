@@ -14,9 +14,9 @@
 #   2. `docker compose build --no-cache` to force a clean rebuild.
 #   3. `docker compose up -d` and waits for the API to be reachable.
 #   4. Writes an iseemp.config.json inside the container that wires up the
-#      official GitHub MCP server (@modelcontextprotocol/server-github) over
-#      stdio, with the host's GITHUB_PERSONAL_ACCESS_TOKEN injected into the
-#      child process environment via `docker compose exec -e`.
+#      official Go GitHub MCP server container (ghcr.io/github/github-mcp-server)
+#      over HTTP, with the host's GITHUB_PERSONAL_ACCESS_TOKEN injected into the
+#      iseemp process environment so the MCP client can forward it as a bearer token.
 #   5. Runs `iseemp collect`, `iseemp analyze`, and the github-safe-canary
 #      `iseemp test` profile against that collection.
 #
@@ -97,15 +97,32 @@ while :; do
   sleep 2
 done
 
+echo "▶ Waiting for github-mcp sidecar HTTP endpoint…"
+deadline=$(( $(date +%s) + READY_TIMEOUT ))
+while :; do
+  if "${DC[@]}" exec -T "$SERVICE" \
+      node -e "fetch('http://github-mcp:8082/.well-known/oauth-protected-resource').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))" \
+      >/dev/null 2>&1; then
+    echo "▶ github-mcp is ready."
+    break
+  fi
+  if (( $(date +%s) >= deadline )); then
+    echo "❌ Timed out waiting for the github-mcp sidecar to come up." >&2
+    "${DC[@]}" logs --tail=200 github-mcp >&2 || true
+    exit 1
+  fi
+  sleep 2
+done
+
 echo "▶ Writing GitHub MCP config to ${CONFIG_PATH_IN_CONTAINER} inside the container…"
-# The token is consumed by the spawned MCP child process at collect/test time
+# The token is consumed by the iseemp MCP HTTP client at collect/test time
 # (see -e injection below); we deliberately do NOT bake it into the on-disk config.
 "${DC[@]}" exec -T "$SERVICE" sh -c "cat > ${CONFIG_PATH_IN_CONTAINER}" <<'JSON'
 {
   "mcpServers": {
     "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"]
+      "url": "http://github-mcp:8082/",
+      "transport": "http"
     }
   }
 }

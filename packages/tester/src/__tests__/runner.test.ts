@@ -147,6 +147,17 @@ describe('github-safe-canary planning and refusal gates', () => {
     expect(repoCase?.sourceTool?.name).toBe('create_or_update_file');
   });
 
+  it('prefers issue creation tools over comment tools for controlled issue canaries', () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [
+      tool('t-comment', 'add_issue_comment', [Capability.MUTATE_ISSUE_OR_PR]),
+      tool('t-issue', 'issue_write', [Capability.MUTATE_ISSUE_OR_PR]),
+    ];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const issueCase = planned.find((p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT');
+    expect(issueCase?.sourceTool?.name).toBe('issue_write');
+  });
+
   it('prefers compatible repository/file read tools over issue-specific getters', () => {
     const githubSrv = { ...server(), name: 'github-mcp' };
     const githubTools = [
@@ -570,7 +581,7 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
 
   it('confirms issue-write case by reading issue body when write response omits marker', async () => {
     const githubSrv = { ...server(), name: 'github-mcp' };
-    const githubTools = [tool('t2', 'create_issue', [Capability.MUTATE_ISSUE_OR_PR])];
+    const githubTools = [tool('t2', 'issue_write', [Capability.MUTATE_ISSUE_OR_PR])];
     const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
     const issueCase = planned.find(
       (p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT',
@@ -582,20 +593,22 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
     const sink = await startMockSink();
     try {
       const toolCalls: string[] = [];
+      const callArgs: Array<Record<string, unknown>> = [];
       const ctx = {
         collectionId: 'col1',
         profile: 'github-safe-canary' as const,
         sink,
-        invoke: async (_serverId: string, toolName: string) => {
+        invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
           toolCalls.push(toolName);
-          if (toolName === 'create_issue') {
+          callArgs.push(args);
+          if (toolName === 'issue_write') {
             return {
               raw: null,
               text: JSON.stringify({ number: 123, html_url: 'https://github.com/goldjg/canary-sandbox/issues/123' }),
               isError: false,
             };
           }
-          if (toolName === 'get_issue') {
+          if (toolName === 'issue_read') {
             return {
               raw: null,
               text: JSON.stringify({ body: `controlled\n${marker}` }),
@@ -619,7 +632,8 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
         },
       });
 
-      expect(toolCalls).toContain('get_issue');
+      expect(callArgs[0]?.['method']).toBe('create');
+      expect(toolCalls).toContain('issue_read');
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
     } finally {
       await sink.close();
