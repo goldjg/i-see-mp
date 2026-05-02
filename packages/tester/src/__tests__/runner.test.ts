@@ -4,9 +4,13 @@ import type { ToolRow, ServerRow } from '@iseemp/storage';
 import {
   planSafeProfile,
   planDemoConfirmProfile,
+  planGithubSafeCanaryProfile,
+  assessGithubSafeCanaryRefusal,
   executePlannedTest,
+  executeGithubSafeCanaryPlannedTest,
   SAFE_PROFILE_CASES,
   DEMO_CONFIRM_PROFILE_CASES,
+  GITHUB_SAFE_CANARY_PROFILE_CASES,
 } from '../runner.js';
 import { startMockSink } from '../sink.js';
 
@@ -83,6 +87,75 @@ describe('planDemoConfirmProfile', () => {
       'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
     ].sort());
     expect(DEMO_CONFIRM_PROFILE_CASES).toHaveLength(3);
+  });
+});
+
+describe('github-safe-canary planning and refusal gates', () => {
+  it('refuses when explicit selection/config/safe-repo gates are not met', () => {
+    const refusal = assessGithubSafeCanaryRefusal('github-safe-canary', undefined, false);
+    expect(refusal.refused).toBe(true);
+    expect(refusal.reasons.length).toBeGreaterThan(0);
+  });
+
+  it('allows run when config is complete and repo matches safe pattern', () => {
+    const refusal = assessGithubSafeCanaryRefusal(
+      'github-safe-canary',
+      {
+        owner: 'octo-org',
+        repo: 'canary-sandbox',
+        branchPrefix: 'iseemp-',
+        issuePrefix: 'ISEEMP-',
+        canaryPrefix: 'ISEEMP',
+      },
+      true,
+    );
+    expect(refusal.refused).toBe(false);
+  });
+
+  it('plans only against github-like servers and discovered tool categories', () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const otherSrv = { ...server(), id: 'srv2', name: 'not-github', collection_id: 'col1' };
+    const githubTools = [
+      tool('t1', 'get_file_contents', [Capability.READ_REMOTE_DATA]),
+      tool('t2', 'create_issue', [Capability.MUTATE_ISSUE_OR_PR]),
+      tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY]),
+    ];
+    const nonGithubTools = [tool('x1', 'read_file', [Capability.READ_LOCAL_FILE])];
+    const planned = planGithubSafeCanaryProfile(
+      [githubSrv, otherSrv],
+      new Map([
+        ['srv1', githubTools],
+        ['srv2', nonGithubTools],
+      ]),
+    );
+    expect(planned.length).toBe(3);
+    expect(planned.every((p) => p.serverId === 'srv1')).toBe(true);
+    expect(GITHUB_SAFE_CANARY_PROFILE_CASES.length).toBe(4);
+  });
+
+  it('does not misclassify repository mutation tools as issue/pr write tools', () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [
+      tool('t-read', 'get_file_contents', [Capability.READ_REMOTE_DATA]),
+      tool('t-issue', 'create_issue', [Capability.MUTATE_ISSUE_OR_PR]),
+      tool('t-repo', 'create_or_update_file', [Capability.MUTATE_REMOTE_STATE]),
+    ];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const issueCase = planned.find((p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT');
+    const repoCase = planned.find((p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT');
+    expect(issueCase?.sourceTool?.name).toBe('create_issue');
+    expect(repoCase?.sourceTool?.name).toBe('create_or_update_file');
+  });
+
+  it('prefers compatible repository/file read tools over issue-specific getters', () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [
+      tool('t-issue-read', 'get_issue', [Capability.READ_REMOTE_DATA]),
+      tool('t-file-read', 'get_file_contents', [Capability.READ_REMOTE_DATA]),
+    ];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const readCase = planned.find((p) => p.caseDef.id === 'GITHUB_READ_CONTROLLED_ARTIFACT');
+    expect(readCase?.sourceTool?.name).toBe('get_file_contents');
   });
 });
 
@@ -226,6 +299,328 @@ describe('executePlannedTest', () => {
       const executed = await executePlannedTest(ctx, mutCase);
       expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_INCONCLUSIVE);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_INCONCLUSIVE);
+    } finally {
+      await sink.close();
+    }
+  });
+});
+
+describe('executeGithubSafeCanaryPlannedTest', () => {
+  it('sanitizes branch names and creates the missing branch before retrying create_or_update_file', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const sink = await startMockSink();
+    try {
+      const createCalls: Record<string, unknown>[] = [];
+      const createBranchCalls: Record<string, unknown>[] = [];
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
+          if (toolName === 'create_or_update_file') {
+            createCalls.push(args);
+            if (createCalls.length === 1) {
+              return {
+                raw: null,
+                text: `MCP error -32603: Not Found: Resource not found: Branch ${String(args['branch'])} not found`,
+                isError: true,
+              };
+            }
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'create_branch') {
+            createBranchCalls.push(args);
+            return { raw: null, text: JSON.stringify({ ref: args['branch'] }), isError: false };
+          }
+          if (toolName === 'get_file_contents') {
+            // Mirrors github-mcp-server's actual `get_file_contents` response shape:
+            // a plain-text status line concatenated with the file body encoded as base64.
+            const encoded = Buffer.from('ISEEMP-testrun:ghsafe:mone3a91:onlkq0\n').toString(
+              'base64',
+            );
+            return {
+              raw: null,
+              text: `successfully downloaded text file (SHA: deadbeef)${encoded}`,
+              isError: false,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: 'testrun:ghsafe:mone3a91:onlkq0',
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(createCalls).toHaveLength(2);
+      expect(String(createCalls[0]?.['branch'])).not.toContain(':');
+      // After branch-not-found, we must NOT retry without branch (the GitHub MCP
+      // create_or_update_file schema requires `branch`); instead we create the branch first.
+      expect(typeof createCalls[1]?.['branch']).toBe('string');
+      expect(createCalls[1]?.['branch']).toBe(createCalls[0]?.['branch']);
+      expect(createBranchCalls).toHaveLength(1);
+      expect(createBranchCalls[0]?.['branch']).toBe(createCalls[0]?.['branch']);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.notes).toContain('creating missing branch');
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('handles thrown branch-not-found errors and still creates the missing branch before retrying', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const sink = await startMockSink();
+    try {
+      let createCalls = 0;
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string) => {
+          if (toolName === 'create_or_update_file') {
+            createCalls += 1;
+            if (createCalls === 1) {
+              throw new Error(
+                'MCP error -32603: Not Found: Resource not found: Branch iseemp-canary-branch not found',
+              );
+            }
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'get_file_contents') {
+            return {
+              raw: null,
+              text: 'ISEEMP-testrun:ghsafe:monethrw:ab12cd',
+              isError: false,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: 'testrun:ghsafe:monethrw:ab12cd',
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(createCalls).toBe(2);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.outcome).not.toBe(TestOutcome.TEST_ERROR);
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('creates a missing branch and retries push_files without branchless fallback', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'push_files', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const sink = await startMockSink();
+    try {
+      const pushCalls: Record<string, unknown>[] = [];
+      const createBranchCalls: Record<string, unknown>[] = [];
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
+          if (toolName === 'push_files') {
+            pushCalls.push(args);
+            if (pushCalls.length === 1) {
+              return {
+                raw: null,
+                text: `MCP error -32603: Not Found: Resource not found: Branch ${String(args['branch'])} not found`,
+                isError: true,
+              };
+            }
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'create_branch') {
+            createBranchCalls.push(args);
+            return {
+              raw: null,
+              text: JSON.stringify({ ok: true }),
+              isError: false,
+            };
+          }
+          if (toolName === 'get_file_contents') {
+            return {
+              raw: null,
+              text: 'ISEEMP-testrun:ghsafe:pushf:abc123',
+              isError: false,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: 'testrun:ghsafe:pushf:abc123',
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(pushCalls).toHaveLength(2);
+      expect(createBranchCalls).toHaveLength(1);
+      expect(typeof pushCalls[0]?.['branch']).toBe('string');
+      expect((pushCalls[0]?.['branch'] as string).trim().length).toBeGreaterThan(0);
+      expect(createBranchCalls[0]?.['branch']).toBe(pushCalls[0]?.['branch']);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.notes).toContain('Canary observed');
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('confirms repo mutation when file readback returns base64 content payload', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const runId = 'testrun:ghsafe:mono1234:abcd12';
+    const marker = `ISEEMP-${runId}`;
+    const sink = await startMockSink();
+    try {
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string) => {
+          if (toolName === 'create_or_update_file') {
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'get_file_contents') {
+            return {
+              raw: null,
+              text: JSON.stringify({
+                encoding: 'base64',
+                content: Buffer.from(`${marker}\n`, 'utf8').toString('base64'),
+              }),
+              isError: false,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: runId,
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('confirms issue-write case by reading issue body when write response omits marker', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t2', 'create_issue', [Capability.MUTATE_ISSUE_OR_PR])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const issueCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT',
+    );
+    expect(issueCase).toBeDefined();
+
+    const runId = 'testrun:ghsafe:mono1234:efgh56';
+    const marker = `ISEEMP-${runId}`;
+    const sink = await startMockSink();
+    try {
+      const toolCalls: string[] = [];
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string) => {
+          toolCalls.push(toolName);
+          if (toolName === 'create_issue') {
+            return {
+              raw: null,
+              text: JSON.stringify({ number: 123, html_url: 'https://github.com/goldjg/canary-sandbox/issues/123' }),
+              isError: false,
+            };
+          }
+          if (toolName === 'get_issue') {
+            return {
+              raw: null,
+              text: JSON.stringify({ body: `controlled\n${marker}` }),
+              isError: false,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: issueCase!,
+        testRunId: runId,
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(toolCalls).toContain('get_issue');
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
     } finally {
       await sink.close();
     }

@@ -327,7 +327,7 @@ Config format (Claude Desktop compatible):
 ```text
 iseemp collect [--config <path>] [--server <url>] [--db <path>]
 iseemp analyze [--collection <id>] [--db <path>]
-iseemp test    [--collection <id>] [--profile safe|demo-confirm] [--db <path>]
+iseemp test    [--collection <id>] [--profile safe|demo-confirm|github-safe-canary] [--db <path>]
 iseemp demo up
 iseemp demo collect [--db <path>]
 iseemp demo test [--collection <id>] [--db <path>]
@@ -346,6 +346,11 @@ iseemp --help
   (no real external services), records redacted inputs/outputs as evidence,
   and updates findings to `tested_confirmed` / `tested_rejected` /
   `tested_inconclusive`.
+- `test --profile github-safe-canary` — runs high-fidelity controlled tests
+  **only** on GitHub/GitHub MCP servers using a disposable repository.
+  This profile performs controlled writes (canary file/issue and optional branch/PR),
+  requires explicit repo config flags, refuses unsafe repo names by default, and
+  stores full redacted evidence + cleanup status.
 - `demo up` — builds `examples/demo-mcp-server` and writes `iseemp.demo.config.json`
 - `demo collect` — runs collection against the bundled demo fixture config
 - `demo test` — runs `--profile demo-confirm` with deterministic confirmed/rejected/inconclusive outcomes
@@ -366,6 +371,38 @@ EOF
 
 iseemp collect && iseemp analyze && iseemp test --profile safe
 ```
+
+### GitHub high-fidelity safe-canary profile
+
+> ⚠️ `github-safe-canary` performs controlled writes to a **disposable** GitHub repository.
+> Do not point it at production repositories.
+
+Required permissions for the GitHub MCP token should include the minimum needed to:
+
+- read repository contents/metadata
+- create/update/delete test files/branches
+- create/update/close test issues (and PRs only if you enable optional PR creation)
+
+Example:
+
+```bash
+iseemp collect --config iseemp.config.json
+iseemp analyze
+iseemp test \
+  --profile github-safe-canary \
+  --test-repo-owner octo-org \
+  --test-repo-name canary-sandbox \
+  --test-branch-prefix iseemp-canary- \
+  --test-issue-prefix ISEEMP-CANARY- \
+  --test-canary-prefix ISEEMP-CANARY
+```
+
+Expected outcomes in this profile:
+
+- `TESTED_CONFIRMED` only when the unique canary marker is observed in expected controlled artifacts
+- `TESTED_REJECTED` only when execution is proven blocked/impossible
+- `TESTED_INCONCLUSIVE` when marker is absent without proof of blockage
+- `TEST_SKIPPED` when required permissions/tools are missing
 
 ## HTTP API reference
 
@@ -456,7 +493,8 @@ examples/safe-mcp     Deterministic MCP fixture with known tools
 
 ## Safety notes
 
-- ISeeMP **never executes MCP tools** in MVP mode.
+- Static analysis remains read-only by default (`collect`/`analyze` and `safe` profile).
+- `github-safe-canary` is an explicit opt-in profile that performs controlled writes to disposable GitHub artifacts.
 - Secrets in config env vars are **redacted** before storage.
 - SQLite database is local; no automatic outbound data export.
 - Remote collection uses metadata endpoints only (`listTools`, `listResources`, `listPrompts`).
