@@ -69,11 +69,28 @@ export async function callTool(
 ): Promise<ToolCallResult> {
   const res = await client.callTool({ name: toolName, arguments: args });
   const isError = (res as { isError?: boolean }).isError === true;
-  const content = (res as { content?: Array<{ type: string; text?: string }> }).content ?? [];
-  const text = content
-    .map((c) => (typeof c.text === 'string' ? c.text : JSON.stringify(c)))
-    .join('\n');
+  const text = extractToolResultText(res);
   return { raw: res, text, isError };
+}
+
+function extractToolResultText(res: unknown): string {
+  if (!res || typeof res !== 'object') return '';
+  const result = res as {
+    content?: Array<{ type?: string; text?: string }>;
+    structuredContent?: unknown;
+  };
+  const parts: string[] = [];
+  for (const item of result.content ?? []) {
+    if (typeof item?.text === 'string') {
+      parts.push(item.text);
+    } else {
+      parts.push(JSON.stringify(item));
+    }
+  }
+  if (typeof result.structuredContent !== 'undefined') {
+    parts.push(JSON.stringify(result.structuredContent));
+  }
+  return parts.filter((part) => part.length > 0).join('\n');
 }
 
 function buildRemoteRequestInit(env: Record<string, string> | undefined): RequestInit | undefined {

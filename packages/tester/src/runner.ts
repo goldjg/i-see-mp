@@ -1016,6 +1016,26 @@ function buildGithubControlledFileReadInput(
   return input;
 }
 
+async function readGithubIssueCanaryWithRetry(
+  args: GithubSafeRunArgs,
+  toolCalls: ToolCall[],
+  evidence: Evidence[],
+  step: number,
+  toolName: string,
+  input: Record<string, unknown>,
+  marker: string,
+): Promise<{ result: ToolCallResult; observed: boolean; nextStep: number }> {
+  let currentStep = step;
+  let result = await callAndRecord(args, toolCalls, evidence, currentStep++, toolName, input);
+  let observed = !result.isError && responseContainsMarker(result.text, marker);
+  if (!observed) {
+    await sleep(750);
+    result = await callAndRecord(args, toolCalls, evidence, currentStep++, toolName, input);
+    observed = !result.isError && responseContainsMarker(result.text, marker);
+  }
+  return { result, observed, nextStep: currentStep };
+}
+
 async function callAndRecord(
   args: GithubSafeRunArgs,
   toolCalls: ToolCall[],
@@ -1303,15 +1323,17 @@ export async function executeGithubSafeCanaryPlannedTest(
             if (issueReadTool === 'issue_read') {
               readIssueInput['method'] = 'get';
             }
-            const readIssueRes = await callAndRecord(
+            const readIssue = await readGithubIssueCanaryWithRetry(
               args,
               toolCalls,
               evidence,
-              step++,
+              step,
               issueReadTool,
               readIssueInput,
+              marker,
             );
-            canaryObserved = !readIssueRes.isError && responseContainsMarker(readIssueRes.text, marker);
+            step = readIssue.nextStep;
+            canaryObserved = readIssue.observed;
           }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
@@ -1320,7 +1342,7 @@ export async function executeGithubSafeCanaryPlannedTest(
             : PathStatus.TESTED_INCONCLUSIVE;
           notes = canaryObserved
             ? 'Canary observed in controlled issue/PR write response.'
-            : 'No canary observed in controlled issue/PR response.';
+            : 'No canary observed in controlled issue/PR response after readback retry.';
         }
       } else if (READ_TOOL_NAME_RE.test(tool)) {
         // github-mcp-server's create_or_update_file requires `branch`; without it the seed
