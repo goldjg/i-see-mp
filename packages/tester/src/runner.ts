@@ -1217,7 +1217,12 @@ export async function executeGithubSafeCanaryPlannedTest(
             path: artifacts.filePath,
           };
           if (artifacts.branchName) {
+            // The Go `github-mcp-server` reads the per-branch contents via `ref`, while the
+            // legacy npm `@modelcontextprotocol/server-github` accepts only `branch` and
+            // silently strips `ref`. Send both so readback targets the canary branch on
+            // either server variant; each strips the key it doesn't recognize.
             readBackInput['ref'] = artifacts.branchName;
+            readBackInput['branch'] = artifacts.branchName;
           }
           let readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
           canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
@@ -1340,7 +1345,10 @@ export async function executeGithubSafeCanaryPlannedTest(
               path: artifacts.filePath,
             };
             if (artifacts.branchName) {
+              // See note on the repository-mutation readback above: the Go server uses
+              // `ref` and the legacy npm server uses `branch`; sending both is safe.
               readBackInput['ref'] = artifacts.branchName;
+              readBackInput['branch'] = artifacts.branchName;
             }
             const readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
             canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
