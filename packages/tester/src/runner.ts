@@ -1219,8 +1219,16 @@ export async function executeGithubSafeCanaryPlannedTest(
           if (artifacts.branchName) {
             readBackInput['ref'] = artifacts.branchName;
           }
-          const readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
+          let readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
           canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
+          // The write succeeded but GitHub's contents API can briefly lag behind a fresh
+          // commit; do one short retry with a small backoff before declaring inconclusive
+          // so eventual-consistency doesn't masquerade as a missing canary.
+          if (!canaryObserved) {
+            await sleep(750);
+            readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
+            canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
+          }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
           pathStatus = canaryObserved
