@@ -100,6 +100,16 @@ const SEVERITY_RANK: Record<Finding['severity'], number> = {
   high: 3,
   critical: 4,
 };
+const HIGH_SIGNAL_SUBSUMING_CATEGORIES = new Set<Finding['category']>([
+  RiskCategory.CODE_EXECUTION,
+  RiskCategory.PRIVILEGED_MUTATION,
+  RiskCategory.DATA_EXFILTRATION,
+  RiskCategory.SENSITIVE_DATA_EXPOSURE,
+]);
+const REMOTE_QUERY_SUPPRESSOR_CATEGORIES = new Set<Finding['category']>([
+  RiskCategory.DATA_EXFILTRATION,
+  RiskCategory.PRIVILEGED_MUTATION,
+]);
 
 function extractServerId(finding: Finding): string | undefined {
   return finding.affectedNodeIds.find((id) => id.startsWith('server:'))?.slice('server:'.length);
@@ -145,7 +155,7 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
     for (const candidate of sorted) {
       if (candidate.id === target.id) continue;
       if (candidate.category === RiskCategory.DANGEROUS_TOOL_CHAIN) continue;
-      if (candidate.category === RiskCategory.CODE_EXECUTION || candidate.category === RiskCategory.PRIVILEGED_MUTATION || candidate.category === RiskCategory.DATA_EXFILTRATION || candidate.category === RiskCategory.SENSITIVE_DATA_EXPOSURE) {
+      if (HIGH_SIGNAL_SUBSUMING_CATEGORIES.has(candidate.category)) {
         const higherSeverity = SEVERITY_RANK[candidate.severity] > SEVERITY_RANK[target.severity];
         if (!higherSeverity) continue;
         if (targetTools.some((toolId) => findingHasTool(candidate, toolId))) {
@@ -164,10 +174,7 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
 
     const hasHigherSignal = sorted.some((candidate) => {
       if (candidate.id === target.id) return false;
-      if (
-        candidate.category !== RiskCategory.DATA_EXFILTRATION &&
-        candidate.category !== RiskCategory.PRIVILEGED_MUTATION
-      ) {
+      if (!REMOTE_QUERY_SUPPRESSOR_CATEGORIES.has(candidate.category)) {
         return false;
       }
       if (!findingHasServer(candidate, serverId)) return false;
