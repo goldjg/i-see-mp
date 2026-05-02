@@ -1174,8 +1174,10 @@ export async function executeGithubSafeCanaryPlannedTest(
         let branchCreationFailure: string | undefined;
         // Both create_or_update_file and push_files require `branch` per GitHub MCP schema,
         // so a branchless retry is invalid (the server rejects it with a Zod
-        // "received undefined" error). When the branch is missing we create it off the repo's
-        // default branch and retry the same write tool with the original branch-bound input.
+        // "received undefined" error). When the branch is missing we ask the server to create
+        // it (the GitHub MCP `create_branch` tool defaults the source ref to the repository's
+        // default branch when none is provided) and retry the same write tool with the
+        // original branch-bound input.
         if (writeRes.isError && isBranchNotFound(writeRes.text)) {
           const createBranchRes = await callAndRecord(args, toolCalls, evidence, step++, 'create_branch', {
             owner: args.config.owner,
