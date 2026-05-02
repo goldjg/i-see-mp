@@ -3,8 +3,9 @@ import { createMemoryDb } from '../db.js';
 import { createCollectionsRepo } from '../repos/collections.js';
 import { createTestRunsRepo, testRunToRow } from '../repos/test-runs.js';
 import { createEvidenceRepo, evidenceToRow } from '../repos/evidence.js';
+import { createFindingsRepo, findingToRow } from '../repos/findings.js';
 import type Database from 'better-sqlite3';
-import type { TestRun, Evidence } from '@iseemp/core';
+import type { TestRun, Evidence, Finding } from '@iseemp/core';
 
 let db: Database.Database;
 
@@ -62,6 +63,35 @@ describe('TestRunsRepo', () => {
     expect(byId?.pathStatus).toBe('tested_rejected');
     expect(repo.getByCandidatePathId('cp-1')).toHaveLength(1);
     expect(repo.getByFindingId('finding-1')).toHaveLength(1);
+  });
+
+  it('resolves runs via the finding test_run_ids JSON column when no direct/candidate match', () => {
+    const collections = createCollectionsRepo(db);
+    collections.create('col-T', new Date().toISOString());
+    const repo = createTestRunsRepo(db);
+    const findings = createFindingsRepo(db);
+    // Run is not linked by finding_id and uses a candidate_path_id that does not match the finding.
+    const run = makeRun('tr-fb', 'col-T', { candidatePathId: 'cp-run' });
+    repo.insert(testRunToRow(run));
+    const finding: Finding = {
+      id: 'finding-fb',
+      collectionId: 'col-T',
+      category: 'DATA_EXFILTRATION' as Finding['category'],
+      severity: 'high',
+      title: 'fallback finding',
+      description: 'd',
+      affectedNodeIds: [],
+      createdAt: new Date().toISOString(),
+      tested: true,
+      observed: true,
+      pathStatus: 'tested_confirmed',
+      testRunIds: ['tr-fb'],
+      candidatePathId: 'cp-finding-different',
+    };
+    findings.insert(findingToRow(finding));
+    const out = repo.getByFindingId('finding-fb');
+    expect(out).toHaveLength(1);
+    expect(out[0]?.id).toBe('tr-fb');
   });
 
   it('round-trips toolCalls JSON', () => {

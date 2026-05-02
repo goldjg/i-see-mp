@@ -158,7 +158,29 @@ export function createTestRunsRepo(db: Database.Database) {
            ORDER BY tr.started_at DESC`,
         )
         .all(findingId) as TestRunRow[];
-      return byCandidateRows.map(rowToTestRun);
+      if (byCandidateRows.length > 0) return byCandidateRows.map(rowToTestRun);
+      // Fallback: applyTestResultsToFindings may have linked runs to the finding via the
+      // finding's test_run_ids JSON column (e.g. when matching by category rather than
+      // by candidate_path_id). Resolve those runs explicitly.
+      const findingRow = db
+        .prepare(`SELECT test_run_ids FROM findings WHERE id=?`)
+        .get(findingId) as { test_run_ids: string | null } | undefined;
+      if (!findingRow?.test_run_ids) return [];
+      let ids: string[] = [];
+      try {
+        const parsed = JSON.parse(findingRow.test_run_ids) as unknown;
+        if (Array.isArray(parsed)) ids = parsed.filter((v): v is string => typeof v === 'string');
+      } catch {
+        return [];
+      }
+      if (ids.length === 0) return [];
+      const placeholders = ids.map(() => '?').join(',');
+      const byIdRows = db
+        .prepare(
+          `SELECT * FROM test_runs WHERE id IN (${placeholders}) ORDER BY started_at DESC`,
+        )
+        .all(...ids) as TestRunRow[];
+      return byIdRows.map(rowToTestRun);
     },
     getByCandidatePathId(candidatePathId: string): TestRun[] {
       const rows = db
