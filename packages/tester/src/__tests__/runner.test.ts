@@ -470,8 +470,10 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
 
       expect(pushCalls).toHaveLength(1);
       expect(typeof pushCalls[0]?.['branch']).toBe('string');
+      expect(String(pushCalls[0]?.['branch']).trim().length).toBeGreaterThan(0);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_INCONCLUSIVE);
       expect(executed.testRun.notes).toContain('Write path unproven');
+      expect(executed.testRun.notes).not.toContain('"received":"undefined"');
     } finally {
       await sink.close();
     }

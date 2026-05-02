@@ -953,6 +953,10 @@ function buildGithubSafeBranchName(branchPrefix: string, testRunId: string): str
   return (sanitized || fallback || 'iseemp-canary').slice(0, 200);
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 async function callAndRecord(
   args: GithubSafeRunArgs,
   toolCalls: ToolCall[],
@@ -963,14 +967,22 @@ async function callAndRecord(
 ): Promise<ToolCallResult> {
   const t0 = Date.now();
   let res: ToolCallResult;
-  try {
-    res = await args.ctx.invoke(args.planned.serverId, toolName, input);
-  } catch (err) {
+  if (toolName === 'push_files' && !isNonEmptyString(input['branch'])) {
     res = {
       raw: null,
-      text: err instanceof Error ? err.message : String(err),
+      text: 'Invalid input: push_files requires a non-empty branch string.',
       isError: true,
     };
+  } else {
+    try {
+      res = await args.ctx.invoke(args.planned.serverId, toolName, input);
+    } catch (err) {
+      res = {
+        raw: null,
+        text: err instanceof Error ? err.message : String(err),
+        isError: true,
+      };
+    }
   }
   const durationMs = Date.now() - t0;
   const redactedInput = redactRecord(input);
