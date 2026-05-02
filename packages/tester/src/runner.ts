@@ -86,6 +86,10 @@ const BRANCH_NOT_FOUND_RE = /resource not found:\s*branch\s.+not found|branch\s.
 const BRANCH_ALREADY_EXISTS_RE = /reference already exists|branch\s.+already exists|already exists/i;
 const CONTROLLED_ARTIFACT_NOT_FOUND_RE =
   /(?:404|not found|path does not point to a file|failed to resolve git reference)/i;
+// GitHub-controlled canary verification occasionally lags immediately after writes; one short
+// retry keeps eventual consistency from producing false inconclusive results without making the
+// test noticeably slower.
+const GITHUB_CANARY_READBACK_DELAY_MS = 750;
 const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review/;
 const READ_TOOL_NAME_RE = /^(get|list|read|search)_/;
 const TOOL_CAPS_CACHE = new Map<string, Capability[]>();
@@ -1029,7 +1033,7 @@ async function readGithubIssueCanaryWithRetry(
   let result = await callAndRecord(args, toolCalls, evidence, currentStep++, toolName, input);
   let observed = !result.isError && responseContainsMarker(result.text, marker);
   if (!observed) {
-    await sleep(750);
+    await sleep(GITHUB_CANARY_READBACK_DELAY_MS);
     result = await callAndRecord(args, toolCalls, evidence, currentStep++, toolName, input);
     observed = !result.isError && responseContainsMarker(result.text, marker);
   }
@@ -1268,7 +1272,7 @@ export async function executeGithubSafeCanaryPlannedTest(
           // commit; do one short retry with a small backoff before declaring inconclusive
           // so eventual-consistency doesn't masquerade as a missing canary.
           if (!canaryObserved) {
-            await sleep(750);
+            await sleep(GITHUB_CANARY_READBACK_DELAY_MS);
             readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
             canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
           }
