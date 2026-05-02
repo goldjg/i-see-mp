@@ -957,7 +957,7 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function hasValidPushFilesBranch(input: Record<string, unknown>): boolean {
+function hasNonEmptyBranchString(input: Record<string, unknown>): boolean {
   return isNonEmptyString(input['branch']);
 }
 
@@ -971,10 +971,11 @@ async function callAndRecord(
 ): Promise<ToolCallResult> {
   const t0 = Date.now();
   let res: ToolCallResult;
-  if (toolName === 'push_files' && !hasValidPushFilesBranch(input)) {
+  if (toolName === 'push_files' && !hasNonEmptyBranchString(input)) {
+    const branchValue = input['branch'];
     res = {
       raw: null,
-      text: 'Invalid input: push_files requires a non-empty branch string.',
+      text: `Invalid input: push_files requires a non-empty branch string (received ${typeof branchValue}).`,
       isError: true,
     };
   } else {
