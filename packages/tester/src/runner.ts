@@ -88,6 +88,7 @@ const BRANCH_ALREADY_EXISTS_RE = /reference already exists|branch\s.+already exi
 // retry keeps eventual consistency from producing false inconclusive results without making the
 // test noticeably slower.
 const GITHUB_CANARY_READBACK_DELAY_MS = 750;
+const GITHUB_CANARY_MAX_FILE_READBACK_ATTEMPTS = 3;
 const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review/;
 const READ_TOOL_NAME_RE = /^(get|list|read|search)_/;
 const TOOL_CAPS_CACHE = new Map<string, Capability[]>();
@@ -878,7 +879,7 @@ interface GithubSafeRunArgs {
 
 function extractNumber(rawText: string, keys: string[]): number | undefined {
   for (const k of keys) {
-    const r = new RegExp(`"${k}"\\s*:\\s*(\\d+)`, 'i').exec(rawText);
+    const r = new RegExp(`"${k}"\\s*:\\s*"?([0-9]+)"?`, 'i').exec(rawText);
     if (r?.[1]) return Number(r[1]);
   }
   return undefined;
@@ -890,6 +891,12 @@ function extractUrl(rawText: string, keys: string[]): string | undefined {
     if (r?.[1]) return r[1];
   }
   return undefined;
+}
+
+function extractIssueOrPullNumberFromUrl(url: string): number | undefined {
+  const match = /\/(?:issues|pull)\/([0-9]+)(?:[/?#]|$)/i.exec(url);
+  if (!match?.[1]) return undefined;
+  return Number(match[1]);
 }
 
 function isProvenBlockedOrImpossible(text: string): boolean {
@@ -1029,6 +1036,25 @@ async function readGithubIssueCanaryWithRetry(
   if (!observed) {
     await sleep(GITHUB_CANARY_READBACK_DELAY_MS);
     result = await callAndRecord(args, toolCalls, evidence, currentStep++, toolName, input);
+    observed = responseContainsMarker(result.text, marker);
+  }
+  return { result, observed, nextStep: currentStep };
+}
+
+async function readGithubFileCanaryWithRetry(
+  args: GithubSafeRunArgs,
+  toolCalls: ToolCall[],
+  evidence: Evidence[],
+  step: number,
+  input: Record<string, unknown>,
+  marker: string,
+): Promise<{ result: ToolCallResult; observed: boolean; nextStep: number }> {
+  let currentStep = step;
+  let result = await callAndRecord(args, toolCalls, evidence, currentStep++, 'get_file_contents', input);
+  let observed = responseContainsMarker(result.text, marker);
+  for (let attempt = 1; !observed && attempt < GITHUB_CANARY_MAX_FILE_READBACK_ATTEMPTS; attempt += 1) {
+    await sleep(GITHUB_CANARY_READBACK_DELAY_MS);
+    result = await callAndRecord(args, toolCalls, evidence, currentStep++, 'get_file_contents', input);
     observed = responseContainsMarker(result.text, marker);
   }
   return { result, observed, nextStep: currentStep };
@@ -1260,16 +1286,16 @@ export async function executeGithubSafeCanaryPlannedTest(
           // created on demand; record it so cleanup/readback can target the same ref.
           artifacts.branchName = branchName;
           const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
-          let readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
-          canaryObserved = responseContainsMarker(readBack.text, marker);
-          // The write succeeded but GitHub's contents API can briefly lag behind a fresh
-          // commit; do one short retry with a small backoff before declaring inconclusive
-          // so eventual-consistency doesn't masquerade as a missing canary.
-          if (!canaryObserved) {
-            await sleep(GITHUB_CANARY_READBACK_DELAY_MS);
-            readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
-            canaryObserved = responseContainsMarker(readBack.text, marker);
-          }
+          const readBack = await readGithubFileCanaryWithRetry(
+            args,
+            toolCalls,
+            evidence,
+            step,
+            readBackInput,
+            marker,
+          );
+          step = readBack.nextStep;
+          canaryObserved = readBack.observed;
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
           pathStatus = canaryObserved
@@ -1308,8 +1334,10 @@ export async function executeGithubSafeCanaryPlannedTest(
             notes = `Issue/PR write unproven: ${issueRes.text}`;
           }
         } else {
-          artifacts.issueNumber = extractNumber(issueRes.text, ['number', 'issue_number']);
           artifacts.issueUrl = extractUrl(issueRes.text, ['html_url', 'url']);
+          artifacts.issueNumber =
+            extractNumber(issueRes.text, ['number', 'issue_number']) ??
+            (artifacts.issueUrl ? extractIssueOrPullNumberFromUrl(artifacts.issueUrl) : undefined);
           canaryObserved = responseContainsMarker(issueRes.text, marker);
           if (!canaryObserved && artifacts.issueNumber) {
             const issueReadTool = tool === 'issue_write' ? 'issue_read' : 'get_issue';

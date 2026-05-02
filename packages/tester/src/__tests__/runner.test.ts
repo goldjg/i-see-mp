@@ -579,6 +579,72 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
     }
   });
 
+  it('retries controlled file readback up to three attempts for repo mutation before concluding', async () => {
+    vi.useFakeTimers();
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const runId = 'testrun:ghsafe:reporetry:abcd12';
+    const marker = `ISEEMP-${runId}`;
+    const sink = await startMockSink();
+    try {
+      const toolCalls: string[] = [];
+      let fileReads = 0;
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string) => {
+          toolCalls.push(toolName);
+          if (toolName === 'create_or_update_file') {
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'get_file_contents') {
+            fileReads += 1;
+            return fileReads < 3
+              ? { raw: null, text: JSON.stringify({ body: 'controlled\nmissing' }), isError: false }
+              : {
+                  raw: null,
+                  text: JSON.stringify({
+                    encoding: 'base64',
+                    content: Buffer.from(`${marker}\n`, 'utf8').toString('base64'),
+                  }),
+                  isError: false,
+                };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const execution = executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: runId,
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+      await vi.runAllTimersAsync();
+      const executed = await execution;
+
+      expect(toolCalls.filter((name) => name === 'get_file_contents')).toHaveLength(3);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.canaryObserved).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      await sink.close();
+    }
+  });
+
   it('confirms issue-write case by reading issue body when write response omits marker', async () => {
     const githubSrv = { ...server(), name: 'github-mcp' };
     const githubTools = [tool('t2', 'issue_write', [Capability.MUTATE_ISSUE_OR_PR])];
@@ -635,6 +701,69 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
       expect(callArgs[0]?.['method']).toBe('create');
       expect(toolCalls).toContain('issue_read');
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('extracts issue number from URL when issue_write response omits number field', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t2', 'issue_write', [Capability.MUTATE_ISSUE_OR_PR])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const issueCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT',
+    );
+    expect(issueCase).toBeDefined();
+
+    const runId = 'testrun:ghsafe:issueurlonly:efgh56';
+    const marker = `ISEEMP-${runId}`;
+    const sink = await startMockSink();
+    try {
+      const issueReadInputs: Array<Record<string, unknown>> = [];
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
+          if (toolName === 'issue_write') {
+            return {
+              raw: null,
+              text: JSON.stringify({
+                id: '4370027799',
+                url: 'https://github.com/goldjg/canary-sandbox/issues/26',
+              }),
+              isError: false,
+            };
+          }
+          if (toolName === 'issue_read') {
+            issueReadInputs.push(args);
+            return {
+              raw: null,
+              text: JSON.stringify({ body: `controlled\n${marker}` }),
+              isError: false,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: issueCase!,
+        testRunId: runId,
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(issueReadInputs).toHaveLength(1);
+      expect(issueReadInputs[0]?.['issue_number']).toBe(26);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.canaryObserved).toBe(true);
     } finally {
       await sink.close();
     }
