@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NodeType, EdgeType, Capability, RiskCategory } from '../types.js';
+import { NodeType, EdgeType, Capability, RiskCategory, TrifectaStage } from '../types.js';
 import {
   NodeTypeSchema,
   EdgeTypeSchema,
@@ -9,6 +9,7 @@ import {
   GraphNodeSchema,
   FindingSchema,
   CollectionSchema,
+  TrifectaStageSchema,
 } from '../schemas.js';
 
 describe('NodeType', () => {
@@ -54,6 +55,18 @@ describe('RiskCategory', () => {
 
   it('schema parses valid value', () => {
     expect(RiskCategorySchema.parse('CODE_EXECUTION')).toBe('CODE_EXECUTION');
+  });
+});
+
+describe('TrifectaStage', () => {
+  it('has expected values', () => {
+    expect(TrifectaStage.COMPLETE).toBe('COMPLETE');
+    expect(TrifectaStage.PARTIAL).toBe('PARTIAL');
+    expect(TrifectaStage.CAPABILITY_ONLY).toBe('CAPABILITY_ONLY');
+  });
+
+  it('schema parses valid value', () => {
+    expect(TrifectaStageSchema.parse('COMPLETE')).toBe('COMPLETE');
   });
 });
 

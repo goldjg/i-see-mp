@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../api.js';
 import type { Collection, Finding } from '../api.js';
 
-const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'];
 const SEVERITY_COLOR: Record<string, string> = {
   critical: '#dc2626',
   high: '#ea580c',
@@ -57,6 +56,7 @@ export function Dashboard() {
   }
 
   const topFindings = [...findings].slice(0, 5);
+  const completeCount = findings.filter((f) => f.trifectaComplete).length;
   const maxCap = Math.max(...Object.values(capMap), 1);
 
   return (
@@ -67,6 +67,7 @@ export function Dashboard() {
         <div className="stat-card"><div className="stat-value">{collection.toolCount}</div><div className="stat-label">Tools</div></div>
         <div className="stat-card"><div className="stat-value">{collection.resourceCount}</div><div className="stat-label">Resources</div></div>
         <div className="stat-card"><div className="stat-value">{findings.length}</div><div className="stat-label">Findings</div></div>
+        <div className="stat-card"><div className="stat-value">{completeCount}</div><div className="stat-label">Exploitable Paths</div></div>
       </div>
 
       <h2>Capability Histogram</h2>
