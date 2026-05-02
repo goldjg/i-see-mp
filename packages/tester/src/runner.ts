@@ -877,9 +877,14 @@ interface GithubSafeRunArgs {
   config: GithubSafeCanaryConfig;
 }
 
+function escapeRegexLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function extractNumber(rawText: string, keys: string[]): number | undefined {
   for (const k of keys) {
-    const r = new RegExp(`"${k}"\\s*:\\s*"?([0-9]+)"?`, 'i').exec(rawText);
+    const escapedKey = escapeRegexLiteral(k);
+    const r = new RegExp(`"${escapedKey}"\\s*:\\s*"?([0-9]+)"?`, 'i').exec(rawText);
     if (r?.[1]) return Number(r[1]);
   }
   return undefined;
@@ -887,7 +892,8 @@ function extractNumber(rawText: string, keys: string[]): number | undefined {
 
 function extractUrl(rawText: string, keys: string[]): string | undefined {
   for (const k of keys) {
-    const r = new RegExp(`"${k}"\\s*:\\s*"([^"]+)"`, 'i').exec(rawText);
+    const escapedKey = escapeRegexLiteral(k);
+    const r = new RegExp(`"${escapedKey}"\\s*:\\s*"([^"]+)"`, 'i').exec(rawText);
     if (r?.[1]) return r[1];
   }
   return undefined;
