@@ -81,8 +81,7 @@ function buildRemoteRequestInit(config: ServerConfig): RequestInit | undefined {
   if (!token && !authorization) return undefined;
   return {
     headers: {
-      ...(authorization ? { Authorization: authorization } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: authorization ?? `Bearer ${token}`,
     },
   };
 }

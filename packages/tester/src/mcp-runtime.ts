@@ -82,8 +82,7 @@ function buildRemoteRequestInit(env: Record<string, string> | undefined): Reques
   if (!token && !authorization) return undefined;
   return {
     headers: {
-      ...(authorization ? { Authorization: authorization } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: authorization ?? `Bearer ${token}`,
     },
   };
 }
