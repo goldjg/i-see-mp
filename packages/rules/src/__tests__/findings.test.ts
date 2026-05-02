@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runFindingsRules } from '../findings-rules.js';
+import { deduplicateFindings, isKnownVerifiedServer, runFindingsRules } from '../findings-rules.js';
 import { Capability, RiskCategory } from '@iseemp/core';
 
 const now = new Date().toISOString();
@@ -46,6 +46,53 @@ describe('runFindingsRules — UNVERIFIED_SERVER', () => {
     const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
     const f = findings.find((x) => x.category === RiskCategory.UNVERIFIED_SERVER);
     expect(f?.severity).toBe('low');
+  });
+
+  it('is LOW severity for known official github mcp server identity patterns', () => {
+    const server = {
+      ...makeServer('srv1'),
+      command: 'docker',
+      args: JSON.stringify(['run', '--rm', 'ghcr.io/github/github-mcp-server']),
+    };
+    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [], collectionId: 'col1' });
+    const f = findings.find((x) => x.id === `finding:col1:unverified:${server.id}`);
+    expect(f?.severity).toBe('low');
+    expect(f?.description).toContain('matched by known identity pattern');
+  });
+});
+
+describe('isKnownVerifiedServer', () => {
+  it('matches official github mcp docker image', () => {
+    expect(
+      isKnownVerifiedServer({
+        name: 'github',
+        url: null,
+        command: 'docker',
+        args: JSON.stringify(['run', '--rm', 'ghcr.io/github/github-mcp-server']),
+      }),
+    ).toBe(true);
+  });
+
+  it('matches bundled github mcp binary path', () => {
+    expect(
+      isKnownVerifiedServer({
+        name: 'github',
+        url: null,
+        command: '/usr/local/bin/iseemp-github-mcp',
+        args: JSON.stringify([]),
+      }),
+    ).toBe(true);
+  });
+
+  it('does not match unknown server identity', () => {
+    expect(
+      isKnownVerifiedServer({
+        name: 'unknown',
+        url: 'https://example.com/mcp',
+        command: 'node',
+        args: JSON.stringify(['server.js']),
+      }),
+    ).toBe(false);
   });
 });
 
@@ -219,5 +266,110 @@ describe('runFindingsRules — Finding schema enrichment', () => {
     expect(f?.staticPossible).toBe(true);
     expect(f?.observed).toBe(false);
     expect(f?.tested).toBe(false);
+  });
+});
+
+describe('deduplicateFindings', () => {
+  it('suppresses remote_query finding when higher-signal mutation finding exists on same server/tool', () => {
+    const server = makeServer('srv1', 'https://api.github.com/mcp');
+    const tool = makeTool('t1', 'srv1', [Capability.MUTATE_REMOTE_STATE, Capability.QUERY_REMOTE_SYSTEM]);
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
+    expect(findings.some((f) => f.id.includes(':remote_query:'))).toBe(false);
+    expect(findings.some((f) => f.category === RiskCategory.PRIVILEGED_MUTATION)).toBe(true);
+  });
+
+  it('suppresses OVERBROAD_TOOL when higher severity CODE_EXECUTION exists for same tool', () => {
+    const server = makeServer('srv1');
+    const tool = makeTool('t1', 'srv1', [
+      Capability.RUN_SHELL,
+      Capability.READ_REMOTE_DATA,
+      Capability.QUERY_REMOTE_SYSTEM,
+      Capability.WRITE_LOCAL_FILE,
+    ]);
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
+    expect(findings.some((f) => f.category === RiskCategory.CODE_EXECUTION)).toBe(true);
+    expect(findings.some((f) => f.category === RiskCategory.OVERBROAD_TOOL)).toBe(false);
+  });
+
+  it('preserves low-signal UNVERIFIED_SERVER finding when only safe read tool exists', () => {
+    const server = makeServer('srv1');
+    const tool = makeTool('t1', 'srv1', [Capability.QUERY_REMOTE_SYSTEM, Capability.READ_REMOTE_DATA]);
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
+    expect(findings.some((f) => f.id === `finding:col1:unverified:${server.id}`)).toBe(true);
+  });
+
+  it('does not suppress tested findings or candidate-path findings', () => {
+    const sample = [
+      {
+        id: 'f1',
+        collectionId: 'c1',
+        category: RiskCategory.OVERBROAD_TOOL,
+        severity: 'medium' as const,
+        title: 't',
+        description: 'd',
+        affectedNodeIds: ['server:s1', 'tool:t1'],
+        remediationHint: '',
+        createdAt: now,
+        confidence: 'medium' as const,
+        staticPossible: true,
+        observed: false,
+        tested: true,
+        boundaryCrossed: undefined,
+      },
+      {
+        id: 'f2',
+        collectionId: 'c1',
+        category: RiskCategory.CODE_EXECUTION,
+        severity: 'high' as const,
+        title: 't',
+        description: 'd',
+        affectedNodeIds: ['server:s1', 'tool:t1'],
+        remediationHint: '',
+        createdAt: now,
+        confidence: 'high' as const,
+        staticPossible: true,
+        observed: false,
+        tested: false,
+        boundaryCrossed: undefined,
+      },
+      {
+        id: 'f3',
+        collectionId: 'c1',
+        category: RiskCategory.OVERBROAD_TOOL,
+        severity: 'low' as const,
+        title: 't',
+        description: 'd',
+        affectedNodeIds: ['server:s1', 'tool:t2'],
+        remediationHint: '',
+        createdAt: now,
+        confidence: 'low' as const,
+        staticPossible: true,
+        observed: false,
+        tested: false,
+        candidatePathId: 'cp1',
+        boundaryCrossed: undefined,
+      },
+    ];
+    const deduped = deduplicateFindings(sample);
+    expect(deduped.some((f) => f.id === 'f1')).toBe(true);
+    expect(deduped.some((f) => f.id === 'f3')).toBe(true);
   });
 });

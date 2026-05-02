@@ -8,6 +8,8 @@ import {
   assessGithubSafeCanaryRefusal,
   executePlannedTest,
   executeGithubSafeCanaryPlannedTest,
+  isSecondaryRateLimit,
+  isProvenBlockedOrImpossible,
   SAFE_PROFILE_CASES,
   DEMO_CONFIRM_PROFILE_CASES,
   GITHUB_SAFE_CANARY_PROFILE_CASES,
@@ -167,6 +169,31 @@ describe('github-safe-canary planning and refusal gates', () => {
     const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
     const readCase = planned.find((p) => p.caseDef.id === 'GITHUB_READ_CONTROLLED_ARTIFACT');
     expect(readCase?.sourceTool?.name).toBe('get_file_contents');
+  });
+
+  it('still prefers get_file_contents when multiple read tools are present', () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [
+      tool('t-search', 'search_code', [Capability.READ_REMOTE_DATA]),
+      tool('t-read', 'get_file_contents', [Capability.READ_REMOTE_DATA]),
+      tool('t-list', 'list_commits', [Capability.READ_REMOTE_DATA]),
+    ];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const readCase = planned.find((p) => p.caseDef.id === 'GITHUB_READ_CONTROLLED_ARTIFACT');
+    expect(readCase?.sourceTool?.name).toBe('get_file_contents');
+  });
+});
+
+describe('github-safe regex helpers', () => {
+  it('identifies secondary rate limit responses', () => {
+    expect(isSecondaryRateLimit('403 secondary rate limit exceeded')).toBe(true);
+    expect(isSecondaryRateLimit('rate limit exceeded for this endpoint')).toBe(true);
+  });
+
+  it('does not classify secondary rate limit as proven blocked/impossible', () => {
+    const msg = 'error: secondary rate limit exceeded for this token';
+    expect(isSecondaryRateLimit(msg)).toBe(true);
+    expect(isProvenBlockedOrImpossible(msg)).toBe(false);
   });
 });
 
@@ -579,7 +606,7 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
     }
   });
 
-  it('retries controlled file readback up to three attempts for repo mutation before concluding', async () => {
+  it('retries controlled file readback for repo mutation before concluding', async () => {
     vi.useFakeTimers();
     const githubSrv = { ...server(), name: 'github-mcp' };
     const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
@@ -645,6 +672,281 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
     }
   });
 
+  it('sends sha on repository write when pre-write probe returns existing file metadata', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const runId = 'testrun:ghsafe:shaexists:abcd99';
+    const marker = `ISEEMP-${runId}`;
+    const sink = await startMockSink();
+    try {
+      const writeCalls: Array<Record<string, unknown>> = [];
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
+          if (toolName === 'get_file_contents') {
+            return {
+              raw: null,
+              text: JSON.stringify({
+                sha: 'abc123def456',
+                encoding: 'base64',
+                content: Buffer.from(`${marker}\n`, 'utf8').toString('base64'),
+              }),
+              isError: false,
+            };
+          }
+          if (toolName === 'create_or_update_file') {
+            writeCalls.push(args);
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: runId,
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(writeCalls).toHaveLength(1);
+      expect(writeCalls[0]?.['sha']).toBe('abc123def456');
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('continues without sha when pre-write probe returns file-not-found', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const runId = 'testrun:ghsafe:nosha:abcd88';
+    const marker = `ISEEMP-${runId}`;
+    const sink = await startMockSink();
+    try {
+      const writeCalls: Array<Record<string, unknown>> = [];
+      let reads = 0;
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
+          if (toolName === 'get_file_contents') {
+            reads += 1;
+            if (reads === 1) {
+              return {
+                raw: null,
+                text: '404 Not Found: path does not point to a file',
+                isError: true,
+              };
+            }
+            return {
+              raw: null,
+              text: JSON.stringify({
+                encoding: 'base64',
+                content: Buffer.from(`${marker}\n`, 'utf8').toString('base64'),
+              }),
+              isError: false,
+            };
+          }
+          if (toolName === 'create_or_update_file') {
+            writeCalls.push(args);
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: runId,
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(writeCalls).toHaveLength(1);
+      expect(writeCalls[0]?.['sha']).toBeUndefined();
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('marks inconclusive and does not write when pre-write probe returns permission error', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const sink = await startMockSink();
+    try {
+      let wrote = false;
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string) => {
+          if (toolName === 'get_file_contents') {
+            return {
+              raw: null,
+              text: '403 Forbidden: resource not accessible by integration',
+              isError: true,
+            };
+          }
+          if (toolName === 'create_or_update_file') {
+            wrote = true;
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: 'testrun:ghsafe:permerr:abcd11',
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(wrote).toBe(false);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_INCONCLUSIVE);
+      expect(executed.testRun.notes).toContain('lacked permissions');
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('marks repository writes as inconclusive on secondary rate limit', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const sink = await startMockSink();
+    try {
+      let reads = 0;
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string) => {
+          if (toolName === 'get_file_contents') {
+            reads += 1;
+            if (reads === 1) return { raw: null, text: '404 Not Found', isError: true };
+            return { raw: null, text: 'secondary rate limit exceeded', isError: true };
+          }
+          if (toolName === 'create_or_update_file') {
+            return { raw: null, text: 'secondary rate limit exceeded', isError: true };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: 'testrun:ghsafe:ratelimit:abcd22',
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_INCONCLUSIVE);
+      expect(executed.testRun.notes).toContain('rate-limited');
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('marks repository writes as rejected when blocked by integration permissions', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const sink = await startMockSink();
+    try {
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string) => {
+          if (toolName === 'get_file_contents') return { raw: null, text: '404 Not Found', isError: true };
+          if (toolName === 'create_or_update_file') {
+            return {
+              raw: null,
+              text: '403 Forbidden: resource not accessible by integration',
+              isError: true,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: 'testrun:ghsafe:blocked:abcd33',
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_REJECTED);
+      expect(executed.testRun.notes).toContain('blocked');
+    } finally {
+      await sink.close();
+    }
+  });
+
   it('confirms issue-write case by reading issue body when write response omits marker', async () => {
     const githubSrv = { ...server(), name: 'github-mcp' };
     const githubTools = [tool('t2', 'issue_write', [Capability.MUTATE_ISSUE_OR_PR])];
@@ -701,6 +1003,48 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
       expect(callArgs[0]?.['method']).toBe('create');
       expect(toolCalls).toContain('issue_read');
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('marks issue/pr writes as inconclusive on secondary rate limit', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t2', 'issue_write', [Capability.MUTATE_ISSUE_OR_PR])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const issueCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT',
+    );
+    expect(issueCase).toBeDefined();
+
+    const sink = await startMockSink();
+    try {
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async () => ({
+          raw: null,
+          text: 'secondary rate limit exceeded',
+          isError: true,
+        }),
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: issueCase!,
+        testRunId: 'testrun:ghsafe:issuerl:abcd44',
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_INCONCLUSIVE);
+      expect(executed.testRun.notes).toContain('rate-limited');
     } finally {
       await sink.close();
     }
