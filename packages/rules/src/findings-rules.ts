@@ -100,7 +100,7 @@ const SEVERITY_RANK: Record<Finding['severity'], number> = {
   high: 3,
   critical: 4,
 };
-const HIGH_SIGNAL_SUBSUMING_CATEGORIES = new Set<Finding['category']>([
+const HIGH_PRIORITY_SUPPRESSOR_CATEGORIES = new Set<Finding['category']>([
   RiskCategory.CODE_EXECUTION,
   RiskCategory.PRIVILEGED_MUTATION,
   RiskCategory.DATA_EXFILTRATION,
@@ -155,7 +155,7 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
     for (const candidate of sorted) {
       if (candidate.id === target.id) continue;
       if (candidate.category === RiskCategory.DANGEROUS_TOOL_CHAIN) continue;
-      if (HIGH_SIGNAL_SUBSUMING_CATEGORIES.has(candidate.category)) {
+      if (HIGH_PRIORITY_SUPPRESSOR_CATEGORIES.has(candidate.category)) {
         const higherSeverity = SEVERITY_RANK[candidate.severity] > SEVERITY_RANK[target.severity];
         if (!higherSeverity) continue;
         if (targetTools.some((toolId) => findingHasTool(candidate, toolId))) {
@@ -193,8 +193,8 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
     }
 
     const serverId = extractServerId(finding) ?? '';
-    const toolId = extractToolIds(finding)[0] ?? '';
-    const key = `${finding.collectionId}|${finding.category}|${serverId}|${toolId}`;
+    const toolIdsKey = extractToolIds(finding).sort().join(',');
+    const key = `${finding.collectionId}|${finding.category}|${serverId}|${toolIdsKey}`;
     const existing = dedupedByCompoundKey.get(key);
     if (!existing) {
       dedupedByCompoundKey.set(key, finding);

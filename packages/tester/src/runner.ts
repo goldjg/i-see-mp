@@ -81,7 +81,7 @@ const MUTATE_REMOTE_CAPS: Capability[] = [
 const SAFE_REPO_NAME_RE =
   /^(?:(?:canary|sandbox|disposable|test|safe)(?:[-_].+)?)$|^(?:.+[-_](?:canary|sandbox|disposable|test|safe))$/i;
 const BLOCKED_SIGNAL_PATTERN =
-  'error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|resource not accessible by integration|not found|unsupported|cannot\\b|must have push access|requires write permission|requires push access';
+  'error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|not found|unsupported|cannot\\b|must have push access|requires write permission|requires push access';
 const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE =
   new RegExp(
     `(?:${BLOCKED_SIGNAL_PATTERN}).*(?:forbidden|denied|unauthorized|requires .* permission|requires write permission|requires push access|must have push access|not found|unsupported|policy|validation|cannot|resource not accessible|resource not accessible by integration)`,
@@ -97,7 +97,7 @@ const AUTH_OR_PERMISSION_RE = /(forbidden|denied|unauthorized|requires .* permis
 // test noticeably slower.
 const GITHUB_CANARY_READBACK_DELAY_MS = 1000;
 const GITHUB_CANARY_MAX_FILE_READBACK_ATTEMPTS = 5;
-const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review|add_issue_comment|create_issue_comment|update_issue_comment/;
+const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review/;
 const READ_TOOL_NAME_RE = /^(get|list|read|search|fork|clone|download)_/;
 const TOOL_CAPS_CACHE = new Map<string, Capability[]>();
 
