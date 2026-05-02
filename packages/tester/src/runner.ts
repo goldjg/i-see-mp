@@ -84,6 +84,8 @@ const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE =
   /^(?:error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|not found|unsupported|cannot\b).*(?:forbidden|denied|unauthorized|requires .* permission|not found|unsupported|policy|validation|cannot|resource not accessible)/i;
 const BRANCH_NOT_FOUND_RE = /resource not found:\s*branch\s.+not found|branch\s.+not found/i;
 const BRANCH_ALREADY_EXISTS_RE = /reference already exists|branch\s.+already exists|already exists/i;
+const CONTROLLED_ARTIFACT_NOT_FOUND_RE =
+  /(?:404|not found|path does not point to a file|failed to resolve git reference)/i;
 const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review/;
 const READ_TOOL_NAME_RE = /^(get|list|read|search)_/;
 const TOOL_CAPS_CACHE = new Map<string, Capability[]>();
@@ -955,6 +957,10 @@ function isBranchAlreadyExists(text: string): boolean {
   return BRANCH_ALREADY_EXISTS_RE.test(text);
 }
 
+function isControlledArtifactNotFound(text: string): boolean {
+  return CONTROLLED_ARTIFACT_NOT_FOUND_RE.test(text);
+}
+
 function sanitizeBranchToken(value: string): string {
   let out = '';
   let prevDash = false;
@@ -992,6 +998,22 @@ function isNonEmptyString(value: unknown): value is string {
 
 function hasNonEmptyBranchString(input: Record<string, unknown>): boolean {
   return isNonEmptyString(input['branch']);
+}
+
+function buildGithubControlledFileReadInput(
+  args: GithubSafeRunArgs,
+  artifacts: GithubSafeArtifactState,
+): Record<string, unknown> {
+  const input: Record<string, unknown> = {
+    owner: args.config.owner,
+    repo: args.config.repo,
+    path: artifacts.filePath,
+  };
+  if (artifacts.branchName) {
+    input['ref'] = artifacts.branchName;
+    input['branch'] = artifacts.branchName;
+  }
+  return input;
 }
 
 async function callAndRecord(
@@ -1219,19 +1241,7 @@ export async function executeGithubSafeCanaryPlannedTest(
           // Successful branch-bound write either targeted the prebuilt branch or one we just
           // created on demand; record it so cleanup/readback can target the same ref.
           artifacts.branchName = branchName;
-          const readBackInput: Record<string, unknown> = {
-            owner: args.config.owner,
-            repo: args.config.repo,
-            path: artifacts.filePath,
-          };
-          if (artifacts.branchName) {
-            // The Go `github-mcp-server` reads the per-branch contents via `ref`, while the
-            // legacy npm `@modelcontextprotocol/server-github` accepts only `branch` and
-            // silently strips `ref`. Send both so readback targets the canary branch on
-            // either server variant; each strips the key it doesn't recognize.
-            readBackInput['ref'] = artifacts.branchName;
-            readBackInput['branch'] = artifacts.branchName;
-          }
+          const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
           let readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
           canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
           // The write succeeded but GitHub's contents API can briefly lag behind a fresh
@@ -1344,36 +1354,64 @@ export async function executeGithubSafeCanaryPlannedTest(
         } catch {
           // best effort; not all read-only integrations expose mutation tooling
         }
-        const readRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
+        const readInput: Record<string, unknown> = {
           owner: args.config.owner,
           repo: args.config.repo,
           query: marker,
           path: artifacts.filePath,
-        });
+        };
+        if (tool === 'get_file_contents' && artifacts.branchName) {
+          const controlledReadInput = buildGithubControlledFileReadInput(args, artifacts);
+          readInput['ref'] = controlledReadInput['ref'];
+          readInput['branch'] = controlledReadInput['branch'];
+        }
+        const readRes = await callAndRecord(args, toolCalls, evidence, step++, tool, readInput);
         if (readRes.isError) {
-          outcome = isProvenBlockedOrImpossible(readRes.text)
-            ? TestOutcome.TESTED_REJECTED
-            : TestOutcome.TESTED_INCONCLUSIVE;
-          status = outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
-          pathStatus =
-            outcome === TestOutcome.TESTED_REJECTED
-              ? PathStatus.TESTED_REJECTED
-              : PathStatus.TESTED_INCONCLUSIVE;
-          notes = readRes.text;
+          if (artifacts.branchName && (tool === 'get_file_contents' || isControlledArtifactNotFound(readRes.text))) {
+            const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
+            const readBack = await callAndRecord(
+              args,
+              toolCalls,
+              evidence,
+              step++,
+              'get_file_contents',
+              readBackInput,
+            );
+            canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
+            if (canaryObserved) {
+              outcome = TestOutcome.TESTED_CONFIRMED;
+              status = TestStatus.CONFIRMED;
+              pathStatus = PathStatus.TESTED_CONFIRMED;
+              notes = 'Canary observed in controlled readback after primary read tool failed.';
+            } else {
+              outcome = isProvenBlockedOrImpossible(readRes.text)
+                ? TestOutcome.TESTED_REJECTED
+                : TestOutcome.TESTED_INCONCLUSIVE;
+              status =
+                outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
+              pathStatus =
+                outcome === TestOutcome.TESTED_REJECTED
+                  ? PathStatus.TESTED_REJECTED
+                  : PathStatus.TESTED_INCONCLUSIVE;
+              notes = readBack.isError
+                ? `${readRes.text} (controlled readback also failed: ${readBack.text})`
+                : readRes.text;
+            }
+          } else {
+            outcome = isProvenBlockedOrImpossible(readRes.text)
+              ? TestOutcome.TESTED_REJECTED
+              : TestOutcome.TESTED_INCONCLUSIVE;
+            status = outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
+            pathStatus =
+              outcome === TestOutcome.TESTED_REJECTED
+                ? PathStatus.TESTED_REJECTED
+                : PathStatus.TESTED_INCONCLUSIVE;
+            notes = readRes.text;
+          }
         } else {
           canaryObserved = responseContainsMarker(readRes.text, marker);
           if (!canaryObserved) {
-            const readBackInput: Record<string, unknown> = {
-              owner: args.config.owner,
-              repo: args.config.repo,
-              path: artifacts.filePath,
-            };
-            if (artifacts.branchName) {
-              // See note on the repository-mutation readback above: the Go server uses
-              // `ref` and the legacy npm server uses `branch`; sending both is safe.
-              readBackInput['ref'] = artifacts.branchName;
-              readBackInput['branch'] = artifacts.branchName;
-            }
+            const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
             const readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
             canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
           }

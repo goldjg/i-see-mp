@@ -639,4 +639,124 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
       await sink.close();
     }
   });
+
+  it('passes branch/ref to get_file_contents when reading the controlled canary file', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t-read', 'get_file_contents', [Capability.READ_REMOTE_DATA])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const readCase = planned.find((p) => p.caseDef.id === 'GITHUB_READ_CONTROLLED_ARTIFACT');
+    expect(readCase).toBeDefined();
+
+    const runId = 'testrun:ghsafe:readref:ab12cd';
+    const marker = `ISEEMP-${runId}`;
+    const sink = await startMockSink();
+    try {
+      const getFileCalls: Array<Record<string, unknown>> = [];
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
+          if (toolName === 'create_or_update_file') {
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'get_file_contents') {
+            getFileCalls.push(args);
+            return {
+              raw: null,
+              text: JSON.stringify({
+                encoding: 'base64',
+                content: Buffer.from(`${marker}\n`, 'utf8').toString('base64'),
+              }),
+              isError: false,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: readCase!,
+        testRunId: runId,
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(getFileCalls).toHaveLength(1);
+      expect(getFileCalls[0]?.['ref']).toBeDefined();
+      expect(getFileCalls[0]?.['branch']).toBe(getFileCalls[0]?.['ref']);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('falls back to controlled get_file_contents readback when the primary read tool errors', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t-read', 'search_code', [Capability.READ_REMOTE_DATA])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const readCase = planned.find((p) => p.caseDef.id === 'GITHUB_READ_CONTROLLED_ARTIFACT');
+    expect(readCase).toBeDefined();
+
+    const runId = 'testrun:ghsafe:readfb:zz99yy';
+    const marker = `ISEEMP-${runId}`;
+    const sink = await startMockSink();
+    try {
+      const toolCalls: string[] = [];
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string) => {
+          toolCalls.push(toolName);
+          if (toolName === 'create_or_update_file') {
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'search_code') {
+            return {
+              raw: null,
+              text: '404 Not Found: controlled file is not on the default branch',
+              isError: true,
+            };
+          }
+          if (toolName === 'get_file_contents') {
+            return {
+              raw: null,
+              text: JSON.stringify({
+                encoding: 'base64',
+                content: Buffer.from(`${marker}\n`, 'utf8').toString('base64'),
+              }),
+              isError: false,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: readCase!,
+        testRunId: runId,
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(toolCalls.slice(0, 3)).toEqual(['create_or_update_file', 'search_code', 'get_file_contents']);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.notes).toContain('primary read tool failed');
+    } finally {
+      await sink.close();
+    }
+  });
 });
