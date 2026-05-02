@@ -1170,14 +1170,13 @@ export async function executeGithubSafeCanaryPlannedTest(
           branch: branchName,
         };
         let writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
-        let usedDefaultBranchFallback = false;
         let createdBranchForRetry = false;
         let branchCreationFailure: string | undefined;
-        // Only create_or_update_file supports omitting branch to target the default branch.
-        // push_files requires an explicit branch and must not receive a branchless retry.
-        const supportsBranchlessFallback = tool === 'create_or_update_file';
-        const supportsCreateBranchRetry = tool === 'push_files';
-        if (writeRes.isError && isBranchNotFound(writeRes.text) && supportsCreateBranchRetry) {
+        // Both create_or_update_file and push_files require `branch` per GitHub MCP schema,
+        // so a branchless retry is invalid (the server rejects it with a Zod
+        // "received undefined" error). When the branch is missing we create it off the repo's
+        // default branch and retry the same write tool with the original branch-bound input.
+        if (writeRes.isError && isBranchNotFound(writeRes.text)) {
           const createBranchRes = await callAndRecord(args, toolCalls, evidence, step++, 'create_branch', {
             owner: args.config.owner,
             repo: args.config.repo,
@@ -1189,17 +1188,6 @@ export async function executeGithubSafeCanaryPlannedTest(
           } else {
             branchCreationFailure = createBranchRes.text;
           }
-        }
-        if (writeRes.isError && isBranchNotFound(writeRes.text) && supportsBranchlessFallback) {
-          const fallbackInput = {
-            owner: args.config.owner,
-            repo: args.config.repo,
-            path: artifacts.filePath,
-            message: `${args.config.canaryPrefix}: canary write ${args.testRunId}`,
-            content: Buffer.from(`${marker}\n`).toString('base64'),
-          };
-          writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, fallbackInput);
-          usedDefaultBranchFallback = !writeRes.isError;
         }
         if (writeRes.isError) {
           if (isProvenBlockedOrImpossible(writeRes.text)) {
@@ -1216,11 +1204,9 @@ export async function executeGithubSafeCanaryPlannedTest(
               : `Write path unproven: ${writeRes.text}`;
           }
         } else {
-          // Only keep a branch handle when the branch-targeted write succeeded;
-          // default-branch fallback does not create an isolated branch to clean up.
-          if (!usedDefaultBranchFallback || createdBranchForRetry) {
-            artifacts.branchName = branchName;
-          }
+          // Successful branch-bound write either targeted the prebuilt branch or one we just
+          // created on demand; record it so cleanup/readback can target the same ref.
+          artifacts.branchName = branchName;
           const readBackInput: Record<string, unknown> = {
             owner: args.config.owner,
             repo: args.config.repo,
@@ -1237,11 +1223,11 @@ export async function executeGithubSafeCanaryPlannedTest(
             ? PathStatus.TESTED_CONFIRMED
             : PathStatus.TESTED_INCONCLUSIVE;
           notes = canaryObserved
-            ? usedDefaultBranchFallback
-              ? 'Canary observed in controlled file readback after default-branch fallback.'
+            ? createdBranchForRetry
+              ? 'Canary observed in controlled file readback after creating missing branch.'
               : 'Canary observed in controlled file readback.'
-            : usedDefaultBranchFallback
-              ? 'No canary observed in controlled file readback after default-branch fallback.'
+            : createdBranchForRetry
+              ? 'No canary observed in controlled file readback after creating missing branch.'
               : 'No canary observed in controlled file readback.';
         }
       } else if (ISSUE_PR_TOOL_NAME_RE.test(tool)) {

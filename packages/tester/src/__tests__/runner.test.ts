@@ -306,7 +306,7 @@ describe('executePlannedTest', () => {
 });
 
 describe('executeGithubSafeCanaryPlannedTest', () => {
-  it('sanitizes branch names and falls back to default branch when branch is missing', async () => {
+  it('sanitizes branch names and creates the missing branch before retrying create_or_update_file', async () => {
     const githubSrv = { ...server(), name: 'github-mcp' };
     const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
     const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
@@ -318,6 +318,7 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
     const sink = await startMockSink();
     try {
       const createCalls: Record<string, unknown>[] = [];
+      const createBranchCalls: Record<string, unknown>[] = [];
       const ctx = {
         collectionId: 'col1',
         profile: 'github-safe-canary' as const,
@@ -333,6 +334,10 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
               };
             }
             return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'create_branch') {
+            createBranchCalls.push(args);
+            return { raw: null, text: JSON.stringify({ ref: args['branch'] }), isError: false };
           }
           if (toolName === 'get_file_contents') {
             return {
@@ -360,15 +365,20 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
 
       expect(createCalls).toHaveLength(2);
       expect(String(createCalls[0]?.['branch'])).not.toContain(':');
-      expect(createCalls[1]?.['branch']).toBeUndefined();
+      // After branch-not-found, we must NOT retry without branch (the GitHub MCP
+      // create_or_update_file schema requires `branch`); instead we create the branch first.
+      expect(typeof createCalls[1]?.['branch']).toBe('string');
+      expect(createCalls[1]?.['branch']).toBe(createCalls[0]?.['branch']);
+      expect(createBranchCalls).toHaveLength(1);
+      expect(createBranchCalls[0]?.['branch']).toBe(createCalls[0]?.['branch']);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
-      expect(executed.testRun.notes).toContain('default-branch fallback');
+      expect(executed.testRun.notes).toContain('creating missing branch');
     } finally {
       await sink.close();
     }
   });
 
-  it('handles thrown branch-not-found errors and still applies default-branch fallback', async () => {
+  it('handles thrown branch-not-found errors and still creates the missing branch before retrying', async () => {
     const githubSrv = { ...server(), name: 'github-mcp' };
     const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
     const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
