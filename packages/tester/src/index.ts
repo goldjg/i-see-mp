@@ -325,8 +325,6 @@ export function matchRunsToFinding(
 
   const out: TestRun[] = [];
   for (const run of testRuns) {
-    if (run.candidatePathId) continue;
-
     const serverMatches =
       targetServerIds.length === 0 || (run.serverId ? targetServerIds.includes(run.serverId) : false);
     const toolMatches =
@@ -348,17 +346,25 @@ function categoryMatches(category: string, testCaseId: string): boolean {
     category === RiskCategory.DATA_EXFILTRATION &&
     (testCaseId === 'READ_SECRET_HIGH_TO_SEND_EXTERNAL' ||
       testCaseId === 'READ_SENSITIVE_MEDIUM_TO_SEND_EXTERNAL' ||
-      testCaseId === 'READ_METADATA_LOW_TO_SEND_EXTERNAL')
+      testCaseId === 'READ_METADATA_LOW_TO_SEND_EXTERNAL' ||
+      testCaseId === 'GITHUB_READ_CONTROLLED_ARTIFACT' ||
+      testCaseId === 'GITHUB_EXTERNAL_SEND_LIKE_CONTROLLED_ARTIFACT')
   ) {
     return true;
   }
   if (category === RiskCategory.SENSITIVE_DATA_EXPOSURE) {
     return (
       testCaseId === 'READ_SECRET_HIGH_TO_SEND_EXTERNAL' ||
-      testCaseId === 'READ_SENSITIVE_MEDIUM_TO_SEND_EXTERNAL'
+      testCaseId === 'READ_SENSITIVE_MEDIUM_TO_SEND_EXTERNAL' ||
+      testCaseId === 'GITHUB_READ_CONTROLLED_ARTIFACT'
     );
   }
-  if (category === RiskCategory.PRIVILEGED_MUTATION && testCaseId === 'MUTATE_REMOTE_STATE_EXPOSED') {
+  if (
+    category === RiskCategory.PRIVILEGED_MUTATION &&
+    (testCaseId === 'MUTATE_REMOTE_STATE_EXPOSED' ||
+      testCaseId === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT' ||
+      testCaseId === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT')
+  ) {
     return true;
   }
   return false;

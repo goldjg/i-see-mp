@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Confidence, PathStatus, RiskCategory, TestOutcome } from '@iseemp/core';
 import { createMemoryDb, createFindingsRepo, findingToRow, createCollectionsRepo } from '@iseemp/storage';
 import type { Finding, TestRun } from '@iseemp/core';
-import { applyRunsToFinding, applyTestResultsToFindings } from '../index.js';
+import { applyRunsToFinding, applyTestResultsToFindings, matchRunsToFinding } from '../index.js';
 
 function makeFinding(id: string, candidatePathId?: string): Finding {
   return {
@@ -92,4 +92,20 @@ describe('finding updates from deterministic test outcomes', () => {
     const rows = findingsRepo.findByCollection('col-1').filter((f) => f.id === 'f-5');
     expect(rows).toHaveLength(1);
   });
+
+  it('fuzzy-matches github-safe privileged mutation runs by category + affected nodes', () => {
+    const finding = {
+      ...makeFinding('f-gh-1'),
+      category: RiskCategory.PRIVILEGED_MUTATION,
+      affectedNodeIds: ['server:srv-1', 'tool:source-1'],
+    };
+    const run = {
+      ...makeRun(TestOutcome.TESTED_CONFIRMED, 'cp-gh-1'),
+      profile: 'github-safe-canary' as const,
+      testCaseId: 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    };
+    const matched = matchRunsToFinding(finding, [run]);
+    expect(matched).toHaveLength(1);
+  });
+
 });
