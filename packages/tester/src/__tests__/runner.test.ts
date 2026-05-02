@@ -606,7 +606,7 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
           }
           if (toolName === 'get_file_contents') {
             fileReads += 1;
-            return fileReads < 3
+            return fileReads <= 2
               ? { raw: null, text: JSON.stringify({ body: 'controlled\nmissing' }), isError: false }
               : {
                   raw: null,

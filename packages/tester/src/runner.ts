@@ -878,7 +878,7 @@ interface GithubSafeRunArgs {
 }
 
 function escapeRegexLiteral(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return value.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
 }
 
 function extractNumber(rawText: string, keys: string[]): number | undefined {
