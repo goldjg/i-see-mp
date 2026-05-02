@@ -373,7 +373,7 @@ function isGithubReadTool(tool: ToolRow): boolean {
   const loweredName = tool.name.toLowerCase();
   return (
     hasAnyCapability(tool, [Capability.READ_REMOTE_DATA, Capability.QUERY_REMOTE_SYSTEM, Capability.READ_METADATA_LOW]) &&
-    !/issue|pull_request|comment|review/.test(loweredName) &&
+    !ISSUE_PR_TOOL_NAME_RE.test(loweredName) &&
     nameMatches(tool, [/^(get|list|read|search)_/, /file/, /repository/, /code/, /commit/, /branch/, /tag/, /release/])
   );
 }
