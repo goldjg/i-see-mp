@@ -1166,8 +1166,9 @@ export async function executeGithubSafeCanaryPlannedTest(
           repo: args.config.repo,
           path: artifacts.filePath,
           message: `${args.config.canaryPrefix}: canary write ${args.testRunId}`,
-          // GitHub MCP create/update file tooling expects base64 content compatible with the GitHub contents API.
-          content: Buffer.from(`${marker}\n`).toString('base64'),
+          // GitHub MCP create_or_update_file accepts raw content; the server base64-encodes
+          // it for the GitHub contents API. Passing pre-encoded content double-encodes it.
+          content: `${marker}\n`,
           branch: branchName,
         };
         let writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
@@ -1281,7 +1282,7 @@ export async function executeGithubSafeCanaryPlannedTest(
             repo: args.config.repo,
             path: artifacts.filePath,
             message: `${args.config.canaryPrefix}: canary seed ${args.testRunId}`,
-            content: Buffer.from(`${marker}\n`).toString('base64'),
+            content: `${marker}\n`,
           });
         } catch {
           // best effort; not all read-only integrations expose mutation tooling
