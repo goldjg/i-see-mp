@@ -42,6 +42,7 @@ BRANCH_PREFIX="${ISEEMP_TEST_BRANCH_PREFIX:-iseemp-canary-}"
 ISSUE_PREFIX="${ISEEMP_TEST_ISSUE_PREFIX:-ISEEMP-CANARY-}"
 CANARY_PREFIX="${ISEEMP_TEST_CANARY_PREFIX:-ISEEMP-CANARY}"
 CONFIG_PATH_IN_CONTAINER="/data/iseemp.github.config.json"
+GITHUB_MCP_READY_PATH="${GITHUB_MCP_READY_PATH:-/.well-known/oauth-protected-resource}"
 
 if [[ -z "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ]]; then
   echo "❌ GITHUB_PERSONAL_ACCESS_TOKEN is not set in the current shell." >&2
@@ -101,7 +102,7 @@ echo "▶ Waiting for github-mcp sidecar HTTP endpoint…"
 deadline=$(( $(date +%s) + READY_TIMEOUT ))
 while :; do
   if "${DC[@]}" exec -T "$SERVICE" \
-      node -e "fetch('http://github-mcp:8082/.well-known/oauth-protected-resource').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))" \
+      node -e "fetch('http://github-mcp:8082${GITHUB_MCP_READY_PATH}').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))" \
       >/dev/null 2>&1; then
     echo "▶ github-mcp is ready."
     break

@@ -1257,21 +1257,15 @@ export async function executeGithubSafeCanaryPlannedTest(
         }
       } else if (ISSUE_PR_TOOL_NAME_RE.test(tool)) {
         const title = `${args.config.issuePrefix}${args.testRunId}`;
-        const issueWriteInput =
-          tool === 'issue_write'
-            ? {
-                owner: args.config.owner,
-                repo: args.config.repo,
-                method: 'create',
-                title,
-                body: `${marker}\ncontrolled:${args.testRunId}`,
-              }
-            : {
-                owner: args.config.owner,
-                repo: args.config.repo,
-                title,
-                body: `${marker}\ncontrolled:${args.testRunId}`,
-              };
+        const issueWriteInput: Record<string, unknown> = {
+          owner: args.config.owner,
+          repo: args.config.repo,
+          title,
+          body: `${marker}\ncontrolled:${args.testRunId}`,
+        };
+        if (tool === 'issue_write') {
+          issueWriteInput['method'] = 'create';
+        }
         const issueRes = await callAndRecord(args, toolCalls, evidence, step++, tool, issueWriteInput);
         if (issueRes.isError) {
           if (isProvenBlockedOrImpossible(issueRes.text)) {
@@ -1291,19 +1285,14 @@ export async function executeGithubSafeCanaryPlannedTest(
           canaryObserved = responseContainsMarker(issueRes.text, marker);
           if (!canaryObserved && artifacts.issueNumber) {
             const issueReadTool = tool === 'issue_write' ? 'issue_read' : 'get_issue';
-            const readIssueInput =
-              issueReadTool === 'issue_read'
-                ? {
-                    owner: args.config.owner,
-                    repo: args.config.repo,
-                    issue_number: artifacts.issueNumber,
-                    method: 'get',
-                  }
-                : {
-                    owner: args.config.owner,
-                    repo: args.config.repo,
-                    issue_number: artifacts.issueNumber,
-                  };
+            const readIssueInput: Record<string, unknown> = {
+              owner: args.config.owner,
+              repo: args.config.repo,
+              issue_number: artifacts.issueNumber,
+            };
+            if (issueReadTool === 'issue_read') {
+              readIssueInput['method'] = 'get';
+            }
             const readIssueRes = await callAndRecord(
               args,
               toolCalls,
