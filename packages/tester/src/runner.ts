@@ -1132,8 +1132,8 @@ export async function executeGithubSafeCanaryPlannedTest(
       pathStatus = PathStatus.TESTED_INCONCLUSIVE;
       notes = 'Missing discovered source tool.';
     } else {
-      const hasCreateOrUpdateFile = tool === 'create_or_update_file' || tool === 'push_files';
-      if (hasCreateOrUpdateFile) {
+      const isRepositoryWriteTool = tool === 'create_or_update_file' || tool === 'push_files';
+      if (isRepositoryWriteTool) {
         const branchName = buildGithubSafeBranchName(args.config.branchPrefix ?? '', args.testRunId);
         const writeInput = {
           owner: args.config.owner,
@@ -1146,7 +1146,10 @@ export async function executeGithubSafeCanaryPlannedTest(
         };
         let writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
         let usedDefaultBranchFallback = false;
-        if (writeRes.isError && isBranchNotFound(writeRes.text) && tool === 'create_or_update_file') {
+        // Only create_or_update_file supports omitting branch to target the default branch.
+        // push_files requires an explicit branch and must not receive a branchless retry.
+        const supportsBranchlessFallback = tool === 'create_or_update_file';
+        if (writeRes.isError && isBranchNotFound(writeRes.text) && supportsBranchlessFallback) {
           const fallbackInput = {
             owner: args.config.owner,
             repo: args.config.repo,
