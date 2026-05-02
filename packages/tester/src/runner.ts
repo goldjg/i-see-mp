@@ -339,10 +339,13 @@ export function assessGithubSafeCanaryRefusal(
     if (!hasText(config.branchPrefix)) reasons.push('Missing github-safe-canary.branchPrefix.');
     if (!hasText(config.issuePrefix)) reasons.push('Missing github-safe-canary.issuePrefix.');
     if (!hasText(config.canaryPrefix)) reasons.push('Missing github-safe-canary.canaryPrefix.');
-    if (hasText(config.repo) && !config.allowUnsafeTestRepo && !getGithubSafeRepoPattern().test(config.repo!)) {
-      reasons.push(
-        'Refusing github-safe-canary run: repo name must match safe disposable pattern unless allowUnsafeTestRepo is set.',
-      );
+    const repoName = config.repo ?? '';
+    if (repoName.trim().length > 0) {
+      if (!config.allowUnsafeTestRepo && !getGithubSafeRepoPattern().test(repoName)) {
+        reasons.push(
+          'Refusing github-safe-canary run: repo name must match safe disposable pattern unless allowUnsafeTestRepo is set.',
+        );
+      }
     }
   }
   return { refused: reasons.length > 0, reasons };

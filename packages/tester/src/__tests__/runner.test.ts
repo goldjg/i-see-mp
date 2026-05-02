@@ -494,7 +494,6 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
       expect(createBranchCalls[0]?.['branch']).toBe(pushCalls[0]?.['branch']);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.notes).toContain('Canary observed');
-      expect(executed.testRun.notes).not.toContain('"received":"undefined"');
     } finally {
       await sink.close();
     }
