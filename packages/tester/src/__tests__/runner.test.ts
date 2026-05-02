@@ -426,6 +426,57 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
     }
   });
 
+  it('does not attempt branchless fallback for push_files when branch is missing', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'push_files', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const sink = await startMockSink();
+    try {
+      const pushCalls: Record<string, unknown>[] = [];
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
+          if (toolName === 'push_files') {
+            pushCalls.push(args);
+            return {
+              raw: null,
+              text: `MCP error -32603: Not Found: Resource not found: Branch ${String(args['branch'])} not found`,
+              isError: true,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: 'testrun:ghsafe:pushf:abc123',
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(pushCalls).toHaveLength(1);
+      expect(typeof pushCalls[0]?.['branch']).toBe('string');
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_INCONCLUSIVE);
+      expect(executed.testRun.notes).toContain('Write path unproven');
+    } finally {
+      await sink.close();
+    }
+  });
+
   it('confirms repo mutation when file readback returns base64 content payload', async () => {
     const githubSrv = { ...server(), name: 'github-mcp' };
     const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];

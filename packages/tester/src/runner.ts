@@ -1146,7 +1146,7 @@ export async function executeGithubSafeCanaryPlannedTest(
         };
         let writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
         let usedDefaultBranchFallback = false;
-        if (writeRes.isError && isBranchNotFound(writeRes.text)) {
+        if (writeRes.isError && isBranchNotFound(writeRes.text) && tool === 'create_or_update_file') {
           const fallbackInput = {
             owner: args.config.owner,
             repo: args.config.repo,
