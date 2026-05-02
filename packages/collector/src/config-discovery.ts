@@ -13,6 +13,7 @@ interface ClaudeDesktopConfig {
       args?: string[];
       env?: Record<string, string>;
       url?: string;
+      transport?: 'stdio' | 'http' | 'sse';
     }
   >;
 }
@@ -22,7 +23,12 @@ async function readJson(path: string): Promise<unknown> {
   return JSON.parse(text) as unknown;
 }
 
-function normaliseTransport(entry: { command?: string; url?: string }): 'stdio' | 'http' | 'sse' {
+function normaliseTransport(entry: {
+  command?: string;
+  url?: string;
+  transport?: 'stdio' | 'http' | 'sse';
+}): 'stdio' | 'http' | 'sse' {
+  if (entry.transport) return entry.transport;
   if (entry.url) return 'sse';
   return 'stdio';
 }
@@ -70,7 +76,16 @@ async function loadVSCodeConfig(): Promise<ServerConfig[]> {
   try {
     const raw = (await readJson(settingsPath)) as Record<string, unknown>;
     const servers = raw['mcpServers'] as
-      | Record<string, { command?: string; args?: string[]; env?: Record<string, string>; url?: string }>
+      | Record<
+          string,
+          {
+            command?: string;
+            args?: string[];
+            env?: Record<string, string>;
+            url?: string;
+            transport?: 'stdio' | 'http' | 'sse';
+          }
+        >
       | undefined;
     if (!servers) return [];
     return Object.entries(servers).map(([name, entry]) =>

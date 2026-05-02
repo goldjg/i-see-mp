@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { ServerConfig, McpTool, McpResource, McpPrompt } from '@iseemp/core';
 
 export interface EnumerationResult {
@@ -15,7 +16,7 @@ export async function enumerateServer(config: ServerConfig): Promise<Enumeration
     { capabilities: {} },
   );
 
-  let transport: StdioClientTransport | SSEClientTransport;
+  let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport;
 
   if (config.transport === 'stdio') {
     if (!config.command) throw new Error(`Server ${config.name} has no command for stdio transport`);
@@ -26,7 +27,11 @@ export async function enumerateServer(config: ServerConfig): Promise<Enumeration
     });
   } else {
     if (!config.url) throw new Error(`Server ${config.name} has no URL for SSE/HTTP transport`);
-    transport = new SSEClientTransport(new URL(config.url));
+    const requestInit = buildRemoteRequestInit(config);
+    transport =
+      config.transport === 'http'
+        ? new StreamableHTTPClientTransport(new URL(config.url), { requestInit })
+        : new SSEClientTransport(new URL(config.url), { requestInit });
   }
 
   await client.connect(transport);
@@ -68,4 +73,17 @@ export async function enumerateServer(config: ServerConfig): Promise<Enumeration
       : [];
 
   return { tools, resources, prompts };
+}
+
+function buildRemoteRequestInit(config: ServerConfig): RequestInit | undefined {
+  // Intentionally allow an explicit process env fallback so Docker/CI flows can keep
+  // bearer tokens out of persisted config files while still authenticating remote MCP calls.
+  const token = config.env?.['GITHUB_PERSONAL_ACCESS_TOKEN'] ?? process.env['GITHUB_PERSONAL_ACCESS_TOKEN'];
+  const authorization = config.env?.['Authorization'];
+  if (!token && !authorization) return undefined;
+  return {
+    headers: {
+      Authorization: authorization ?? `Bearer ${token}`,
+    },
+  };
 }

@@ -50,6 +50,19 @@ export interface TestSummary {
   testRuns: TestRun[];
 }
 
+export function summarizeRunsForCli(testRuns: TestRun[]): {
+  confirmed: number;
+  rejected: number;
+  inconclusive: number;
+  skipped: number;
+} {
+  const confirmed = testRuns.filter((r) => r.pathStatus === PathStatus.TESTED_CONFIRMED).length;
+  const rejected = testRuns.filter((r) => r.pathStatus === PathStatus.TESTED_REJECTED).length;
+  const inconclusive = testRuns.filter((r) => r.pathStatus === PathStatus.TESTED_INCONCLUSIVE).length;
+  const skipped = testRuns.filter((r) => r.outcome === TestOutcome.TEST_SKIPPED).length;
+  return { confirmed, rejected, inconclusive, skipped };
+}
+
 /**
  * Run the safe deterministic-test profile against the latest (or specified)
  * collection. This connects to each MCP server with a planned test, executes
@@ -120,13 +133,11 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
   const connected = new Map<string, ConnectedServer>();
   const allTestRuns: TestRun[] = [];
   const allEvidence: Evidence[] = [];
-  let skipped = 0;
 
   try {
     for (const p of planned) {
       const conn = await ensureConnection(connected, servers, p);
       if (!conn) {
-        skipped++;
         const startedAt = new Date().toISOString();
         const testRunId = `testrun:skip:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
         allTestRuns.push({
@@ -206,9 +217,7 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
   // Update findings based on results.
   applyTestResultsToFindings(col.id, allTestRuns, findingsRepo);
 
-  const confirmed = allTestRuns.filter((r) => r.outcome === TestOutcome.TESTED_CONFIRMED).length;
-  const rejected = allTestRuns.filter((r) => r.outcome === TestOutcome.TESTED_REJECTED).length;
-  const inconclusive = allTestRuns.filter((r) => r.outcome === TestOutcome.TESTED_INCONCLUSIVE || r.outcome === TestOutcome.TEST_ERROR).length;
+  const { confirmed, rejected, inconclusive, skipped } = summarizeRunsForCli(allTestRuns);
 
   return {
     collectionId: col.id,

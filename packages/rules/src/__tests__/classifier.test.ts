@@ -126,6 +126,23 @@ describe('classifyTool — GitHub MCP shaped tools (precise)', () => {
     expect(result.capabilities).toContain(Capability.MUTATE_ISSUE_OR_PR);
   });
 
+  it('issue_write is MUTATE_ISSUE_OR_PR', () => {
+    const result = classifyTool({
+      name: 'issue_write',
+      description: 'Create or update a GitHub issue in a repository',
+    });
+    expect(result.capabilities).toContain(Capability.MUTATE_ISSUE_OR_PR);
+  });
+
+  it('issue_read on GitHub is QUERY_REMOTE_SYSTEM / READ_REMOTE_DATA', () => {
+    const result = classifyTool({
+      name: 'issue_read',
+      description: 'Read a GitHub issue from a repository',
+    });
+    expect(result.capabilities).toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
+  });
+
   it('create_pull_request is MUTATE_ISSUE_OR_PR', () => {
     const result = classifyTool({
       name: 'create_pull_request',

@@ -19,6 +19,7 @@ describe('discoverConfigs', () => {
           },
           remote: {
             url: 'https://api.example.com/mcp',
+            transport: 'http',
           },
         },
       }),
@@ -35,7 +36,7 @@ describe('discoverConfigs', () => {
     expect(github?.command).toBe('npx');
 
     const remote = configs.find((c) => c.name === 'remote');
-    expect(remote?.transport).toBe('sse');
+    expect(remote?.transport).toBe('http');
     expect(remote?.url).toBe('https://api.example.com/mcp');
   });
 

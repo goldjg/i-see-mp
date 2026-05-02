@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 export interface ConnectedServer {
   client: Client;
@@ -23,7 +24,7 @@ export interface ServerConnectConfig {
 export async function connectServer(config: ServerConnectConfig): Promise<ConnectedServer> {
   const client = new Client({ name: 'iseemp-tester', version: '0.0.1' }, { capabilities: {} });
 
-  let transport: StdioClientTransport | SSEClientTransport;
+  let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport;
   if (config.transport === 'stdio') {
     if (!config.command) {
       throw new Error(`Server ${config.name} has no command for stdio transport`);
@@ -37,7 +38,11 @@ export async function connectServer(config: ServerConnectConfig): Promise<Connec
     if (!config.url) {
       throw new Error(`Server ${config.name} has no URL for HTTP/SSE transport`);
     }
-    transport = new SSEClientTransport(new URL(config.url));
+    const requestInit = buildRemoteRequestInit(config.env);
+    transport =
+      config.transport === 'http'
+        ? new StreamableHTTPClientTransport(new URL(config.url), { requestInit })
+        : new SSEClientTransport(new URL(config.url), { requestInit });
   }
 
   await client.connect(transport);
@@ -64,9 +69,39 @@ export async function callTool(
 ): Promise<ToolCallResult> {
   const res = await client.callTool({ name: toolName, arguments: args });
   const isError = (res as { isError?: boolean }).isError === true;
-  const content = (res as { content?: Array<{ type: string; text?: string }> }).content ?? [];
-  const text = content
-    .map((c) => (typeof c.text === 'string' ? c.text : JSON.stringify(c)))
-    .join('\n');
+  const text = extractToolResultText(res);
   return { raw: res, text, isError };
+}
+
+function extractToolResultText(res: unknown): string {
+  if (!res || typeof res !== 'object') return '';
+  const result = res as {
+    content?: Array<{ type?: string; text?: string }>;
+    structuredContent?: unknown;
+  };
+  const parts: string[] = [];
+  for (const item of result.content ?? []) {
+    if (typeof item?.text === 'string') {
+      parts.push(item.text);
+    } else {
+      parts.push(JSON.stringify(item));
+    }
+  }
+  if (typeof result.structuredContent !== 'undefined') {
+    parts.push(JSON.stringify(result.structuredContent));
+  }
+  return parts.filter((part) => part.length > 0).join('\n');
+}
+
+function buildRemoteRequestInit(env: Record<string, string> | undefined): RequestInit | undefined {
+  // Intentionally allow an explicit process env fallback so Docker/CI flows can keep
+  // bearer tokens out of persisted config files while still authenticating remote MCP calls.
+  const token = env?.['GITHUB_PERSONAL_ACCESS_TOKEN'] ?? process.env['GITHUB_PERSONAL_ACCESS_TOKEN'];
+  const authorization = env?.['Authorization'];
+  if (!token && !authorization) return undefined;
+  return {
+    headers: {
+      Authorization: authorization ?? `Bearer ${token}`,
+    },
+  };
 }

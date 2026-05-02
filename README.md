@@ -70,8 +70,15 @@ cat > iseemp.config.json << 'EOF_CONF'
 {
   "mcpServers": {
     "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
       "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_your_token_here" }
     }
   }
@@ -158,6 +165,20 @@ docker compose exec iseemp iseemp demo test
 ```
 
 SQLite data is persisted in the named volume `iseemp_data` at `/data/iseemp.db`.
+
+### GitHub MCP sidecar in Docker Compose
+
+`docker-compose.yml` runs a sibling `github-mcp` container from `ghcr.io/github/github-mcp-server` in HTTP mode:
+
+```yaml
+github-mcp:
+  image: ghcr.io/github/github-mcp-server
+  command: ["http", "--port", "8082"]
+```
+
+- Required env var for GitHub collection/testing: `GITHUB_PERSONAL_ACCESS_TOKEN`
+- Optional env vars: `GITHUB_TOOLSETS` (defaults to `all`), `GITHUB_HOST` (for GHES / ghe.com)
+- Transport note: the sidecar speaks MCP over streamable HTTP on the internal Compose network; `iseemp` connects to `http://github-mcp:8082/` and forwards `GITHUB_PERSONAL_ACCESS_TOKEN` as a bearer token instead of spawning a stdio child inside the app container
 
 Useful commands:
 
@@ -403,6 +424,19 @@ Expected outcomes in this profile:
 - `TESTED_REJECTED` only when execution is proven blocked/impossible
 - `TESTED_INCONCLUSIVE` when marker is absent without proof of blockage
 - `TEST_SKIPPED` when required permissions/tools are missing
+
+When using Docker Compose, write the GitHub server entry as:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "url": "http://github-mcp:8082/",
+      "transport": "http"
+    }
+  }
+}
+```
 
 ## HTTP API reference
 

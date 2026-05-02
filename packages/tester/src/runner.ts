@@ -84,6 +84,11 @@ const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE =
   /^(?:error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|not found|unsupported|cannot\b).*(?:forbidden|denied|unauthorized|requires .* permission|not found|unsupported|policy|validation|cannot|resource not accessible)/i;
 const BRANCH_NOT_FOUND_RE = /resource not found:\s*branch\s.+not found|branch\s.+not found/i;
 const BRANCH_ALREADY_EXISTS_RE = /reference already exists|branch\s.+already exists|already exists/i;
+// GitHub-controlled canary verification occasionally lags immediately after writes; one short
+// retry keeps eventual consistency from producing false inconclusive results without making the
+// test noticeably slower.
+const GITHUB_CANARY_READBACK_DELAY_MS = 750;
+const GITHUB_CANARY_MAX_FILE_READBACK_ATTEMPTS = 3;
 const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review/;
 const READ_TOOL_NAME_RE = /^(get|list|read|search)_/;
 const TOOL_CAPS_CACHE = new Map<string, Capability[]>();
@@ -389,6 +394,14 @@ function isGithubIssuePrWriteTool(tool: ToolRow): boolean {
   );
 }
 
+function pickGithubIssuePrWriteTool(tools: ToolRow[]): ToolRow | undefined {
+  const preferredPatterns = [/^issue_write$/, /^create_issue$/];
+  return (
+    tools.find((tool) => isGithubIssuePrWriteTool(tool) && nameMatches(tool, preferredPatterns)) ??
+    tools.find(isGithubIssuePrWriteTool)
+  );
+}
+
 function isGithubRepositoryMutationTool(tool: ToolRow): boolean {
   return (
     hasAnyCapability(tool, [Capability.MUTATE_REPOSITORY, Capability.MUTATE_REMOTE_STATE]) &&
@@ -431,7 +444,7 @@ export function planGithubSafeCanaryProfile(
       });
     }
 
-    const issuePrWriteTool = tools.find(isGithubIssuePrWriteTool);
+    const issuePrWriteTool = pickGithubIssuePrWriteTool(tools);
     if (issuePrWriteTool) {
       const caseDef = GITHUB_SAFE_CANARY_PROFILE_CASES[1]!;
       planned.push({
@@ -864,9 +877,14 @@ interface GithubSafeRunArgs {
   config: GithubSafeCanaryConfig;
 }
 
+function escapeRegexLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+}
+
 function extractNumber(rawText: string, keys: string[]): number | undefined {
   for (const k of keys) {
-    const r = new RegExp(`"${k}"\\s*:\\s*(\\d+)`, 'i').exec(rawText);
+    const escapedKey = escapeRegexLiteral(k);
+    const r = new RegExp(`"${escapedKey}"\\s*:\\s*"?([0-9]+)"?`, 'i').exec(rawText);
     if (r?.[1]) return Number(r[1]);
   }
   return undefined;
@@ -874,10 +892,17 @@ function extractNumber(rawText: string, keys: string[]): number | undefined {
 
 function extractUrl(rawText: string, keys: string[]): string | undefined {
   for (const k of keys) {
-    const r = new RegExp(`"${k}"\\s*:\\s*"([^"]+)"`, 'i').exec(rawText);
+    const escapedKey = escapeRegexLiteral(k);
+    const r = new RegExp(`"${escapedKey}"\\s*:\\s*"([^"]+)"`, 'i').exec(rawText);
     if (r?.[1]) return r[1];
   }
   return undefined;
+}
+
+function extractIssueOrPullNumberFromUrl(url: string): number | undefined {
+  const match = /\/(?:issues|pull)\/([0-9]+)(?:[/?#]|$)/i.exec(url);
+  if (!match?.[1]) return undefined;
+  return Number(match[1]);
 }
 
 function isProvenBlockedOrImpossible(text: string): boolean {
@@ -984,6 +1009,61 @@ function isNonEmptyString(value: unknown): value is string {
 
 function hasNonEmptyBranchString(input: Record<string, unknown>): boolean {
   return isNonEmptyString(input['branch']);
+}
+
+function buildGithubControlledFileReadInput(
+  args: GithubSafeRunArgs,
+  artifacts: GithubSafeArtifactState,
+): Record<string, unknown> {
+  const input: Record<string, unknown> = {
+    owner: args.config.owner,
+    repo: args.config.repo,
+    path: artifacts.filePath,
+  };
+  if (artifacts.branchName) {
+    input['ref'] = artifacts.branchName;
+    input['branch'] = artifacts.branchName;
+  }
+  return input;
+}
+
+async function readGithubIssueCanaryWithRetry(
+  args: GithubSafeRunArgs,
+  toolCalls: ToolCall[],
+  evidence: Evidence[],
+  step: number,
+  toolName: string,
+  input: Record<string, unknown>,
+  marker: string,
+): Promise<{ result: ToolCallResult; observed: boolean; nextStep: number }> {
+  let currentStep = step;
+  let result = await callAndRecord(args, toolCalls, evidence, currentStep++, toolName, input);
+  let observed = responseContainsMarker(result.text, marker);
+  if (!observed) {
+    await sleep(GITHUB_CANARY_READBACK_DELAY_MS);
+    result = await callAndRecord(args, toolCalls, evidence, currentStep++, toolName, input);
+    observed = responseContainsMarker(result.text, marker);
+  }
+  return { result, observed, nextStep: currentStep };
+}
+
+async function readGithubFileCanaryWithRetry(
+  args: GithubSafeRunArgs,
+  toolCalls: ToolCall[],
+  evidence: Evidence[],
+  step: number,
+  input: Record<string, unknown>,
+  marker: string,
+): Promise<{ result: ToolCallResult; observed: boolean; nextStep: number }> {
+  let currentStep = step;
+  let result = await callAndRecord(args, toolCalls, evidence, currentStep++, 'get_file_contents', input);
+  let observed = responseContainsMarker(result.text, marker);
+  for (let attempt = 1; !observed && attempt < GITHUB_CANARY_MAX_FILE_READBACK_ATTEMPTS; attempt += 1) {
+    await sleep(GITHUB_CANARY_READBACK_DELAY_MS);
+    result = await callAndRecord(args, toolCalls, evidence, currentStep++, 'get_file_contents', input);
+    observed = responseContainsMarker(result.text, marker);
+  }
+  return { result, observed, nextStep: currentStep };
 }
 
 async function callAndRecord(
@@ -1211,29 +1291,17 @@ export async function executeGithubSafeCanaryPlannedTest(
           // Successful branch-bound write either targeted the prebuilt branch or one we just
           // created on demand; record it so cleanup/readback can target the same ref.
           artifacts.branchName = branchName;
-          const readBackInput: Record<string, unknown> = {
-            owner: args.config.owner,
-            repo: args.config.repo,
-            path: artifacts.filePath,
-          };
-          if (artifacts.branchName) {
-            // The Go `github-mcp-server` reads the per-branch contents via `ref`, while the
-            // legacy npm `@modelcontextprotocol/server-github` accepts only `branch` and
-            // silently strips `ref`. Send both so readback targets the canary branch on
-            // either server variant; each strips the key it doesn't recognize.
-            readBackInput['ref'] = artifacts.branchName;
-            readBackInput['branch'] = artifacts.branchName;
-          }
-          let readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
-          canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
-          // The write succeeded but GitHub's contents API can briefly lag behind a fresh
-          // commit; do one short retry with a small backoff before declaring inconclusive
-          // so eventual-consistency doesn't masquerade as a missing canary.
-          if (!canaryObserved) {
-            await sleep(750);
-            readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
-            canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
-          }
+          const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
+          const readBack = await readGithubFileCanaryWithRetry(
+            args,
+            toolCalls,
+            evidence,
+            step,
+            readBackInput,
+            marker,
+          );
+          step = readBack.nextStep;
+          canaryObserved = readBack.observed;
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
           pathStatus = canaryObserved
@@ -1249,12 +1317,16 @@ export async function executeGithubSafeCanaryPlannedTest(
         }
       } else if (ISSUE_PR_TOOL_NAME_RE.test(tool)) {
         const title = `${args.config.issuePrefix}${args.testRunId}`;
-        const issueRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
+        const issueWriteInput: Record<string, unknown> = {
           owner: args.config.owner,
           repo: args.config.repo,
           title,
           body: `${marker}\ncontrolled:${args.testRunId}`,
-        });
+        };
+        if (tool === 'issue_write') {
+          issueWriteInput['method'] = 'create';
+        }
+        const issueRes = await callAndRecord(args, toolCalls, evidence, step++, tool, issueWriteInput);
         if (issueRes.isError) {
           if (isProvenBlockedOrImpossible(issueRes.text)) {
             outcome = TestOutcome.TESTED_REJECTED;
@@ -1268,16 +1340,32 @@ export async function executeGithubSafeCanaryPlannedTest(
             notes = `Issue/PR write unproven: ${issueRes.text}`;
           }
         } else {
-          artifacts.issueNumber = extractNumber(issueRes.text, ['number', 'issue_number']);
           artifacts.issueUrl = extractUrl(issueRes.text, ['html_url', 'url']);
+          artifacts.issueNumber =
+            extractNumber(issueRes.text, ['number', 'issue_number']) ??
+            (artifacts.issueUrl ? extractIssueOrPullNumberFromUrl(artifacts.issueUrl) : undefined);
           canaryObserved = responseContainsMarker(issueRes.text, marker);
           if (!canaryObserved && artifacts.issueNumber) {
-            const readIssueRes = await callAndRecord(args, toolCalls, evidence, step++, 'get_issue', {
+            const issueReadTool = tool === 'issue_write' ? 'issue_read' : 'get_issue';
+            const readIssueInput: Record<string, unknown> = {
               owner: args.config.owner,
               repo: args.config.repo,
               issue_number: artifacts.issueNumber,
-            });
-            canaryObserved = !readIssueRes.isError && responseContainsMarker(readIssueRes.text, marker);
+            };
+            if (issueReadTool === 'issue_read') {
+              readIssueInput['method'] = 'get';
+            }
+            const readIssue = await readGithubIssueCanaryWithRetry(
+              args,
+              toolCalls,
+              evidence,
+              step,
+              issueReadTool,
+              readIssueInput,
+              marker,
+            );
+            step = readIssue.nextStep;
+            canaryObserved = readIssue.observed;
           }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
@@ -1286,7 +1374,7 @@ export async function executeGithubSafeCanaryPlannedTest(
             : PathStatus.TESTED_INCONCLUSIVE;
           notes = canaryObserved
             ? 'Canary observed in controlled issue/PR write response.'
-            : 'No canary observed in controlled issue/PR response.';
+            : 'No canary observed in controlled issue/PR response after readback retry.';
         }
       } else if (READ_TOOL_NAME_RE.test(tool)) {
         // github-mcp-server's create_or_update_file requires `branch`; without it the seed
@@ -1320,38 +1408,70 @@ export async function executeGithubSafeCanaryPlannedTest(
         } catch {
           // best effort; not all read-only integrations expose mutation tooling
         }
-        const readRes = await callAndRecord(args, toolCalls, evidence, step++, tool, {
+        const readInput: Record<string, unknown> = {
           owner: args.config.owner,
           repo: args.config.repo,
           query: marker,
           path: artifacts.filePath,
-        });
+        };
+        if (tool === 'get_file_contents' && artifacts.branchName) {
+          const controlledReadInput = buildGithubControlledFileReadInput(args, artifacts);
+          readInput['ref'] = controlledReadInput['ref'];
+          readInput['branch'] = controlledReadInput['branch'];
+        }
+        const readRes = await callAndRecord(args, toolCalls, evidence, step++, tool, readInput);
         if (readRes.isError) {
-          outcome = isProvenBlockedOrImpossible(readRes.text)
-            ? TestOutcome.TESTED_REJECTED
-            : TestOutcome.TESTED_INCONCLUSIVE;
-          status = outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
-          pathStatus =
-            outcome === TestOutcome.TESTED_REJECTED
-              ? PathStatus.TESTED_REJECTED
-              : PathStatus.TESTED_INCONCLUSIVE;
-          notes = readRes.text;
+          // Some read APIs require extra identifiers (for example alert numbers) and will
+          // reject our generic probe input; always attempt controlled file readback when we
+          // successfully seeded a branch-scoped canary so syntax/shape mismatches don't hide
+          // a real canary observation opportunity.
+          if (artifacts.branchName) {
+            const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
+            const readBack = await callAndRecord(
+              args,
+              toolCalls,
+              evidence,
+              step++,
+              'get_file_contents',
+              readBackInput,
+            );
+            canaryObserved = responseContainsMarker(readBack.text, marker);
+            if (canaryObserved) {
+              outcome = TestOutcome.TESTED_CONFIRMED;
+              status = TestStatus.CONFIRMED;
+              pathStatus = PathStatus.TESTED_CONFIRMED;
+              notes = 'Canary observed in controlled readback after primary read tool failed.';
+            } else {
+              outcome = isProvenBlockedOrImpossible(readRes.text)
+                ? TestOutcome.TESTED_REJECTED
+                : TestOutcome.TESTED_INCONCLUSIVE;
+              status =
+                outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
+              pathStatus =
+                outcome === TestOutcome.TESTED_REJECTED
+                  ? PathStatus.TESTED_REJECTED
+                  : PathStatus.TESTED_INCONCLUSIVE;
+              notes = readBack.isError
+                ? `${readRes.text} (controlled readback also failed: ${readBack.text})`
+                : readRes.text;
+            }
+          } else {
+            outcome = isProvenBlockedOrImpossible(readRes.text)
+              ? TestOutcome.TESTED_REJECTED
+              : TestOutcome.TESTED_INCONCLUSIVE;
+            status = outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
+            pathStatus =
+              outcome === TestOutcome.TESTED_REJECTED
+                ? PathStatus.TESTED_REJECTED
+                : PathStatus.TESTED_INCONCLUSIVE;
+            notes = readRes.text;
+          }
         } else {
           canaryObserved = responseContainsMarker(readRes.text, marker);
           if (!canaryObserved) {
-            const readBackInput: Record<string, unknown> = {
-              owner: args.config.owner,
-              repo: args.config.repo,
-              path: artifacts.filePath,
-            };
-            if (artifacts.branchName) {
-              // See note on the repository-mutation readback above: the Go server uses
-              // `ref` and the legacy npm server uses `branch`; sending both is safe.
-              readBackInput['ref'] = artifacts.branchName;
-              readBackInput['branch'] = artifacts.branchName;
-            }
+            const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
             const readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
-            canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
+            canaryObserved = responseContainsMarker(readBack.text, marker);
           }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
