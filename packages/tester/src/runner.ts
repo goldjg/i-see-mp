@@ -84,8 +84,6 @@ const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE =
   /^(?:error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|not found|unsupported|cannot\b).*(?:forbidden|denied|unauthorized|requires .* permission|not found|unsupported|policy|validation|cannot|resource not accessible)/i;
 const BRANCH_NOT_FOUND_RE = /resource not found:\s*branch\s.+not found|branch\s.+not found/i;
 const BRANCH_ALREADY_EXISTS_RE = /reference already exists|branch\s.+already exists|already exists/i;
-const CONTROLLED_ARTIFACT_NOT_FOUND_RE =
-  /(?:404|not found|path does not point to a file|failed to resolve git reference)/i;
 // GitHub-controlled canary verification occasionally lags immediately after writes; one short
 // retry keeps eventual consistency from producing false inconclusive results without making the
 // test noticeably slower.
@@ -961,10 +959,6 @@ function isBranchAlreadyExists(text: string): boolean {
   return BRANCH_ALREADY_EXISTS_RE.test(text);
 }
 
-function isControlledArtifactNotFound(text: string): boolean {
-  return CONTROLLED_ARTIFACT_NOT_FOUND_RE.test(text);
-}
-
 function sanitizeBranchToken(value: string): string {
   let out = '';
   let prevDash = false;
@@ -1393,7 +1387,11 @@ export async function executeGithubSafeCanaryPlannedTest(
         }
         const readRes = await callAndRecord(args, toolCalls, evidence, step++, tool, readInput);
         if (readRes.isError) {
-          if (artifacts.branchName && (tool === 'get_file_contents' || isControlledArtifactNotFound(readRes.text))) {
+          // Some read APIs require extra identifiers (for example alert numbers) and will
+          // reject our generic probe input; always attempt controlled file readback when we
+          // successfully seeded a branch-scoped canary so syntax/shape mismatches don't hide
+          // a real canary observation opportunity.
+          if (artifacts.branchName) {
             const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
             const readBack = await callAndRecord(
               args,
