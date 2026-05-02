@@ -691,7 +691,7 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
           canaryPrefix: 'ISEEMP',
         },
       });
-      await vi.advanceTimersByTimeAsync(750);
+      await vi.runAllTimersAsync();
       const executed = await execution;
 
       expect(toolCalls.filter((name) => name === 'issue_read')).toHaveLength(2);
