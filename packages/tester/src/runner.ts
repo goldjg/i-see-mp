@@ -957,6 +957,10 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function hasValidPushFilesBranch(input: Record<string, unknown>): boolean {
+  return isNonEmptyString(input['branch']);
+}
+
 async function callAndRecord(
   args: GithubSafeRunArgs,
   toolCalls: ToolCall[],
@@ -967,7 +971,7 @@ async function callAndRecord(
 ): Promise<ToolCallResult> {
   const t0 = Date.now();
   let res: ToolCallResult;
-  if (toolName === 'push_files' && !isNonEmptyString(input['branch'])) {
+  if (toolName === 'push_files' && !hasValidPushFilesBranch(input)) {
     res = {
       raw: null,
       text: 'Invalid input: push_files requires a non-empty branch string.',
