@@ -370,16 +370,18 @@ function nameMatches(tool: ToolRow, patterns: RegExp[]): boolean {
 }
 
 function isGithubReadTool(tool: ToolRow): boolean {
+  const loweredName = tool.name.toLowerCase();
   return (
     hasAnyCapability(tool, [Capability.READ_REMOTE_DATA, Capability.QUERY_REMOTE_SYSTEM, Capability.READ_METADATA_LOW]) &&
-    nameMatches(tool, [/^(get|list|read|search)_/, /file/, /issue/, /pull_request/, /repository/])
+    !/issue|pull_request|comment|review/.test(loweredName) &&
+    nameMatches(tool, [/^(get|list|read|search)_/, /file/, /repository/, /code/, /commit/, /branch/, /tag/, /release/])
   );
 }
 
 function isGithubIssuePrWriteTool(tool: ToolRow): boolean {
   return (
-    hasAnyCapability(tool, [Capability.MUTATE_ISSUE_OR_PR, Capability.MUTATE_REMOTE_STATE]) &&
-    nameMatches(tool, [/issue/, /pull_request|pr/, /comment/, /review/, /^create_/, /^update_/])
+    hasAnyCapability(tool, [Capability.MUTATE_ISSUE_OR_PR]) &&
+    nameMatches(tool, [/issue/, /pull_request|pr/, /comment/, /review/])
   );
 }
 
@@ -960,7 +962,16 @@ async function callAndRecord(
   input: Record<string, unknown>,
 ): Promise<ToolCallResult> {
   const t0 = Date.now();
-  const res = await args.ctx.invoke(args.planned.serverId, toolName, input);
+  let res: ToolCallResult;
+  try {
+    res = await args.ctx.invoke(args.planned.serverId, toolName, input);
+  } catch (err) {
+    res = {
+      raw: null,
+      text: err instanceof Error ? err.message : String(err),
+      isError: true,
+    };
+  }
   const durationMs = Date.now() - t0;
   const redactedInput = redactRecord(input);
   const redactedOutput = redactValue({ text: res.text, isError: res.isError });
@@ -992,6 +1003,22 @@ async function callAndRecord(
     createdAt: new Date().toISOString(),
   });
   return res;
+}
+
+async function invokeGithubSafe(
+  args: GithubSafeRunArgs,
+  toolName: string,
+  input: Record<string, unknown>,
+): Promise<ToolCallResult> {
+  try {
+    return await args.ctx.invoke(args.planned.serverId, toolName, input);
+  } catch (err) {
+    return {
+      raw: null,
+      text: err instanceof Error ? err.message : String(err),
+      isError: true,
+    };
+  }
 }
 
 async function tryCleanupGithubSafeArtifacts(
@@ -1156,7 +1183,7 @@ export async function executeGithubSafeCanaryPlannedTest(
           if (artifacts.branchName) {
             readBackInput['ref'] = artifacts.branchName;
           }
-          const readBack = await args.ctx.invoke(args.planned.serverId, 'get_file_contents', readBackInput);
+          const readBack = await invokeGithubSafe(args, 'get_file_contents', readBackInput);
           canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
@@ -1196,7 +1223,7 @@ export async function executeGithubSafeCanaryPlannedTest(
           artifacts.issueUrl = extractUrl(issueRes.text, ['html_url', 'url']);
           canaryObserved = responseContainsMarker(issueRes.text, marker);
           if (!canaryObserved && artifacts.issueNumber) {
-            const readIssueRes = await args.ctx.invoke(args.planned.serverId, 'get_issue', {
+            const readIssueRes = await invokeGithubSafe(args, 'get_issue', {
               owner: args.config.owner,
               repo: args.config.repo,
               issue_number: artifacts.issueNumber,
@@ -1243,7 +1270,7 @@ export async function executeGithubSafeCanaryPlannedTest(
         } else {
           canaryObserved = responseContainsMarker(readRes.text, marker);
           if (!canaryObserved) {
-            const readBack = await args.ctx.invoke(args.planned.serverId, 'get_file_contents', {
+            const readBack = await invokeGithubSafe(args, 'get_file_contents', {
               owner: args.config.owner,
               repo: args.config.repo,
               path: artifacts.filePath,

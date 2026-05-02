@@ -132,6 +132,31 @@ describe('github-safe-canary planning and refusal gates', () => {
     expect(planned.every((p) => p.serverId === 'srv1')).toBe(true);
     expect(GITHUB_SAFE_CANARY_PROFILE_CASES.length).toBe(4);
   });
+
+  it('does not misclassify repository mutation tools as issue/pr write tools', () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [
+      tool('t-read', 'get_file_contents', [Capability.READ_REMOTE_DATA]),
+      tool('t-issue', 'create_issue', [Capability.MUTATE_ISSUE_OR_PR]),
+      tool('t-repo', 'create_or_update_file', [Capability.MUTATE_REMOTE_STATE]),
+    ];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const issueCase = planned.find((p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT');
+    const repoCase = planned.find((p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT');
+    expect(issueCase?.sourceTool?.name).toBe('create_issue');
+    expect(repoCase?.sourceTool?.name).toBe('create_or_update_file');
+  });
+
+  it('prefers compatible repository/file read tools over issue-specific getters', () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [
+      tool('t-issue-read', 'get_issue', [Capability.READ_REMOTE_DATA]),
+      tool('t-file-read', 'get_file_contents', [Capability.READ_REMOTE_DATA]),
+    ];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const readCase = planned.find((p) => p.caseDef.id === 'GITHUB_READ_CONTROLLED_ARTIFACT');
+    expect(readCase?.sourceTool?.name).toBe('get_file_contents');
+  });
 });
 
 describe('executePlannedTest', () => {
@@ -338,6 +363,64 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
       expect(createCalls[1]?.['branch']).toBeUndefined();
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.notes).toContain('default-branch fallback');
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('handles thrown branch-not-found errors and still applies default-branch fallback', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t3', 'create_or_update_file', [Capability.MUTATE_REPOSITORY])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const repoMutationCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
+    expect(repoMutationCase).toBeDefined();
+
+    const sink = await startMockSink();
+    try {
+      let createCalls = 0;
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string) => {
+          if (toolName === 'create_or_update_file') {
+            createCalls += 1;
+            if (createCalls === 1) {
+              throw new Error(
+                'MCP error -32603: Not Found: Resource not found: Branch iseemp-canary-branch not found',
+              );
+            }
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'get_file_contents') {
+            return {
+              raw: null,
+              text: 'ISEEMP-testrun:ghsafe:monethrw:ab12cd',
+              isError: false,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: repoMutationCase!,
+        testRunId: 'testrun:ghsafe:monethrw:ab12cd',
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(createCalls).toBe(2);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.outcome).not.toBe(TestOutcome.TEST_ERROR);
     } finally {
       await sink.close();
     }
