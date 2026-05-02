@@ -81,7 +81,7 @@ const MUTATE_REMOTE_CAPS: Capability[] = [
 const SAFE_REPO_NAME_RE =
   /^(?:(?:canary|sandbox|disposable|test|safe)(?:[-_].+)?)$|^(?:.+[-_](?:canary|sandbox|disposable|test|safe))$/i;
 const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE =
-  /^(?:error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|resource not accessible by integration|not found|unsupported|cannot\b|must have push access|requires write permission|requires push access).*(?:forbidden|denied|unauthorized|requires .* permission|requires write permission|requires push access|must have push access|not found|unsupported|policy|validation|cannot|resource not accessible|resource not accessible by integration)/i;
+  /(?:error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|resource not accessible by integration|not found|unsupported|cannot\b|must have push access|requires write permission|requires push access).*(?:forbidden|denied|unauthorized|requires .* permission|requires write permission|requires push access|must have push access|not found|unsupported|policy|validation|cannot|resource not accessible|resource not accessible by integration)/i;
 const SECONDARY_RATE_LIMIT_RE = /(secondary rate limit|rate limit exceeded)/i;
 const BRANCH_NOT_FOUND_RE = /resource not found:\s*branch\s.+not found|branch\s.+not found/i;
 const BRANCH_ALREADY_EXISTS_RE = /reference already exists|branch\s.+already exists|already exists/i;

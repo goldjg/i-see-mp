@@ -663,7 +663,7 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
       await vi.runAllTimersAsync();
       const executed = await execution;
 
-      expect(toolCalls.filter((name) => name === 'get_file_contents')).toHaveLength(4);
+      expect(toolCalls.filter((name) => name === 'get_file_contents')).toHaveLength(3);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.canaryObserved).toBe(true);
     } finally {
