@@ -340,9 +340,14 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
             return { raw: null, text: JSON.stringify({ ref: args['branch'] }), isError: false };
           }
           if (toolName === 'get_file_contents') {
+            // Mirrors github-mcp-server's actual `get_file_contents` response shape:
+            // a plain-text status line concatenated with the file body encoded as base64.
+            const encoded = Buffer.from('ISEEMP-testrun:ghsafe:mone3a91:onlkq0\n').toString(
+              'base64',
+            );
             return {
               raw: null,
-              text: 'ISEEMP-testrun:ghsafe:mone3a91:onlkq0',
+              text: `successfully downloaded text file (SHA: deadbeef)${encoded}`,
               isError: false,
             };
           }

@@ -889,10 +889,27 @@ function responseContainsMarker(text: string, marker: string): boolean {
   if (text.includes(marker)) return true;
   try {
     const parsed = JSON.parse(text) as unknown;
-    return valueContainsMarker(parsed, marker);
+    if (valueContainsMarker(parsed, marker)) return true;
   } catch {
-    return false;
+    // not JSON; fall through to embedded-base64 detection
   }
+  // Some MCP servers (e.g. github-mcp-server's get_file_contents) return a plain-text
+  // status line concatenated with a base64-encoded file body, which is neither a literal
+  // match nor parseable JSON. Scan for base64-looking substrings and try to decode each.
+  return textContainsBase64Marker(text, marker);
+}
+
+function textContainsBase64Marker(text: string, marker: string): boolean {
+  const re = /[A-Za-z0-9+/=]{16,}/g;
+  for (const match of text.matchAll(re)) {
+    try {
+      const decoded = Buffer.from(match[0], 'base64').toString('utf8');
+      if (decoded.includes(marker)) return true;
+    } catch {
+      // ignore invalid base64 fragments
+    }
+  }
+  return false;
 }
 
 function valueContainsMarker(value: unknown, marker: string): boolean {
