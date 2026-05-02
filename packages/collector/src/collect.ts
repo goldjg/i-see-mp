@@ -6,7 +6,7 @@ import {
   createPromptsRepo,
   getDb,
 } from '@iseemp/storage';
-import { classifyTool } from '@iseemp/rules';
+import { classifyTool, isKnownVerifiedServer } from '@iseemp/rules';
 import { discoverConfigs } from './config-discovery.js';
 import { enumerateServer } from './mcp-client.js';
 
@@ -53,7 +53,14 @@ export async function collect(options: {
       args: config.args ? JSON.stringify(config.args) : null,
       env: config.env ? JSON.stringify(Object.fromEntries(Object.entries(config.env).map(([k]) => [k, '[redacted]']))) : null,
       transport: config.transport,
-      is_verified: 0,
+      is_verified: isKnownVerifiedServer({
+        name: config.name,
+        url: config.url ?? null,
+        command: config.command ?? null,
+        args: config.args ? JSON.stringify(config.args) : null,
+      })
+        ? 1
+        : 0,
       created_at: now,
     });
 

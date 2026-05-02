@@ -81,16 +81,19 @@ const MUTATE_REMOTE_CAPS: Capability[] = [
 const SAFE_REPO_NAME_RE =
   /^(?:(?:canary|sandbox|disposable|test|safe)(?:[-_].+)?)$|^(?:.+[-_](?:canary|sandbox|disposable|test|safe))$/i;
 const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE =
-  /^(?:error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|not found|unsupported|cannot\b).*(?:forbidden|denied|unauthorized|requires .* permission|not found|unsupported|policy|validation|cannot|resource not accessible)/i;
+  /^(?:error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|resource not accessible by integration|not found|unsupported|cannot\b|must have push access|requires write permission|requires push access).*(?:forbidden|denied|unauthorized|requires .* permission|requires write permission|requires push access|must have push access|not found|unsupported|policy|validation|cannot|resource not accessible|resource not accessible by integration)/i;
+const SECONDARY_RATE_LIMIT_RE = /(secondary rate limit|rate limit exceeded)/i;
 const BRANCH_NOT_FOUND_RE = /resource not found:\s*branch\s.+not found|branch\s.+not found/i;
 const BRANCH_ALREADY_EXISTS_RE = /reference already exists|branch\s.+already exists|already exists/i;
+const FILE_ABSENT_RE = /(?:not found|404|path does not point to a file)/i;
+const AUTH_OR_PERMISSION_RE = /(forbidden|denied|unauthorized|requires .* permission|requires write permission|requires push access|must have push access|resource not accessible(?: by integration)?)/i;
 // GitHub-controlled canary verification occasionally lags immediately after writes; one short
 // retry keeps eventual consistency from producing false inconclusive results without making the
 // test noticeably slower.
-const GITHUB_CANARY_READBACK_DELAY_MS = 750;
-const GITHUB_CANARY_MAX_FILE_READBACK_ATTEMPTS = 3;
-const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review/;
-const READ_TOOL_NAME_RE = /^(get|list|read|search)_/;
+const GITHUB_CANARY_READBACK_DELAY_MS = 1000;
+const GITHUB_CANARY_MAX_FILE_READBACK_ATTEMPTS = 5;
+const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review|add_issue_comment|create_issue_comment|update_issue_comment|issue_comment/;
+const READ_TOOL_NAME_RE = /^(get|list|read|search|fork|clone|download)_/;
 const TOOL_CAPS_CACHE = new Map<string, Capability[]>();
 
 export const SAFE_PROFILE_CASES: TestCaseDefinition[] = [
@@ -383,7 +386,7 @@ function isGithubReadTool(tool: ToolRow): boolean {
   return (
     hasAnyCapability(tool, [Capability.READ_REMOTE_DATA, Capability.QUERY_REMOTE_SYSTEM, Capability.READ_METADATA_LOW]) &&
     !ISSUE_PR_TOOL_NAME_RE.test(loweredName) &&
-    nameMatches(tool, [/^(get|list|read|search)_/, /file/, /repository/, /code/, /commit/, /branch/, /tag/, /release/])
+    nameMatches(tool, [/^(get|list|read|search|fork|clone|download)_/, /file/, /repository/, /code/, /commit/, /branch/, /tag/, /release/])
   );
 }
 
@@ -427,7 +430,9 @@ export function planGithubSafeCanaryProfile(
     const tools = toolsByServer.get(server.id) ?? [];
     if (!isGithubLikeServer(server, tools)) continue;
 
-    const readTool = tools.find(isGithubReadTool);
+    const readTool =
+      tools.find((tool) => tool.name === 'get_file_contents' && isGithubReadTool(tool)) ??
+      tools.find(isGithubReadTool);
     if (readTool) {
       const caseDef = GITHUB_SAFE_CANARY_PROFILE_CASES[0]!;
       planned.push({
@@ -899,14 +904,38 @@ function extractUrl(rawText: string, keys: string[]): string | undefined {
   return undefined;
 }
 
+function extractSha(rawText: string): string | undefined {
+  const regexes = [
+    /"sha"\s*:\s*"([a-f0-9]{7,64})"/i,
+    /\bsha[:=\s]+([a-f0-9]{7,64})\b/i,
+  ];
+  for (const regex of regexes) {
+    const match = regex.exec(rawText);
+    if (match?.[1]) return match[1];
+  }
+  return undefined;
+}
+
 function extractIssueOrPullNumberFromUrl(url: string): number | undefined {
   const match = /\/(?:issues|pull)\/([0-9]+)(?:[/?#]|$)/i.exec(url);
   if (!match?.[1]) return undefined;
   return Number(match[1]);
 }
 
-function isProvenBlockedOrImpossible(text: string): boolean {
+export function isProvenBlockedOrImpossible(text: string): boolean {
   return PROVEN_BLOCKED_OR_IMPOSSIBLE_RE.test(text);
+}
+
+export function isSecondaryRateLimit(text: string): boolean {
+  return SECONDARY_RATE_LIMIT_RE.test(text);
+}
+
+function isFileAbsentError(text: string): boolean {
+  return FILE_ABSENT_RE.test(text) || isBranchNotFound(text);
+}
+
+function isAuthOrPermissionError(text: string): boolean {
+  return AUTH_OR_PERMISSION_RE.test(text);
 }
 
 function responseContainsMarker(text: string, marker: string): boolean {
@@ -1241,7 +1270,44 @@ export async function executeGithubSafeCanaryPlannedTest(
       const isRepositoryWriteTool = tool === 'create_or_update_file' || tool === 'push_files';
       if (isRepositoryWriteTool) {
         const branchName = buildGithubSafeBranchName(args.config.branchPrefix ?? '', args.testRunId);
-        const writeInput = {
+        let existingFileSha: string | undefined;
+        const preWriteReadInput: Record<string, unknown> = {
+          owner: args.config.owner,
+          repo: args.config.repo,
+          path: artifacts.filePath,
+          ref: branchName,
+          branch: branchName,
+        };
+        const preWriteReadRes = await callAndRecord(
+          args,
+          toolCalls,
+          evidence,
+          step++,
+          'get_file_contents',
+          preWriteReadInput,
+        );
+        if (!preWriteReadRes.isError) {
+          existingFileSha = extractSha(preWriteReadRes.text);
+        } else if (isSecondaryRateLimit(preWriteReadRes.text)) {
+          outcome = TestOutcome.TESTED_INCONCLUSIVE;
+          status = TestStatus.INCONCLUSIVE;
+          pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+          notes = `Pre-write canary probe hit GitHub rate limiting: ${preWriteReadRes.text}`;
+        } else if (isAuthOrPermissionError(preWriteReadRes.text)) {
+          outcome = TestOutcome.TESTED_INCONCLUSIVE;
+          status = TestStatus.INCONCLUSIVE;
+          pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+          notes = `Pre-write canary probe lacked permissions: ${preWriteReadRes.text}`;
+        } else if (!isFileAbsentError(preWriteReadRes.text)) {
+          outcome = TestOutcome.TESTED_INCONCLUSIVE;
+          status = TestStatus.INCONCLUSIVE;
+          pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+          notes = `Pre-write canary probe returned unclassified error: ${preWriteReadRes.text}`;
+        }
+        if (status === TestStatus.INCONCLUSIVE) {
+          // leave as inconclusive and skip mutation write when pre-write probe is not safe to proceed
+        } else {
+        const writeInput: Record<string, unknown> = {
           owner: args.config.owner,
           repo: args.config.repo,
           path: artifacts.filePath,
@@ -1251,6 +1317,9 @@ export async function executeGithubSafeCanaryPlannedTest(
           content: `${marker}\n`,
           branch: branchName,
         };
+        if (existingFileSha) {
+          writeInput['sha'] = existingFileSha;
+        }
         let writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
         let createdBranchForRetry = false;
         let branchCreationFailure: string | undefined;
@@ -1274,7 +1343,12 @@ export async function executeGithubSafeCanaryPlannedTest(
           }
         }
         if (writeRes.isError) {
-          if (isProvenBlockedOrImpossible(writeRes.text)) {
+          if (isSecondaryRateLimit(writeRes.text)) {
+            outcome = TestOutcome.TESTED_INCONCLUSIVE;
+            status = TestStatus.INCONCLUSIVE;
+            pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+            notes = `Write path rate-limited: ${writeRes.text}`;
+          } else if (isProvenBlockedOrImpossible(writeRes.text)) {
             outcome = TestOutcome.TESTED_REJECTED;
             status = TestStatus.REJECTED;
             pathStatus = PathStatus.TESTED_REJECTED;
@@ -1291,29 +1365,38 @@ export async function executeGithubSafeCanaryPlannedTest(
           // Successful branch-bound write either targeted the prebuilt branch or one we just
           // created on demand; record it so cleanup/readback can target the same ref.
           artifacts.branchName = branchName;
-          const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
-          const readBack = await readGithubFileCanaryWithRetry(
-            args,
-            toolCalls,
-            evidence,
-            step,
-            readBackInput,
-            marker,
-          );
-          step = readBack.nextStep;
-          canaryObserved = readBack.observed;
-          outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
-          status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
-          pathStatus = canaryObserved
-            ? PathStatus.TESTED_CONFIRMED
-            : PathStatus.TESTED_INCONCLUSIVE;
-          notes = canaryObserved
-            ? createdBranchForRetry
-              ? 'Canary observed in controlled file readback after creating missing branch.'
-              : 'Canary observed in controlled file readback.'
-            : createdBranchForRetry
-              ? 'No canary observed in controlled file readback after creating missing branch.'
-              : 'No canary observed in controlled file readback.';
+          canaryObserved = responseContainsMarker(writeRes.text, marker);
+          if (canaryObserved) {
+            outcome = TestOutcome.TESTED_CONFIRMED;
+            status = TestStatus.CONFIRMED;
+            pathStatus = PathStatus.TESTED_CONFIRMED;
+            notes = 'Canary observed directly in repository write response.';
+          } else {
+            const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
+            const readBack = await readGithubFileCanaryWithRetry(
+              args,
+              toolCalls,
+              evidence,
+              step,
+              readBackInput,
+              marker,
+            );
+            step = readBack.nextStep;
+            canaryObserved = readBack.observed;
+            outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
+            status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
+            pathStatus = canaryObserved
+              ? PathStatus.TESTED_CONFIRMED
+              : PathStatus.TESTED_INCONCLUSIVE;
+            notes = canaryObserved
+              ? createdBranchForRetry
+                ? 'Canary observed in controlled file readback after creating missing branch.'
+                : 'Canary observed in controlled file readback.'
+              : createdBranchForRetry
+                ? 'No canary observed in controlled file readback after creating missing branch (eventual consistency may delay readback).'
+                : 'No canary observed in controlled file readback (eventual consistency may delay readback).';
+          }
+        }
         }
       } else if (ISSUE_PR_TOOL_NAME_RE.test(tool)) {
         const title = `${args.config.issuePrefix}${args.testRunId}`;
@@ -1328,7 +1411,12 @@ export async function executeGithubSafeCanaryPlannedTest(
         }
         const issueRes = await callAndRecord(args, toolCalls, evidence, step++, tool, issueWriteInput);
         if (issueRes.isError) {
-          if (isProvenBlockedOrImpossible(issueRes.text)) {
+          if (isSecondaryRateLimit(issueRes.text)) {
+            outcome = TestOutcome.TESTED_INCONCLUSIVE;
+            status = TestStatus.INCONCLUSIVE;
+            pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+            notes = `Issue/PR write rate-limited: ${issueRes.text}`;
+          } else if (isProvenBlockedOrImpossible(issueRes.text)) {
             outcome = TestOutcome.TESTED_REJECTED;
             status = TestStatus.REJECTED;
             pathStatus = PathStatus.TESTED_REJECTED;
@@ -1421,26 +1509,47 @@ export async function executeGithubSafeCanaryPlannedTest(
         }
         const readRes = await callAndRecord(args, toolCalls, evidence, step++, tool, readInput);
         if (readRes.isError) {
-          // Some read APIs require extra identifiers (for example alert numbers) and will
-          // reject our generic probe input; always attempt controlled file readback when we
-          // successfully seeded a branch-scoped canary so syntax/shape mismatches don't hide
-          // a real canary observation opportunity.
-          if (artifacts.branchName) {
-            const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
-            const readBack = await callAndRecord(
-              args,
-              toolCalls,
-              evidence,
-              step++,
-              'get_file_contents',
-              readBackInput,
-            );
-            canaryObserved = responseContainsMarker(readBack.text, marker);
-            if (canaryObserved) {
-              outcome = TestOutcome.TESTED_CONFIRMED;
-              status = TestStatus.CONFIRMED;
-              pathStatus = PathStatus.TESTED_CONFIRMED;
-              notes = 'Canary observed in controlled readback after primary read tool failed.';
+          if (isSecondaryRateLimit(readRes.text)) {
+            outcome = TestOutcome.TESTED_INCONCLUSIVE;
+            status = TestStatus.INCONCLUSIVE;
+            pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+            notes = `Read/search rate-limited: ${readRes.text}`;
+            canaryObserved = false;
+          } else {
+            // Some read APIs require extra identifiers (for example alert numbers) and will
+            // reject our generic probe input; always attempt controlled file readback when we
+            // successfully seeded a branch-scoped canary so syntax/shape mismatches don't hide
+            // a real canary observation opportunity.
+            if (artifacts.branchName) {
+              const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
+              const readBack = await callAndRecord(
+                args,
+                toolCalls,
+                evidence,
+                step++,
+                'get_file_contents',
+                readBackInput,
+              );
+              canaryObserved = responseContainsMarker(readBack.text, marker);
+              if (canaryObserved) {
+                outcome = TestOutcome.TESTED_CONFIRMED;
+                status = TestStatus.CONFIRMED;
+                pathStatus = PathStatus.TESTED_CONFIRMED;
+                notes = 'Canary observed in controlled readback after primary read tool failed.';
+              } else {
+                outcome = isProvenBlockedOrImpossible(readRes.text)
+                  ? TestOutcome.TESTED_REJECTED
+                  : TestOutcome.TESTED_INCONCLUSIVE;
+                status =
+                  outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
+                pathStatus =
+                  outcome === TestOutcome.TESTED_REJECTED
+                    ? PathStatus.TESTED_REJECTED
+                    : PathStatus.TESTED_INCONCLUSIVE;
+                notes = readBack.isError
+                  ? `${readRes.text} (controlled readback also failed: ${readBack.text})`
+                  : readRes.text;
+              }
             } else {
               outcome = isProvenBlockedOrImpossible(readRes.text)
                 ? TestOutcome.TESTED_REJECTED
@@ -1451,20 +1560,8 @@ export async function executeGithubSafeCanaryPlannedTest(
                 outcome === TestOutcome.TESTED_REJECTED
                   ? PathStatus.TESTED_REJECTED
                   : PathStatus.TESTED_INCONCLUSIVE;
-              notes = readBack.isError
-                ? `${readRes.text} (controlled readback also failed: ${readBack.text})`
-                : readRes.text;
+              notes = readRes.text;
             }
-          } else {
-            outcome = isProvenBlockedOrImpossible(readRes.text)
-              ? TestOutcome.TESTED_REJECTED
-              : TestOutcome.TESTED_INCONCLUSIVE;
-            status = outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
-            pathStatus =
-              outcome === TestOutcome.TESTED_REJECTED
-                ? PathStatus.TESTED_REJECTED
-                : PathStatus.TESTED_INCONCLUSIVE;
-            notes = readRes.text;
           }
         } else {
           canaryObserved = responseContainsMarker(readRes.text, marker);

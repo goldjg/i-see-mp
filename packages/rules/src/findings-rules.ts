@@ -10,6 +10,21 @@ interface FindingsContext {
   collectionId: string;
 }
 
+interface KnownVerifiedServerPattern {
+  displayName: string;
+  commandPattern?: RegExp;
+  imagePattern?: RegExp;
+  urlPattern?: RegExp;
+}
+
+export const KNOWN_VERIFIED_SERVER_PATTERNS: KnownVerifiedServerPattern[] = [
+  {
+    displayName: 'Official GitHub MCP Server',
+    commandPattern: /\/usr\/local\/bin\/iseemp-github-mcp/i,
+    imagePattern: /ghcr\.io\/github\/github-mcp-server/i,
+  },
+];
+
 function parseCaps(capsJson: string): Capability[] {
   try {
     return JSON.parse(capsJson) as Capability[];
@@ -31,6 +46,25 @@ export function inferServerTrustBoundary(server: { url: string | null; transport
     return TrustBoundary.SAAS;
   }
   return TrustBoundary.EXTERNAL;
+}
+
+export function isKnownVerifiedServer(server: {
+  name: string;
+  url: string | null;
+  command: string | null;
+  args: string | null;
+}): boolean {
+  const command = server.command ?? '';
+  const args = server.args ?? '';
+  const combinedCommand = `${command} ${args}`;
+  const url = server.url ?? '';
+
+  return KNOWN_VERIFIED_SERVER_PATTERNS.some((pattern) => {
+    const commandMatches = pattern.commandPattern ? pattern.commandPattern.test(command) : false;
+    const imageMatches = pattern.imagePattern ? pattern.imagePattern.test(combinedCommand) : false;
+    const urlMatches = pattern.urlPattern ? pattern.urlPattern.test(url) : false;
+    return commandMatches || imageMatches || urlMatches;
+  });
 }
 
 /** Capabilities considered "high secret" for severity scoring. */
@@ -57,6 +91,120 @@ const MUTATE_REMOTE_CAPS: Capability[] = [
 
 function hasAny(caps: Capability[], wanted: Capability[]): boolean {
   return wanted.some((w) => caps.includes(w));
+}
+
+const SEVERITY_RANK: Record<Finding['severity'], number> = {
+  info: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
+
+function extractServerId(finding: Finding): string | undefined {
+  return finding.affectedNodeIds.find((id) => id.startsWith('server:'))?.slice('server:'.length);
+}
+
+function extractToolIds(finding: Finding): string[] {
+  return finding.affectedNodeIds
+    .filter((id) => id.startsWith('tool:'))
+    .map((id) => id.slice('tool:'.length));
+}
+
+function findingHasTool(finding: Finding, toolId: string): boolean {
+  return extractToolIds(finding).includes(toolId);
+}
+
+function findingHasServer(finding: Finding, serverId: string): boolean {
+  return extractServerId(finding) === serverId;
+}
+
+function findingIsProtected(finding: Finding): boolean {
+  return finding.tested === true || typeof finding.candidatePathId === 'string';
+}
+
+function isRemoteQueryFinding(finding: Finding): boolean {
+  return finding.id.includes(':remote_query:') && finding.category === RiskCategory.UNVERIFIED_SERVER;
+}
+
+function isSubsumableCategory(category: Finding['category']): boolean {
+  return category === RiskCategory.UNVERIFIED_SERVER || category === RiskCategory.OVERBROAD_TOOL;
+}
+
+export function deduplicateFindings(findings: Finding[]): Finding[] {
+  const sorted = [...findings].sort((a, b) => a.id.localeCompare(b.id));
+  const suppressedIds = new Set<string>();
+
+  for (const target of sorted) {
+    if (findingIsProtected(target)) continue;
+    if (!isSubsumableCategory(target.category)) continue;
+
+    const targetTools = extractToolIds(target);
+    if (targetTools.length === 0) continue;
+
+    for (const candidate of sorted) {
+      if (candidate.id === target.id) continue;
+      if (candidate.category === RiskCategory.DANGEROUS_TOOL_CHAIN) continue;
+      if (candidate.category === RiskCategory.CODE_EXECUTION || candidate.category === RiskCategory.PRIVILEGED_MUTATION || candidate.category === RiskCategory.DATA_EXFILTRATION || candidate.category === RiskCategory.SENSITIVE_DATA_EXPOSURE) {
+        const higherSeverity = SEVERITY_RANK[candidate.severity] > SEVERITY_RANK[target.severity];
+        if (!higherSeverity) continue;
+        if (targetTools.some((toolId) => findingHasTool(candidate, toolId))) {
+          suppressedIds.add(target.id);
+          break;
+        }
+      }
+    }
+  }
+
+  for (const target of sorted) {
+    if (suppressedIds.has(target.id) || findingIsProtected(target) || !isRemoteQueryFinding(target)) continue;
+    const serverId = extractServerId(target);
+    const toolIds = extractToolIds(target);
+    if (!serverId || toolIds.length === 0) continue;
+
+    const hasHigherSignal = sorted.some((candidate) => {
+      if (candidate.id === target.id) return false;
+      if (
+        candidate.category !== RiskCategory.DATA_EXFILTRATION &&
+        candidate.category !== RiskCategory.PRIVILEGED_MUTATION
+      ) {
+        return false;
+      }
+      if (!findingHasServer(candidate, serverId)) return false;
+      return toolIds.some((toolId) => findingHasTool(candidate, toolId));
+    });
+    if (hasHigherSignal) suppressedIds.add(target.id);
+  }
+
+  const dedupedByCompoundKey = new Map<string, Finding>();
+  const preserved: Finding[] = [];
+  for (const finding of sorted) {
+    if (suppressedIds.has(finding.id)) continue;
+    if (findingIsProtected(finding)) {
+      preserved.push(finding);
+      continue;
+    }
+
+    const serverId = extractServerId(finding) ?? '';
+    const toolId = extractToolIds(finding)[0] ?? '';
+    const key = `${finding.collectionId}|${finding.category}|${serverId}|${toolId}`;
+    const existing = dedupedByCompoundKey.get(key);
+    if (!existing) {
+      dedupedByCompoundKey.set(key, finding);
+      continue;
+    }
+    const newRank = SEVERITY_RANK[finding.severity];
+    const oldRank = SEVERITY_RANK[existing.severity];
+    if (newRank > oldRank) {
+      dedupedByCompoundKey.set(key, finding);
+      continue;
+    }
+    if (newRank === oldRank && finding.id.localeCompare(existing.id) < 0) {
+      dedupedByCompoundKey.set(key, finding);
+    }
+  }
+
+  return [...dedupedByCompoundKey.values(), ...preserved].sort((a, b) => a.id.localeCompare(b.id));
 }
 
 function makeCandidatePathId(parts: {
@@ -129,13 +277,16 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
     else if (hasServerLowOnly) unverifiedSeverity = 'low';
     else unverifiedSeverity = 'low';
 
+    const knownVerified = isKnownVerifiedServer(server);
     findings.push({
       id: `finding:${collectionId}:unverified:${server.id}`,
       collectionId,
       category: RiskCategory.UNVERIFIED_SERVER,
-      severity: unverifiedSeverity,
+      severity: knownVerified ? 'low' : unverifiedSeverity,
       title: `Unverified MCP server: ${server.name}`,
-      description: `Server "${server.name}" has not been verified. Its tools and capabilities cannot be fully trusted.`,
+      description: knownVerified
+        ? `Server "${server.name}" is matched by known identity pattern to an official MCP distribution, but this is not cryptographic verification and should still be reviewed.`
+        : `Server "${server.name}" has not been verified. Its tools and capabilities cannot be fully trusted.`,
       affectedNodeIds: [`server:${server.id}`],
       remediationHint: 'Review the server source, pin to a specific version, and validate its tool implementations.',
       createdAt: now,
@@ -482,5 +633,5 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
     }
   }
 
-  return findings;
+  return deduplicateFindings(findings);
 }
