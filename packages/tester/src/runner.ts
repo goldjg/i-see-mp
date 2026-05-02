@@ -1047,22 +1047,6 @@ async function callAndRecord(
   return res;
 }
 
-async function invokeGithubSafe(
-  args: GithubSafeRunArgs,
-  toolName: string,
-  input: Record<string, unknown>,
-): Promise<ToolCallResult> {
-  try {
-    return await args.ctx.invoke(args.planned.serverId, toolName, input);
-  } catch (err) {
-    return {
-      raw: null,
-      text: err instanceof Error ? err.message : String(err),
-      isError: true,
-    };
-  }
-}
-
 async function tryCleanupGithubSafeArtifacts(
   args: GithubSafeRunArgs,
   artifacts: GithubSafeArtifactState,
@@ -1234,7 +1218,7 @@ export async function executeGithubSafeCanaryPlannedTest(
           if (artifacts.branchName) {
             readBackInput['ref'] = artifacts.branchName;
           }
-          const readBack = await invokeGithubSafe(args, 'get_file_contents', readBackInput);
+          const readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
           canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
@@ -1274,7 +1258,7 @@ export async function executeGithubSafeCanaryPlannedTest(
           artifacts.issueUrl = extractUrl(issueRes.text, ['html_url', 'url']);
           canaryObserved = responseContainsMarker(issueRes.text, marker);
           if (!canaryObserved && artifacts.issueNumber) {
-            const readIssueRes = await invokeGithubSafe(args, 'get_issue', {
+            const readIssueRes = await callAndRecord(args, toolCalls, evidence, step++, 'get_issue', {
               owner: args.config.owner,
               repo: args.config.repo,
               issue_number: artifacts.issueNumber,
@@ -1321,7 +1305,7 @@ export async function executeGithubSafeCanaryPlannedTest(
         } else {
           canaryObserved = responseContainsMarker(readRes.text, marker);
           if (!canaryObserved) {
-            const readBack = await invokeGithubSafe(args, 'get_file_contents', {
+            const readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', {
               owner: args.config.owner,
               repo: args.config.repo,
               path: artifacts.filePath,
