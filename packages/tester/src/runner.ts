@@ -1276,14 +1276,34 @@ export async function executeGithubSafeCanaryPlannedTest(
             : 'No canary observed in controlled issue/PR response.';
         }
       } else if (READ_TOOL_NAME_RE.test(tool)) {
+        // github-mcp-server's create_or_update_file requires `branch`; without it the seed
+        // is silently rejected and the read tool hits a non-existent default-branch path.
+        // Mirror the mutation path: target a per-run branch and create it on demand.
+        const seedBranchName = buildGithubSafeBranchName(args.config.branchPrefix ?? '', args.testRunId);
+        const seedInput = {
+          owner: args.config.owner,
+          repo: args.config.repo,
+          path: artifacts.filePath,
+          message: `${args.config.canaryPrefix}: canary seed ${args.testRunId}`,
+          content: `${marker}\n`,
+          branch: seedBranchName,
+        };
         try {
-          await callAndRecord(args, toolCalls, evidence, step++, 'create_or_update_file', {
-            owner: args.config.owner,
-            repo: args.config.repo,
-            path: artifacts.filePath,
-            message: `${args.config.canaryPrefix}: canary seed ${args.testRunId}`,
-            content: `${marker}\n`,
-          });
+          let seedRes = await callAndRecord(args, toolCalls, evidence, step++, 'create_or_update_file', seedInput);
+          if (seedRes.isError && isBranchNotFound(seedRes.text)) {
+            const createBranchRes = await callAndRecord(args, toolCalls, evidence, step++, 'create_branch', {
+              owner: args.config.owner,
+              repo: args.config.repo,
+              branch: seedBranchName,
+            });
+            if (!createBranchRes.isError || isBranchAlreadyExists(createBranchRes.text)) {
+              seedRes = await callAndRecord(args, toolCalls, evidence, step++, 'create_or_update_file', seedInput);
+            }
+          }
+          if (!seedRes.isError) {
+            // Record the branch so cleanup removes it even if the read step later errors.
+            artifacts.branchName = seedBranchName;
+          }
         } catch {
           // best effort; not all read-only integrations expose mutation tooling
         }
@@ -1306,11 +1326,15 @@ export async function executeGithubSafeCanaryPlannedTest(
         } else {
           canaryObserved = responseContainsMarker(readRes.text, marker);
           if (!canaryObserved) {
-            const readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', {
+            const readBackInput: Record<string, unknown> = {
               owner: args.config.owner,
               repo: args.config.repo,
               path: artifacts.filePath,
-            });
+            };
+            if (artifacts.branchName) {
+              readBackInput['ref'] = artifacts.branchName;
+            }
+            const readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
             canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
           }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
