@@ -896,6 +896,10 @@ function isProvenBlockedOrImpossible(text: string): boolean {
   return PROVEN_BLOCKED_OR_IMPOSSIBLE_RE.test(text);
 }
 
+function toolResponseContainsMarker(result: ToolCallResult, marker: string): boolean {
+  return responseContainsMarker(result.text, marker);
+}
+
 function responseContainsMarker(text: string, marker: string): boolean {
   if (!text) return false;
   if (text.includes(marker)) return true;
@@ -1025,11 +1029,11 @@ async function readGithubIssueCanaryWithRetry(
 ): Promise<{ result: ToolCallResult; observed: boolean; nextStep: number }> {
   let currentStep = step;
   let result = await callAndRecord(args, toolCalls, evidence, currentStep++, toolName, input);
-  let observed = !result.isError && responseContainsMarker(result.text, marker);
+  let observed = toolResponseContainsMarker(result, marker);
   if (!observed) {
     await sleep(GITHUB_CANARY_READBACK_DELAY_MS);
     result = await callAndRecord(args, toolCalls, evidence, currentStep++, toolName, input);
-    observed = !result.isError && responseContainsMarker(result.text, marker);
+    observed = toolResponseContainsMarker(result, marker);
   }
   return { result, observed, nextStep: currentStep };
 }
@@ -1261,14 +1265,14 @@ export async function executeGithubSafeCanaryPlannedTest(
           artifacts.branchName = branchName;
           const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
           let readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
-          canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
+          canaryObserved = toolResponseContainsMarker(readBack, marker);
           // The write succeeded but GitHub's contents API can briefly lag behind a fresh
           // commit; do one short retry with a small backoff before declaring inconclusive
           // so eventual-consistency doesn't masquerade as a missing canary.
           if (!canaryObserved) {
             await sleep(GITHUB_CANARY_READBACK_DELAY_MS);
             readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
-            canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
+            canaryObserved = toolResponseContainsMarker(readBack, marker);
           }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
@@ -1401,7 +1405,7 @@ export async function executeGithubSafeCanaryPlannedTest(
               'get_file_contents',
               readBackInput,
             );
-            canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
+            canaryObserved = toolResponseContainsMarker(readBack, marker);
             if (canaryObserved) {
               outcome = TestOutcome.TESTED_CONFIRMED;
               status = TestStatus.CONFIRMED;
@@ -1437,7 +1441,7 @@ export async function executeGithubSafeCanaryPlannedTest(
           if (!canaryObserved) {
             const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
             const readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
-            canaryObserved = !readBack.isError && responseContainsMarker(readBack.text, marker);
+            canaryObserved = toolResponseContainsMarker(readBack, marker);
           }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
           status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;

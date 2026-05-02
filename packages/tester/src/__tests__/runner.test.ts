@@ -884,4 +884,67 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
       await sink.close();
     }
   });
+
+  it('confirms canary when controlled readback includes marker even if response is flagged as error', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [tool('t-read', 'search_code', [Capability.READ_REMOTE_DATA])];
+    const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
+    const readCase = planned.find((p) => p.caseDef.id === 'GITHUB_READ_CONTROLLED_ARTIFACT');
+    expect(readCase).toBeDefined();
+
+    const runId = 'testrun:ghsafe:readerrorflag:mm44nn';
+    const marker = `ISEEMP-${runId}`;
+    const sink = await startMockSink();
+    try {
+      const toolCalls: string[] = [];
+      const ctx = {
+        collectionId: 'col1',
+        profile: 'github-safe-canary' as const,
+        sink,
+        invoke: async (_serverId: string, toolName: string) => {
+          toolCalls.push(toolName);
+          if (toolName === 'create_or_update_file') {
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'search_code') {
+            return {
+              raw: null,
+              text: 'error: query parameter unsupported',
+              isError: true,
+            };
+          }
+          if (toolName === 'get_file_contents') {
+            return {
+              raw: null,
+              text: JSON.stringify({
+                encoding: 'base64',
+                content: Buffer.from(`${marker}\n`, 'utf8').toString('base64'),
+              }),
+              isError: true,
+            };
+          }
+          return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+        },
+      };
+
+      const executed = await executeGithubSafeCanaryPlannedTest({
+        ctx,
+        planned: readCase!,
+        testRunId: runId,
+        config: {
+          owner: 'goldjg',
+          repo: 'canary-sandbox',
+          branchPrefix: 'iseemp-canary-',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+
+      expect(toolCalls.slice(0, 3)).toEqual(['create_or_update_file', 'search_code', 'get_file_contents']);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.canaryObserved).toBe(true);
+    } finally {
+      await sink.close();
+    }
+  });
 });
