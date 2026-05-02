@@ -426,7 +426,7 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
     }
   });
 
-  it('does not attempt branchless fallback for push_files when branch is missing', async () => {
+  it('creates a missing branch and retries push_files without branchless fallback', async () => {
     const githubSrv = { ...server(), name: 'github-mcp' };
     const githubTools = [tool('t3', 'push_files', [Capability.MUTATE_REPOSITORY])];
     const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
@@ -438,6 +438,7 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
     const sink = await startMockSink();
     try {
       const pushCalls: Record<string, unknown>[] = [];
+      const createBranchCalls: Record<string, unknown>[] = [];
       const ctx = {
         collectionId: 'col1',
         profile: 'github-safe-canary' as const,
@@ -445,10 +446,28 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
         invoke: async (_serverId: string, toolName: string, args: Record<string, unknown>) => {
           if (toolName === 'push_files') {
             pushCalls.push(args);
+            if (pushCalls.length === 1) {
+              return {
+                raw: null,
+                text: `MCP error -32603: Not Found: Resource not found: Branch ${String(args['branch'])} not found`,
+                isError: true,
+              };
+            }
+            return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
+          }
+          if (toolName === 'create_branch') {
+            createBranchCalls.push(args);
             return {
               raw: null,
-              text: `MCP error -32603: Not Found: Resource not found: Branch ${String(args['branch'])} not found`,
-              isError: true,
+              text: JSON.stringify({ ok: true }),
+              isError: false,
+            };
+          }
+          if (toolName === 'get_file_contents') {
+            return {
+              raw: null,
+              text: 'ISEEMP-testrun:ghsafe:pushf:abc123',
+              isError: false,
             };
           }
           return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
@@ -468,11 +487,13 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
         },
       });
 
-      expect(pushCalls).toHaveLength(1);
+      expect(pushCalls).toHaveLength(2);
+      expect(createBranchCalls).toHaveLength(1);
       expect(typeof pushCalls[0]?.['branch']).toBe('string');
       expect((pushCalls[0]?.['branch'] as string).trim().length).toBeGreaterThan(0);
-      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_INCONCLUSIVE);
-      expect(executed.testRun.notes).toContain('Write path unproven');
+      expect(createBranchCalls[0]?.['branch']).toBe(pushCalls[0]?.['branch']);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.notes).toContain('Canary observed');
       expect(executed.testRun.notes).not.toContain('"received":"undefined"');
     } finally {
       await sink.close();

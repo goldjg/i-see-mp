@@ -83,6 +83,7 @@ const SAFE_REPO_NAME_RE =
 const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE =
   /^(?:error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|not found|unsupported|cannot\b).*(?:forbidden|denied|unauthorized|requires .* permission|not found|unsupported|policy|validation|cannot|resource not accessible)/i;
 const BRANCH_NOT_FOUND_RE = /resource not found:\s*branch\s.+not found|branch\s.+not found/i;
+const BRANCH_ALREADY_EXISTS_RE = /reference already exists|branch\s.+already exists|already exists/i;
 const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review/;
 const READ_TOOL_NAME_RE = /^(get|list|read|search)_/;
 const TOOL_CAPS_CACHE = new Map<string, Capability[]>();
@@ -922,6 +923,10 @@ function isBranchNotFound(text: string): boolean {
   return BRANCH_NOT_FOUND_RE.test(text);
 }
 
+function isBranchAlreadyExists(text: string): boolean {
+  return BRANCH_ALREADY_EXISTS_RE.test(text);
+}
+
 function sanitizeBranchToken(value: string): string {
   let out = '';
   let prevDash = false;
@@ -1163,9 +1168,25 @@ export async function executeGithubSafeCanaryPlannedTest(
         };
         let writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
         let usedDefaultBranchFallback = false;
+        let createdBranchForRetry = false;
+        let branchCreationFailure: string | undefined;
         // Only create_or_update_file supports omitting branch to target the default branch.
         // push_files requires an explicit branch and must not receive a branchless retry.
         const supportsBranchlessFallback = tool === 'create_or_update_file';
+        const supportsCreateBranchRetry = tool === 'push_files';
+        if (writeRes.isError && isBranchNotFound(writeRes.text) && supportsCreateBranchRetry) {
+          const createBranchRes = await callAndRecord(args, toolCalls, evidence, step++, 'create_branch', {
+            owner: args.config.owner,
+            repo: args.config.repo,
+            branch: branchName,
+          });
+          if (!createBranchRes.isError || isBranchAlreadyExists(createBranchRes.text)) {
+            createdBranchForRetry = true;
+            writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
+          } else {
+            branchCreationFailure = createBranchRes.text;
+          }
+        }
         if (writeRes.isError && isBranchNotFound(writeRes.text) && supportsBranchlessFallback) {
           const fallbackInput = {
             owner: args.config.owner,
@@ -1187,12 +1208,14 @@ export async function executeGithubSafeCanaryPlannedTest(
             outcome = TestOutcome.TESTED_INCONCLUSIVE;
             status = TestStatus.INCONCLUSIVE;
             pathStatus = PathStatus.TESTED_INCONCLUSIVE;
-            notes = `Write path unproven: ${writeRes.text}`;
+            notes = branchCreationFailure
+              ? `Write path unproven: ${writeRes.text} (branch creation failed: ${branchCreationFailure})`
+              : `Write path unproven: ${writeRes.text}`;
           }
         } else {
           // Only keep a branch handle when the branch-targeted write succeeded;
           // default-branch fallback does not create an isolated branch to clean up.
-          if (!usedDefaultBranchFallback) {
+          if (!usedDefaultBranchFallback || createdBranchForRetry) {
             artifacts.branchName = branchName;
           }
           const readBackInput: Record<string, unknown> = {
