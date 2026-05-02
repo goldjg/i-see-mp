@@ -99,6 +99,8 @@ while :; do
 done
 
 echo "▶ Waiting for github-mcp sidecar HTTP endpoint…"
+# The official server exposes OAuth protected-resource metadata in HTTP mode; it is
+# reachable without a PAT and provides a stable readiness signal for the sidecar.
 deadline=$(( $(date +%s) + READY_TIMEOUT ))
 while :; do
   if "${DC[@]}" exec -T "$SERVICE" \
