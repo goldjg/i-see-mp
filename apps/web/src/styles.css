@@ -92,6 +92,9 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 .badge-trifecta-complete { background: #dc2626; color: #fff; }
 .badge-trifecta-partial { background: #ea580c; color: #fff; }
 .badge-trifecta-capability { background: #6b7280; color: #fff; }
+.badge-trust-boundary { background: #b91c1c; color: #fff; }
+.badge-cross-server { background: #1d4ed8; color: #dbeafe; }
+.badge-high-signal { background: #f59e0b; color: #111827; }
 .badge-path-tested_confirmed { background: #b91c1c; color: #fff; }
 .badge-path-tested_rejected { background: #14532d; color: #bbf7d0; }
 .badge-path-tested_inconclusive { background: #6b21a8; color: #f3e8ff; }

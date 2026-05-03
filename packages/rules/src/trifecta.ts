@@ -1,5 +1,6 @@
 import { Capability, RiskCategory, TrustBoundary, TrifectaStage } from '@iseemp/core';
 import type { Confidence, Finding } from '@iseemp/core';
+import { deriveCrossesTrustBoundary, deriveTrustTransition } from './trust.js';
 
 const TRIFECTA_SOURCE_CAPS: Capability[] = [
   Capability.READ_CREDENTIAL_HIGH,
@@ -62,6 +63,9 @@ export interface TrifectaClassification {
   trifectaScore: number;
   trifectaComplete: boolean;
   isCrossServer: boolean;
+  crossesTrustBoundary: boolean;
+  trustTransition?: string;
+  isHighSignal: boolean;
 }
 
 export function deriveIsCrossServer(findingLike: {
@@ -111,6 +115,16 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
   if (hasSource && hasSink && !inferredExecutionSinkOnly) trifectaStage = TrifectaStage.COMPLETE;
   else if (hasSource || hasSink) trifectaStage = TrifectaStage.PARTIAL;
   const crossServer = deriveIsCrossServer(finding);
+  const derivedCrossesTrustBoundary = deriveCrossesTrustBoundary(
+    finding.sourceServerId,
+    finding.sinkServerId,
+  );
+  const derivedTrustTransition = deriveTrustTransition(finding.sourceServerId, finding.sinkServerId);
+  const crossesTrustBoundary =
+    typeof finding.crossesTrustBoundary === 'boolean'
+      ? finding.crossesTrustBoundary
+      : derivedCrossesTrustBoundary;
+  const trustTransition = finding.trustTransition ?? derivedTrustTransition.transition;
   if (crossServer && trifectaStage === TrifectaStage.COMPLETE) {
     // Intentional: structural source+sink completeness across different servers is not treated
     // as a same-server complete chain.
@@ -134,6 +148,9 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     trifectaScore,
     trifectaComplete: trifectaStage === TrifectaStage.COMPLETE,
     isCrossServer: crossServer,
+    crossesTrustBoundary,
+    trustTransition,
+    isHighSignal: trifectaStage === TrifectaStage.COMPLETE && crossesTrustBoundary === true,
   };
 }
 

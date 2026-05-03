@@ -116,12 +116,16 @@ describe('API routes', () => {
       trifectaStage?: string;
       trifectaScore?: number;
       trifectaComplete?: boolean;
+      crossesTrustBoundary?: boolean;
+      trustTransition?: string;
     }>;
     expect(out).toHaveLength(1);
     expect(out[0]?.id).toBe('f-annotated');
     expect(out[0]?.trifectaStage).toBe('COMPLETE');
     expect(out[0]?.trifectaScore).toBe(11);
     expect(out[0]?.trifectaComplete).toBe(true);
+    expect(out[0]?.crossesTrustBoundary).toBe(false);
+    expect(out[0]?.trustTransition).toBeUndefined();
     vi.restoreAllMocks();
   });
 

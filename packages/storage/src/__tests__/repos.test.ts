@@ -240,12 +240,16 @@ describe('FindingsRepo', () => {
       is_cross_server: 1,
       source_server_id: 'srv-a',
       sink_server_id: 'srv-b',
+      crosses_trust_boundary: 1,
+      trust_transition: 'LOCAL → EXTERNAL',
     });
 
     const finding = repo.findById('f-cross');
     expect(finding?.isCrossServer).toBe(true);
     expect(finding?.sourceServerId).toBe('srv-a');
     expect(finding?.sinkServerId).toBe('srv-b');
+    expect(finding?.crossesTrustBoundary).toBe(true);
+    expect(finding?.trustTransition).toBe('LOCAL → EXTERNAL');
   });
 
   it('does not populate cross-server ids when not provided', () => {

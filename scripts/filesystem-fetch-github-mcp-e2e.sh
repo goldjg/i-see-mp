@@ -371,6 +371,9 @@ const capabilityOnly = findings.filter((finding) => finding.trifectaStage === 'C
 const crossServerFindings = findings.filter((finding) => finding.isCrossServer === true);
 const crossServerPartial = crossServerFindings.filter((finding) => finding.trifectaStage === 'PARTIAL');
 const crossServerComplete = crossServerFindings.filter((finding) => finding.trifectaComplete === true);
+const trustBoundaryCrossings = crossServerFindings.filter(
+  (finding) => finding.crossesTrustBoundary === true,
+);
 
 console.log(
   `✅ Filesystem+Fetch+GitHub MCP e2e summary. Servers: ${servers.length}. Tools: ${tools.length}. Findings: ${findings.length}. Trifecta COMPLETE=${complete}, PARTIAL=${partial}, CAPABILITY_ONLY=${capabilityOnly}.`,
@@ -387,6 +390,9 @@ if (crossServerComplete.length > 0) {
 
 if (crossServerPartial.length === 0) {
   fail('Expected at least one cross-server TRIFECTA_PARTIAL finding.');
+}
+if (trustBoundaryCrossings.length === 0) {
+  fail('Expected at least one cross-server trust-boundary crossing finding.');
 }
 
 for (const finding of crossServerFindings) {
@@ -410,6 +416,45 @@ if (!hasFilesystemCrossServerPath) {
   fail(
     `Expected at least one filesystem-origin cross-server finding to fetch/github. Filesystem=${filesystemServer.id}, fetch=${fetchServer.id}, github=${githubServer.id}.`,
   );
+}
+
+const filesystemToGithub = crossServerFindings.find(
+  (finding) =>
+    finding.sourceServerId === filesystemServer.id && finding.sinkServerId === githubServer.id,
+);
+if (!filesystemToGithub) {
+  fail('Expected filesystem → github cross-server finding.');
+}
+if (filesystemToGithub.crossesTrustBoundary !== true) {
+  fail('Expected filesystem → github to cross trust boundary.');
+}
+if (filesystemToGithub.trustTransition !== 'LOCAL → EXTERNAL') {
+  fail(
+    `Expected filesystem → github trust transition LOCAL → EXTERNAL, got ${filesystemToGithub.trustTransition ?? 'undefined'}.`,
+  );
+}
+
+const filesystemToFetch = crossServerFindings.find(
+  (finding) =>
+    finding.sourceServerId === filesystemServer.id && finding.sinkServerId === fetchServer.id,
+);
+if (!filesystemToFetch) {
+  fail('Expected filesystem → fetch cross-server finding.');
+}
+if (filesystemToFetch.crossesTrustBoundary !== true) {
+  fail('Expected filesystem → fetch to cross trust boundary.');
+}
+if (filesystemToFetch.trustTransition !== 'LOCAL → EXTERNAL') {
+  fail(
+    `Expected filesystem → fetch trust transition LOCAL → EXTERNAL, got ${filesystemToFetch.trustTransition ?? 'undefined'}.`,
+  );
+}
+
+const githubToFetch = crossServerFindings.find(
+  (finding) => finding.sourceServerId === githubServer.id && finding.sinkServerId === fetchServer.id,
+);
+if (githubToFetch && githubToFetch.crossesTrustBoundary !== false) {
+  fail('Expected github → fetch to be cross-server but not a trust-boundary crossing.');
 }
 
 const badGithubCrossServer = findings.filter(

@@ -17,6 +17,8 @@ const FINDINGS_NEW_COLUMNS: Array<[string, string]> = [
   ['is_cross_server', 'INTEGER'],
   ['source_server_id', 'TEXT'],
   ['sink_server_id', 'TEXT'],
+  ['crosses_trust_boundary', 'INTEGER NOT NULL DEFAULT 0'],
+  ['trust_transition', 'TEXT'],
   ['explanation', 'TEXT'],
   ['evidence', 'TEXT'],
 ];

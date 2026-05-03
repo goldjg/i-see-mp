@@ -55,6 +55,8 @@ describe('classifyFindingTrifecta', () => {
     expect(out.trifectaStage).toBe('PARTIAL');
     expect(out.trifectaComplete).toBe(false);
     expect(out.isCrossServer).toBe(true);
+    expect(out.crossesTrustBoundary).toBe(false);
+    expect(out.trustTransition).toBeUndefined();
   });
 
   it('classifies PARTIAL for source-only finding', () => {
@@ -237,6 +239,39 @@ describe('applyTrifectaAnalysis ordering', () => {
     ];
     const sorted = applyTrifectaAnalysis(findings);
     expect(sorted).toHaveLength(findings.length);
+  });
+
+  it('adds trust fields when server ids map to trust levels', () => {
+    const findings = [
+      makeFinding({
+        id: 'f-trust',
+        sourceCapabilities: [Capability.READ_SECRET_HIGH],
+        sinkCapabilities: [Capability.SEND_EXTERNAL],
+        sourceServerId: 'filesystem',
+        sinkServerId: 'github',
+      }),
+    ];
+    const sorted = applyTrifectaAnalysis(findings);
+    expect(sorted[0]?.trifectaStage).toBe('PARTIAL');
+    expect(sorted[0]?.crossesTrustBoundary).toBe(true);
+    expect(sorted[0]?.trustTransition).toBe('LOCAL → EXTERNAL');
+    expect(sorted[0]?.isHighSignal).toBe(false);
+  });
+
+  it('sets isHighSignal when COMPLETE finding is trust-boundary crossing', () => {
+    const findings = [
+      makeFinding({
+        id: 'f-high-signal',
+        sourceCapabilities: [Capability.READ_SECRET_HIGH],
+        sinkCapabilities: [Capability.SEND_EXTERNAL],
+        sourceServerId: 'filesystem',
+        sinkServerId: 'filesystem',
+        crossesTrustBoundary: true,
+      }),
+    ];
+    const sorted = applyTrifectaAnalysis(findings);
+    expect(sorted[0]?.trifectaStage).toBe('COMPLETE');
+    expect(sorted[0]?.isHighSignal).toBe(true);
   });
 });
 

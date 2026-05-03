@@ -258,8 +258,8 @@ describe('runFindingsRules — DATA_EXFILTRATION (paths)', () => {
 
 describe('runFindingsRules — cross-server paths', () => {
   it('emits cross-server candidate when source and sink are on different servers', () => {
-    const sourceServer = makeServer('srv-source');
-    const sinkServer = makeServer('srv-sink', 'https://api.example.com/mcp');
+    const sourceServer = makeServer('filesystem');
+    const sinkServer = makeServer('github', 'https://api.example.com/mcp');
     const sourceTool = makeTool('t-source', sourceServer.id, [Capability.READ_LOCAL_FILE]);
     const sinkTool = makeTool('t-sink', sinkServer.id, [Capability.SEND_HTTP]);
 
@@ -278,6 +278,8 @@ describe('runFindingsRules — cross-server paths', () => {
     expect(crossServer?.sourceCapabilities).toContain(Capability.READ_LOCAL_FILE);
     expect(crossServer?.sinkCapabilities).toContain(Capability.SEND_HTTP);
     expect(crossServer?.candidatePathId).toContain(`${sourceServer.id}|${sinkServer.id}|`);
+    expect(crossServer?.crossesTrustBoundary).toBe(true);
+    expect(crossServer?.trustTransition).toBe('LOCAL → EXTERNAL');
   });
 
   it('keeps cross-server findings PARTIAL (not COMPLETE)', () => {
