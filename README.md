@@ -157,12 +157,18 @@ bash scripts/filesystem-mcp-e2e.sh
 
 # Filesystem + Fetch cross-server composition sanity check
 bash scripts/filesystem-fetch-mcp-e2e.sh
+
+# Filesystem + Fetch + GitHub cross-domain composition sanity check
+# Optional canary run when vars are set:
+#   GITHUB_PERSONAL_ACCESS_TOKEN, ISEEMP_TEST_REPO_OWNER, ISEEMP_TEST_REPO_NAME
+bash scripts/filesystem-fetch-github-mcp-e2e.sh
 ```
 
 Expected outcomes:
 
 - `filesystem-mcp-e2e.sh`: filesystem-only is source-only; zero exploitable paths is the correct passing result.
 - `filesystem-fetch-mcp-e2e.sh`: filesystem tools should classify as local source capability and fetch tools as network/external interaction capability.
+- `filesystem-fetch-github-mcp-e2e.sh`: validates three-server trust partitioning across filesystem (local), fetch (HTTP-capable), and GitHub (remote read/mutation), including cross-server metadata integrity.
 - Cross-server trifecta is reported if current graph/rules synthesize it, but not required for pass.
 
 ## Docker (local-first)
