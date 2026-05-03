@@ -165,6 +165,8 @@ describe('classifyTool — GitHub MCP shaped tools (precise)', () => {
       name: 'get_secret_scanning_alert',
       description: 'Get details of a specific secret scanning alert in a repository',
     });
+    expect(result.capabilities).toContain(Capability.READ_CREDENTIAL_HIGH);
+    expect(result.capabilities).toContain(Capability.READ_SECRET_HIGH);
     expect(result.capabilities).not.toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
   });
 
@@ -173,6 +175,8 @@ describe('classifyTool — GitHub MCP shaped tools (precise)', () => {
       name: 'list_secret_scanning_alerts',
       description: 'List secret scanning alerts in a repository',
     });
+    expect(result.capabilities).toContain(Capability.READ_CREDENTIAL_HIGH);
+    expect(result.capabilities).toContain(Capability.READ_SECRET_HIGH);
     expect(result.capabilities).not.toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
   });
 

@@ -209,7 +209,7 @@ export function TrifectaExplanation({ finding }: { finding: Finding }) {
         <span className="trifecta-value">{finding.hasExternalCommunication ? 'Yes' : 'No'}</span>
       </div>
       <div className="trifecta-row">
-        <span className="trifecta-label">Lethal trifecta status</span>
+        <span className="trifecta-label">Prompt-injection risk status</span>
         <span className="trifecta-value">{finding.lethalTrifectaStatus ?? 'NONE'}</span>
       </div>
       <p className="trifecta-sentence">{TRIFECTA_EXPLANATION[finding.trifectaStage]}</p>

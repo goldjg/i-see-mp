@@ -401,7 +401,14 @@ const fetchHasExternalComm = fetchTools.some(
 );
 if (!githubHasUntrustedContent) {
   const invalidCandidates = lethalCandidate.filter(
-    () => !(fetchHasUntrustedContent && hasFilesystemLocalRead && fetchHasExternalComm),
+    (finding) =>
+      !(
+        fetchHasUntrustedContent &&
+        hasFilesystemLocalRead &&
+        fetchHasExternalComm &&
+        finding.sourceServerId === filesystemServer.id &&
+        finding.sinkServerId === fetchServer.id
+      ),
   );
   if (invalidCandidates.length > 0) {
     fail(
