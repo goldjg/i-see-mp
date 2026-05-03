@@ -67,6 +67,9 @@ export interface Finding {
   isCrossServer?: boolean;
   sourceServerId?: string;
   sinkServerId?: string;
+  crossesTrustBoundary?: boolean;
+  trustTransition?: string;
+  isHighSignal?: boolean;
   trifectaStage?: 'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY';
   trifectaScore?: number;
   trifectaComplete?: boolean;

@@ -2,6 +2,7 @@ import { RiskCategory, Capability, TrustBoundary, Confidence } from '@iseemp/cor
 import type { GraphNode, GraphEdge, Finding } from '@iseemp/core';
 import type { ServerRow, ToolRow } from '@iseemp/storage';
 import { applyTrifectaAnnotation, sortByTrifecta, deriveIsCrossServer } from './trifecta.js';
+import { deriveCrossesTrustBoundary, deriveTrustTransition } from './trust.js';
 
 interface FindingsContext {
   nodes: GraphNode[];
@@ -705,6 +706,7 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         parseCaps(tool.capabilities).includes(sinkCapRepresentative),
       );
       const sinkBoundary = inferServerTrustBoundary(sinkCandidate.server);
+      const trust = deriveTrustTransition(sourceCandidate.server.id, sinkCandidate.server.id);
       const isHighSensitivitySource =
         sourceCapRepresentative === Capability.READ_CREDENTIAL_HIGH ||
         sourceCapRepresentative === Capability.READ_SECRET_HIGH ||
@@ -752,6 +754,11 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         }),
         sourceServerId: sourceCandidate.server.id,
         sinkServerId: sinkCandidate.server.id,
+        crossesTrustBoundary: deriveCrossesTrustBoundary(
+          sourceCandidate.server.id,
+          sinkCandidate.server.id,
+        ),
+        trustTransition: trust.transition,
       });
     }
   }

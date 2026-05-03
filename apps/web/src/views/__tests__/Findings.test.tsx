@@ -92,6 +92,24 @@ describe('Trifecta explanation and legend UI', () => {
     );
     expect(screen.getByText('Cross-server path candidate')).toBeTruthy();
     expect(screen.getByText('filesystem → fetch')).toBeTruthy();
+    expect(screen.getByText('unknown')).toBeTruthy();
+  });
+
+  it('renders trust transition and crossed state when trust metadata exists', () => {
+    render(
+      <TrifectaExplanation
+        finding={makeFinding({
+          trifectaStage: 'PARTIAL',
+          isCrossServer: true,
+          sourceServerId: 'filesystem',
+          sinkServerId: 'github',
+          trustTransition: 'LOCAL → EXTERNAL',
+          crossesTrustBoundary: true,
+        })}
+      />,
+    );
+    expect(screen.getByText('LOCAL → EXTERNAL')).toBeTruthy();
+    expect(screen.getByText('Crossed')).toBeTruthy();
   });
 
   it('renders COMPLETE badge tooltip text', () => {
@@ -110,6 +128,30 @@ describe('Trifecta explanation and legend UI', () => {
     render(<FindingBadges finding={makeFinding({ trifectaStage: 'CAPABILITY_ONLY' })} />);
     const badge = screen.getByText('CAPABILITY_ONLY');
     expect(badge.getAttribute('title')).toContain('Not part of a detected');
+  });
+
+  it('renders trust-boundary badge when crossing trust tiers', () => {
+    render(
+      <FindingBadges
+        finding={makeFinding({
+          isCrossServer: true,
+          crossesTrustBoundary: true,
+        })}
+      />,
+    );
+    expect(screen.getByText('TRUST_BOUNDARY')).toBeTruthy();
+  });
+
+  it('renders cross-server badge when not crossing trust tiers', () => {
+    render(
+      <FindingBadges
+        finding={makeFinding({
+          isCrossServer: true,
+          crossesTrustBoundary: false,
+        })}
+      />,
+    );
+    expect(screen.getByText('CROSS_SERVER')).toBeTruthy();
   });
 
   it('renders trifecta legend rows', () => {

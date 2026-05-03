@@ -14,3 +14,11 @@ export {
   deriveIsCrossServer,
 } from './trifecta.js';
 export type { TrifectaClassification } from './trifecta.js';
+export {
+  TrustLevel,
+  SERVER_TRUST_MAP,
+  getServerTrust,
+  deriveTrustTransition,
+  deriveCrossesTrustBoundary,
+} from './trust.js';
+export type { TrustTransition } from './trust.js';

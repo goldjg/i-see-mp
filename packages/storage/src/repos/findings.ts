@@ -27,13 +27,15 @@ export interface FindingRow {
   is_cross_server?: number | null;
   source_server_id?: string | null;
   sink_server_id?: string | null;
+  crosses_trust_boundary?: number | null;
+  trust_transition?: string | null;
   explanation?: string | null;
   evidence?: string | null; // JSON
 }
 
 const COLUMNS =
-  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, is_cross_server, source_server_id, sink_server_id, explanation, evidence';
-const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
+  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, is_cross_server, source_server_id, sink_server_id, crosses_trust_boundary, trust_transition, explanation, evidence';
+const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function bind(f: FindingRow): unknown[] {
   return [
@@ -61,6 +63,8 @@ function bind(f: FindingRow): unknown[] {
     f.is_cross_server ?? null,
     f.source_server_id ?? null,
     f.sink_server_id ?? null,
+    f.crosses_trust_boundary ?? null,
+    f.trust_transition ?? null,
     f.explanation ?? null,
     f.evidence ?? null,
   ];
@@ -97,6 +101,9 @@ function rowToFinding(r: FindingRow): Finding {
     finding.isCrossServer = r.is_cross_server === 1;
   if (r.source_server_id) finding.sourceServerId = r.source_server_id;
   if (r.sink_server_id) finding.sinkServerId = r.sink_server_id;
+  if (r.crosses_trust_boundary !== null && r.crosses_trust_boundary !== undefined)
+    finding.crossesTrustBoundary = r.crosses_trust_boundary === 1;
+  if (r.trust_transition) finding.trustTransition = r.trust_transition;
   if (r.explanation) finding.explanation = r.explanation;
   if (r.evidence) finding.evidence = JSON.parse(r.evidence) as string[];
   return finding;
@@ -128,6 +135,9 @@ export function findingToRow(f: Finding): FindingRow {
     is_cross_server: f.isCrossServer === undefined ? null : f.isCrossServer ? 1 : 0,
     source_server_id: f.sourceServerId ?? null,
     sink_server_id: f.sinkServerId ?? null,
+    crosses_trust_boundary:
+      f.crossesTrustBoundary === undefined ? null : f.crossesTrustBoundary ? 1 : 0,
+    trust_transition: f.trustTransition ?? null,
     explanation: f.explanation ?? null,
     evidence: f.evidence ? JSON.stringify(f.evidence) : null,
   };

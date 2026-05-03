@@ -100,6 +100,26 @@ export function FindingBadges({ finding }: { finding: Finding }) {
         'Single capability present. Not part of a detected complete or partial chain.',
     });
   }
+  if (finding.isCrossServer && finding.crossesTrustBoundary) {
+    badges.push({
+      label: 'TRUST_BOUNDARY',
+      cls: 'badge-trust-boundary',
+      title: 'Cross-server path that crosses a trust boundary.',
+    });
+  } else if (finding.isCrossServer) {
+    badges.push({
+      label: 'CROSS_SERVER',
+      cls: 'badge-cross-server',
+      title: 'Cross-server path without a trust-boundary transition.',
+    });
+  }
+  if (finding.isHighSignal) {
+    badges.push({
+      label: 'HIGH_SIGNAL',
+      cls: 'badge-high-signal',
+      title: 'Structurally complete path that also crosses a trust boundary.',
+    });
+  }
 
   if (badges.length === 0) return null;
   return (
@@ -137,6 +157,16 @@ export function TrifectaExplanation({ finding }: { finding: Finding }) {
           <div className="trifecta-row">
             <span className="trifecta-label">Servers</span>
             <span className="trifecta-value">{`${finding.sourceServerId ?? 'unknown'} → ${finding.sinkServerId ?? 'unknown'}`}</span>
+          </div>
+          <div className="trifecta-row">
+            <span className="trifecta-label">Trust transition</span>
+            <span className="trifecta-value">{finding.trustTransition ?? 'unknown'}</span>
+          </div>
+          <div className="trifecta-row">
+            <span className="trifecta-label">Trust boundary</span>
+            <span className="trifecta-value">
+              {finding.crossesTrustBoundary ? 'Crossed' : 'Not crossed'}
+            </span>
           </div>
         </>
       )}
