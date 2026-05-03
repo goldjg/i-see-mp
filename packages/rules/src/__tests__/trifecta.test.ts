@@ -42,6 +42,16 @@ describe('classifyFindingTrifecta', () => {
     expect(out.trifectaComplete).toBe(false);
   });
 
+  it('classifies filesystem local source-only finding as PARTIAL, not COMPLETE', () => {
+    const f = makeFinding({
+      sourceCapabilities: [Capability.READ_LOCAL_FILE],
+      sinkCapabilities: [],
+    });
+    const out = classifyFindingTrifecta(f);
+    expect(out.trifectaStage).toBe('PARTIAL');
+    expect(out.trifectaComplete).toBe(false);
+  });
+
   it('classifies PARTIAL for sink-only finding', () => {
     const f = makeFinding({
       sourceCapabilities: [],

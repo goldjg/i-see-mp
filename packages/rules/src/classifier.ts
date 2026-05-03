@@ -292,14 +292,34 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     caps.add(Capability.READ_REMOTE_DATA);
   }
   // Even outside known SaaS, search_* implies remote query
-  if (/^(search|query)_/.test(name) && !caps.has(Capability.QUERY_DATABASE)) {
+  const knownLocalSearchPatterns = ['search_files', 'search_directory'];
+  if (
+    /^(search|query)_/.test(name) &&
+    !matchesAny(name, knownLocalSearchPatterns) &&
+    !caps.has(Capability.QUERY_DATABASE) &&
+    !caps.has(Capability.READ_LOCAL_FILE) &&
+    !caps.has(Capability.READ_METADATA_LOW)
+  ) {
     caps.add(Capability.QUERY_REMOTE_SYSTEM);
     caps.add(Capability.READ_REMOTE_DATA);
   }
 
   // ---------- File reads ----------
   // Distinguish local file read vs remote file content read.
-  const localFileNamePatterns = ['read_file', 'open_file', 'cat_file', 'read_local'];
+  const localFileNamePatterns = [
+    'read_file',
+    'read_text_file',
+    'read_media_file',
+    'read_multiple_files',
+    ...knownLocalSearchPatterns,
+    'list_directory',
+    'directory_tree',
+    'get_file_info',
+    'list_allowed_directories',
+    'open_file',
+    'cat_file',
+    'read_local',
+  ];
   const localFileTokens = ['filesystem', 'file system', 'local file', 'local disk'];
   const isLocalFileRead =
     matchesAny(name, localFileNamePatterns) || matchesToken(combined, localFileTokens);
@@ -320,6 +340,7 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   if (
     matchesAny(name, [
       'write_file',
+      'edit_file',
       'save_file',
       'create_file',
       'put_file',
@@ -330,6 +351,7 @@ export function classifyTool(tool: McpTool): ClassificationResult {
       'move_file',
       'copy_file',
       'mkdir',
+      'create_directory',
       'rmdir',
     ]) &&
     !remoteSaas
