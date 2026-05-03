@@ -61,6 +61,7 @@ export interface TrifectaClassification {
   trifectaStage: (typeof TrifectaStage)[keyof typeof TrifectaStage];
   trifectaScore: number;
   trifectaComplete: boolean;
+  isCrossServer: boolean;
 }
 
 export function classifyFindingTrifecta(finding: Finding): TrifectaClassification {
@@ -95,7 +96,12 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     Array.from(sinkPool).every((cap) => cap === Capability.RUN_SHELL || cap === Capability.EXECUTE_CODE);
   if (hasSource && hasSink && !inferredExecutionSinkOnly) trifectaStage = TrifectaStage.COMPLETE;
   else if (hasSource || hasSink) trifectaStage = TrifectaStage.PARTIAL;
-  if (finding.isCrossServer === true && trifectaStage === TrifectaStage.COMPLETE) {
+  const hasBothServerIds =
+    typeof finding.sourceServerId === 'string' && typeof finding.sinkServerId === 'string';
+  const crossServer = hasBothServerIds
+    ? finding.sourceServerId !== finding.sinkServerId
+    : finding.isCrossServer === true;
+  if (crossServer && trifectaStage === TrifectaStage.COMPLETE) {
     trifectaStage = TrifectaStage.PARTIAL;
   }
 
@@ -115,6 +121,7 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     trifectaStage,
     trifectaScore,
     trifectaComplete: trifectaStage === TrifectaStage.COMPLETE,
+    isCrossServer: crossServer,
   };
 }
 
