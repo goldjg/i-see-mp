@@ -5,6 +5,19 @@
 #   - fetch MCP (network interaction capabilities)
 #   - github MCP over HTTP sidecar (remote read/mutation capabilities)
 #
+# Semantic contract (filesystem-fetch-github profile):
+#   - Proves multi-server trust-zone-aware classification under current trust semantics.
+#   - Servers: at least 3 (filesystem, fetch, github).
+#   - Tools: at least 1 per server.
+#   - Capability families: filesystem READ_LOCAL_FILE; fetch SEND_HTTP/READ_REMOTE_DATA;
+#     github READ_REMOTE_DATA/WRITE_REMOTE_DATA/MUTATE_REMOTE_RESOURCE.
+#   - Structural trifecta: cross-server findings must remain PARTIAL (not COMPLETE).
+#   - Trust transitions: include LOCAL → EXTERNAL and LOCAL → CONTROLLED_SAAS or LOCAL → USER_CONTROLLED_SAAS.
+#   - Trust-boundary crossing: required for filesystem → fetch; filesystem → github depends on github tool trust zone.
+#   - Lethal trifecta: POSSIBLE may appear; CONFIRMED forbidden.
+#   - Prompt injection: no confirmed injection findings.
+#   - Canary gating: optional github-safe-canary based on env vars.
+#
 # The goal is trust-domain classification sanity, not exploit confirmation.
 
 set -euo pipefail
@@ -296,6 +309,88 @@ function fail(message) {
   process.exit(1);
 }
 
+/*
+Semantic contract enforced by this block:
+- servers: at least filesystem + fetch + github
+- tools: at least 1 per server with expected capability families
+- structural trifecta: cross-server findings present and PARTIAL (not COMPLETE)
+- trust: LOCAL → EXTERNAL must exist; filesystem → github allows LOCAL → CONTROLLED_SAAS or LOCAL → USER_CONTROLLED_SAAS
+- trust boundary: required for filesystem → fetch; filesystem → github depends on transition zone
+- lethal/injection: POSSIBLE allowed in constrained cases; CONFIRMED and confirmed injection forbidden
+- note: /findings payload is enriched via applyTrifectaAnalysis in the API.
+*/
+function assertHasServer(servers, name) {
+  const server = servers.find((candidate) => candidate.name === name);
+  if (!server) fail(`Server '${name}' not detected.`);
+  return server;
+}
+
+function assertHasCapability(tools, serverId, capability) {
+  const match = tools.some(
+    (tool) =>
+      tool.serverId === serverId &&
+      Array.isArray(tool.capabilities) &&
+      tool.capabilities.includes(capability),
+  );
+  if (!match) fail(`Expected capability '${capability}' on server '${serverId}'.`);
+}
+
+function assertHasTrustTransition(findings, from, to) {
+  const expected = `${from} → ${to}`;
+  const finding = findings.find((candidate) => candidate.trustTransition === expected);
+  if (!finding) fail(`Expected trust transition '${expected}'.`);
+  return finding;
+}
+
+function assertAcceptableTrustTransitions(finding, allowedTransitions) {
+  if (!finding) fail('Expected finding for trust-transition assertion.');
+  if (!allowedTransitions.includes(finding.trustTransition)) {
+    fail(
+      `Expected trust transition in [${allowedTransitions.join(', ')}], got ${finding.trustTransition ?? 'undefined'}.`,
+    );
+  }
+}
+
+function assertLethalTrifectaCounts(findings, opts) {
+  const confirmed = findings.filter((finding) => finding.lethalTrifectaStatus === 'CONFIRMED').length;
+  const possible = findings.filter((finding) => finding.lethalTrifectaStatus === 'POSSIBLE').length;
+  if (typeof opts.confirmedMax === 'number' && confirmed > opts.confirmedMax) {
+    fail(`Unexpected lethalTrifectaStatus=CONFIRMED findings: ${confirmed} (max ${opts.confirmedMax}).`);
+  }
+  if (typeof opts.possibleMax === 'number' && possible > opts.possibleMax) {
+    fail(`Unexpected lethalTrifectaStatus=POSSIBLE findings: ${possible} (max ${opts.possibleMax}).`);
+  }
+}
+
+function assertNoConfirmedInjection(findings) {
+  const confirmed = findings.filter((finding) => finding.injectionConfirmed === true);
+  if (confirmed.length > 0) fail(`Unexpected injectionConfirmed=true finding(s): ${confirmed.length}.`);
+}
+
+function assertCrossServerSourceSinkIntegrity(crossServerFindings) {
+  for (const finding of crossServerFindings) {
+    if (typeof finding.sourceServerId !== 'string' || typeof finding.sinkServerId !== 'string') {
+      fail(`Cross-server finding missing sourceServerId/sinkServerId: ${finding.id}`);
+    }
+    if (finding.sourceServerId.length === 0 || finding.sinkServerId.length === 0) {
+      fail(`Cross-server finding has empty sourceServerId/sinkServerId: ${finding.id}`);
+    }
+    if (finding.sourceServerId === finding.sinkServerId) {
+      fail(`Cross-server finding has identical source/sink server IDs: ${finding.id}`);
+    }
+  }
+}
+
+function assertHasFindingBadge(findings, serverId, field, value) {
+  const match = findings.some(
+    (finding) =>
+      (finding.sourceServerId === serverId || finding.sinkServerId === serverId) && finding[field] === value,
+  );
+  if (!match) {
+    fail(`Expected finding badge ${field}=${value} for server '${serverId}'.`);
+  }
+}
+
 async function getJson(path) {
   const res = await fetch(`http://127.0.0.1:${apiPort}${path}`);
   if (!res.ok) fail(`API ${path} returned HTTP ${res.status}`);
@@ -307,16 +402,14 @@ const [servers, tools, findings] = await Promise.all([
   getJson('/tools'),
   getJson('/findings'),
 ]);
+// /findings includes applyTrifectaAnalysis output (trifecta/trust/lethal fields) from the API.
 
 if (servers.length < 3) fail(`Expected at least 3 servers, got ${servers.length}.`);
 if (tools.length === 0) fail('Zero tools detected.');
 
-const filesystemServer = servers.find((server) => server.name === 'filesystem');
-const fetchServer = servers.find((server) => server.name === 'fetch');
-const githubServer = servers.find((server) => server.name === 'github');
-if (!filesystemServer) fail('Filesystem server not detected.');
-if (!fetchServer) fail('Fetch server not detected.');
-if (!githubServer) fail('GitHub server not detected.');
+const filesystemServer = assertHasServer(servers, 'filesystem');
+const fetchServer = assertHasServer(servers, 'fetch');
+const githubServer = assertHasServer(servers, 'github');
 
 const filesystemTools = tools.filter((tool) => tool.serverId === filesystemServer.id);
 const fetchTools = tools.filter((tool) => tool.serverId === fetchServer.id);
@@ -327,8 +420,8 @@ if (githubTools.length === 0) fail('No tools discovered for GitHub server.');
 
 const hasCap = (tool, cap) => Array.isArray(tool.capabilities) && tool.capabilities.includes(cap);
 
+assertHasCapability(tools, filesystemServer.id, 'READ_LOCAL_FILE');
 const hasFilesystemLocalRead = filesystemTools.some((tool) => hasCap(tool, 'READ_LOCAL_FILE'));
-if (!hasFilesystemLocalRead) fail('Filesystem server has no READ_LOCAL_FILE-classified tools.');
 
 const hasFetchNetwork = fetchTools.some(
   (tool) => hasCap(tool, 'SEND_HTTP') || hasCap(tool, 'READ_REMOTE_DATA'),
@@ -368,8 +461,7 @@ if (fetchUnexpectedLocalRead.length > 0) {
 const complete = findings.filter((finding) => finding.trifectaComplete === true).length;
 const partial = findings.filter((finding) => finding.trifectaStage === 'PARTIAL').length;
 const capabilityOnly = findings.filter((finding) => finding.trifectaStage === 'CAPABILITY_ONLY').length;
-const lethalCompleteFindings = findings.filter((finding) => finding.lethalTrifectaStatus === 'COMPLETE');
-const lethalCandidateFindings = findings.filter((finding) => finding.lethalTrifectaStatus === 'CANDIDATE');
+const lethalPossibleFindings = findings.filter((finding) => finding.lethalTrifectaStatus === 'POSSIBLE');
 const crossServerFindings = findings.filter((finding) => finding.isCrossServer === true);
 const crossServerPartial = crossServerFindings.filter((finding) => finding.trifectaStage === 'PARTIAL');
 const crossServerComplete = crossServerFindings.filter((finding) => finding.trifectaComplete === true);
@@ -390,9 +482,7 @@ if (crossServerComplete.length > 0) {
   console.warn(`⚠️ Cross-server findings marked TRIFECTA_COMPLETE: ${crossServerComplete.length}.`);
 }
 
-if (lethalCompleteFindings.length > 0) {
-  fail(`Unexpected lethalTrifectaStatus=COMPLETE findings: ${lethalCompleteFindings.length}.`);
-}
+assertLethalTrifectaCounts(findings, { confirmedMax: 0 });
 
 const githubHasUntrustedContent = githubTools.some((tool) => hasCap(tool, 'UNTRUSTED_CONTENT_EXPOSURE'));
 const fetchHasUntrustedContent = fetchTools.some((tool) => hasCap(tool, 'UNTRUSTED_CONTENT_EXPOSURE'));
@@ -400,7 +490,7 @@ const fetchHasExternalComm = fetchTools.some(
   (tool) => hasCap(tool, 'SEND_EXTERNAL') || hasCap(tool, 'SEND_HTTP') || hasCap(tool, 'SEND_EMAIL'),
 );
 if (!githubHasUntrustedContent) {
-  const invalidCandidates = lethalCandidateFindings.filter(
+  const invalidCandidates = lethalPossibleFindings.filter(
     (finding) =>
       !(
         fetchHasUntrustedContent &&
@@ -412,7 +502,7 @@ if (!githubHasUntrustedContent) {
   );
   if (invalidCandidates.length > 0) {
     fail(
-      `Unexpected lethalTrifectaStatus=CANDIDATE findings without untrusted GitHub tools in scope: ${invalidCandidates.length}.`,
+      `Unexpected lethalTrifectaStatus=POSSIBLE findings without untrusted GitHub tools in scope: ${invalidCandidates.length}.`,
     );
   }
 }
@@ -420,21 +510,13 @@ if (!githubHasUntrustedContent) {
 if (crossServerPartial.length === 0) {
   fail('Expected at least one cross-server TRIFECTA_PARTIAL finding.');
 }
+// Boundary crossings must be driven by filesystem → fetch (LOCAL → EXTERNAL), not necessarily filesystem → github.
 if (trustBoundaryCrossings.length === 0) {
   fail('Expected at least one cross-server trust-boundary crossing finding.');
 }
+assertHasTrustTransition(crossServerFindings, 'LOCAL', 'EXTERNAL');
 
-for (const finding of crossServerFindings) {
-  if (typeof finding.sourceServerId !== 'string' || typeof finding.sinkServerId !== 'string') {
-    fail(`Cross-server finding missing sourceServerId/sinkServerId: ${finding.id}`);
-  }
-  if (finding.sourceServerId.length === 0 || finding.sinkServerId.length === 0) {
-    fail(`Cross-server finding has empty sourceServerId/sinkServerId: ${finding.id}`);
-  }
-  if (finding.sourceServerId === finding.sinkServerId) {
-    fail(`Cross-server finding has identical source/sink server IDs: ${finding.id}`);
-  }
-}
+assertCrossServerSourceSinkIntegrity(crossServerFindings);
 
 const hasFilesystemCrossServerPath = crossServerFindings.some(
   (finding) =>
@@ -454,12 +536,21 @@ const filesystemToGithub = crossServerFindings.find(
 if (!filesystemToGithub) {
   fail('Expected filesystem → github cross-server finding.');
 }
-if (filesystemToGithub.crossesTrustBoundary !== true) {
-  fail('Expected filesystem → github to cross trust boundary.');
-}
-if (filesystemToGithub.trustTransition !== 'LOCAL → EXTERNAL') {
-  fail(
-    `Expected filesystem → github trust transition LOCAL → EXTERNAL, got ${filesystemToGithub.trustTransition ?? 'undefined'}.`,
+assertAcceptableTrustTransitions(filesystemToGithub, [
+  'LOCAL → CONTROLLED_SAAS',
+  'LOCAL → USER_CONTROLLED_SAAS',
+]);
+if (filesystemToGithub.trustTransition === 'LOCAL → USER_CONTROLLED_SAAS') {
+  if (filesystemToGithub.crossesTrustBoundary !== true) {
+    fail('Expected filesystem → github to cross trust boundary for LOCAL → USER_CONTROLLED_SAAS.');
+  }
+} else if (filesystemToGithub.trustTransition === 'LOCAL → CONTROLLED_SAAS') {
+  if (filesystemToGithub.crossesTrustBoundary !== false) {
+    fail('Expected filesystem → github not to cross trust boundary for LOCAL → CONTROLLED_SAAS.');
+  }
+} else {
+  console.warn(
+    `⚠️ Unhandled filesystem → github trust transition ${filesystemToGithub.trustTransition ?? 'undefined'}.`,
   );
 }
 
@@ -485,6 +576,7 @@ const githubToFetch = crossServerFindings.find(
 if (githubToFetch && githubToFetch.crossesTrustBoundary !== false) {
   fail('Expected github → fetch to be cross-server but not a trust-boundary crossing.');
 }
+assertNoConfirmedInjection(findings);
 
 const badGithubCrossServer = findings.filter(
   (finding) =>
@@ -500,6 +592,7 @@ if (badGithubCrossServer.length > 0) {
 
 if (expectGithubCanary) {
   const githubServerNode = `server:${githubServer.id}`;
+  assertHasFindingBadge(findings, githubServer.id, 'pathStatus', 'tested_confirmed');
   const githubSameServerConfirmed = findings.filter(
     (finding) =>
       finding.isCrossServer !== true &&
