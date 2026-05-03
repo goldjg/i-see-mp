@@ -263,6 +263,96 @@ describe('classifyTool — schema-based inference', () => {
   });
 });
 
+describe('classifyTool — filesystem MCP local/source-only tools', () => {
+  it('classifies search_files as READ_LOCAL_FILE, not QUERY_REMOTE_SYSTEM', () => {
+    const result = classifyTool({
+      name: 'search_files',
+      description: 'Recursively search local files for a pattern',
+    });
+    expect(result.capabilities).toContain(Capability.READ_LOCAL_FILE);
+    expect(result.capabilities).not.toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).not.toContain(Capability.SEND_HTTP);
+    expect(result.capabilities).not.toContain(Capability.SEND_EXTERNAL);
+  });
+
+  it('classifies list_directory as READ_LOCAL_FILE', () => {
+    const result = classifyTool({
+      name: 'list_directory',
+      description: 'List files and folders in a local directory',
+    });
+    expect(result.capabilities).toContain(Capability.READ_LOCAL_FILE);
+    expect(result.capabilities).not.toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).not.toContain(Capability.SEND_HTTP);
+    expect(result.capabilities).not.toContain(Capability.SEND_EXTERNAL);
+  });
+
+  it('classifies directory_tree as READ_LOCAL_FILE', () => {
+    const result = classifyTool({
+      name: 'directory_tree',
+      description: 'Show local directory tree',
+    });
+    expect(result.capabilities).toContain(Capability.READ_LOCAL_FILE);
+    expect(result.capabilities).not.toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).not.toContain(Capability.SEND_HTTP);
+    expect(result.capabilities).not.toContain(Capability.SEND_EXTERNAL);
+  });
+
+  it('classifies get_file_info as READ_LOCAL_FILE', () => {
+    const result = classifyTool({
+      name: 'get_file_info',
+      description: 'Read local file metadata',
+    });
+    expect(result.capabilities).toContain(Capability.READ_LOCAL_FILE);
+    expect(result.capabilities).not.toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).not.toContain(Capability.SEND_HTTP);
+    expect(result.capabilities).not.toContain(Capability.SEND_EXTERNAL);
+  });
+
+  it('classifies list_allowed_directories as READ_LOCAL_FILE', () => {
+    const result = classifyTool({
+      name: 'list_allowed_directories',
+      description: 'List locally-allowed filesystem roots',
+    });
+    expect(result.capabilities).toContain(Capability.READ_LOCAL_FILE);
+    expect(result.capabilities).not.toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).not.toContain(Capability.SEND_HTTP);
+    expect(result.capabilities).not.toContain(Capability.SEND_EXTERNAL);
+  });
+
+  it('classifies read_multiple_files as READ_LOCAL_FILE', () => {
+    const result = classifyTool({
+      name: 'read_multiple_files',
+      description: 'Read multiple local files by path',
+    });
+    expect(result.capabilities).toContain(Capability.READ_LOCAL_FILE);
+    expect(result.capabilities).not.toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).not.toContain(Capability.SEND_HTTP);
+    expect(result.capabilities).not.toContain(Capability.SEND_EXTERNAL);
+  });
+
+  it('classifies edit_file as WRITE_LOCAL_FILE', () => {
+    const result = classifyTool({
+      name: 'edit_file',
+      description: 'Edit a local file',
+    });
+    expect(result.capabilities).toContain(Capability.WRITE_LOCAL_FILE);
+    expect(result.capabilities).not.toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).not.toContain(Capability.SEND_HTTP);
+    expect(result.capabilities).not.toContain(Capability.SEND_EXTERNAL);
+  });
+
+  it('classifies create_directory as WRITE_LOCAL_FILE', () => {
+    const result = classifyTool({
+      name: 'create_directory',
+      description: 'Create a local directory',
+    });
+    expect(result.capabilities).toContain(Capability.WRITE_LOCAL_FILE);
+    expect(result.capabilities).not.toContain(Capability.QUERY_REMOTE_SYSTEM);
+    expect(result.capabilities).not.toContain(Capability.SEND_HTTP);
+    expect(result.capabilities).not.toContain(Capability.SEND_EXTERNAL);
+  });
+});
+
 describe('classifyTool — UNKNOWN fallback', () => {
   it('returns UNKNOWN for an unrecognised tool', () => {
     const result = classifyTool({ name: 'foo_bar', description: 'Does something mysterious' });

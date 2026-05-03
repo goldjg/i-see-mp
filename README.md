@@ -147,6 +147,24 @@ Expected demo-confirm tested outcomes:
 - `TESTED_REJECTED`: `READ_METADATA_LOW -> MODEL_CONTEXT -> SEND_EXTERNAL` (blocked sink path)
 - `TESTED_INCONCLUSIVE`: `AGENT -> MUTATE_REMOTE_STATE` (dry-run mutation acknowledged only)
 
+## Filesystem MCP e2e scripts
+
+Run these conservative e2e scripts from repo root:
+
+```sh
+# Filesystem-only source sanity check
+bash scripts/filesystem-mcp-e2e.sh
+
+# Filesystem + Fetch cross-server composition sanity check
+bash scripts/filesystem-fetch-mcp-e2e.sh
+```
+
+Expected outcomes:
+
+- `filesystem-mcp-e2e.sh`: filesystem-only is source-only; zero exploitable paths is the correct passing result.
+- `filesystem-fetch-mcp-e2e.sh`: filesystem tools should classify as local source capability and fetch tools as network/external interaction capability.
+- Cross-server trifecta is reported if current graph/rules synthesize it, but not required for pass.
+
 ## Docker (local-first)
 
 Run the API/UI/CLI fully local in Docker (no SaaS required for the deterministic demo).
