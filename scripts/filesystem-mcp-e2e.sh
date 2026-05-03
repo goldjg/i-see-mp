@@ -160,12 +160,14 @@ echo "▶ Validating tools/findings expectations through API…"
 const apiPort = process.env.ISEEMP_API_PORT || '7474';
 const rawMaxFindingsExclusive = process.env.ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE ?? '10';
 if (!/^\d+$/.test(rawMaxFindingsExclusive)) {
-  console.error(`❌ ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE must be a positive integer, got '${rawMaxFindingsExclusive}'.`);
+  console.error(`❌ ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE must be an integer value, got '${rawMaxFindingsExclusive}'.`);
   process.exit(1);
 }
 const maxFindingsExclusive = Number(rawMaxFindingsExclusive);
 if (maxFindingsExclusive <= 0) {
-  console.error(`❌ ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE must be greater than zero, got '${rawMaxFindingsExclusive}'.`);
+  console.error(
+    `❌ ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE must be greater than zero, got '${rawMaxFindingsExclusive}' (parsed as ${maxFindingsExclusive}).`,
+  );
   process.exit(1);
 }
 
@@ -191,7 +193,9 @@ const filesystemServer = servers.find((server) => server.name === 'filesystem') 
 if (filesystemServer.transport !== 'stdio') {
   fail(`Expected stdio transport, got '${filesystemServer.transport ?? 'unknown'}'.`);
 }
-if (filesystemServer.url) fail(`Expected filesystem server URL to be empty, got '${filesystemServer.url}'.`);
+if (filesystemServer.url) {
+  fail(`Expected URL to be absent for stdio transport, got '${filesystemServer.url}'.`);
+}
 
 if (tools.length === 0) fail('Zero tools detected.');
 const sendCaps = new Set(['SEND_EXTERNAL', 'SEND_HTTP', 'SEND_EMAIL']);
