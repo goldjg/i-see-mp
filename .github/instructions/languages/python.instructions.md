@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # Python Language Pack
 
 Use this guidance when working with Python code.
@@ -75,7 +76,7 @@ Use specific exceptions where practical.
 
 Avoid leaking secrets, tokens, credentials, request bodies, or sensitive file contents in logs.
 
-Use the project’s existing logging style.
+Use the project's existing logging style.
 
 ## Security
 
@@ -102,7 +103,7 @@ If running commands, pass arguments as lists and validate user-controlled values
 
 For simple proof-of-concept or research scripts, prefer standard library HTTP where practical.
 
-For production-quality API clients, use the project’s existing HTTP library if present.
+For production-quality API clients, use the project's existing HTTP library if present.
 
 Handle timeouts.
 

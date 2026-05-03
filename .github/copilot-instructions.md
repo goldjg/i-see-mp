@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # Copilot Project Operating Model
 
 You are working in this repository as a disciplined engineering agent.

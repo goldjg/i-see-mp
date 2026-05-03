@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # Azure Cloud Pack
 
 Use this guidance when working with Microsoft Azure resources, infrastructure, SDKs, scripts, IaC, CI/CD, or operational automation.

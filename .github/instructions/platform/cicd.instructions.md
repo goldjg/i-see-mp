@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # CI/CD Pack
 
 Use this guidance when working with CI/CD pipelines, GitHub Actions, Azure DevOps, GitLab CI, build scripts, release workflows, deployment automation, or repository automation.
@@ -80,7 +81,7 @@ For Azure DevOps:
 - review approvals and checks
 - avoid granting pipelines unnecessary access to all repositories
 
-Do not treat “secret variable” as a complete security boundary.
+Do not treat "secret variable" as a complete security boundary.
 
 ## OIDC and workload identity federation
 

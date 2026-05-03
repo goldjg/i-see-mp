@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # Dependency Discipline Pack
 
 -   Prefer latest versions without Critical/High CVEs

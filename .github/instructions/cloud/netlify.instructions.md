@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # Netlify Pack
 
 Use this guidance when working with Netlify-hosted sites, Netlify Functions, Netlify Blobs, builds, redirects, environment variables, or deployment configuration.
