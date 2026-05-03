@@ -1,9 +1,13 @@
-import { Capability } from '@iseemp/core';
+import { Capability, ContentOrigin, SourceRole } from '@iseemp/core';
 import type { McpTool } from '@iseemp/core';
 
 export interface ClassificationResult {
   capabilities: Capability[];
   riskScore: number;
+  sourceRole: SourceRole[];
+  isUntrusted: boolean;
+  isInstructionCapable: boolean;
+  contentOrigin: ContentOrigin;
 }
 
 // Higher score = more dangerous. Used to derive a numeric risk score per tool.
@@ -499,8 +503,59 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   const dangerousCaps = capsArray.filter((c) => (CAPABILITY_SCORES[c] ?? 0) >= 55).length;
   const bonus = dangerousCaps > 1 ? Math.min(dangerousCaps * 5, 10) : 0;
 
+  const instructionUserGeneratedPatterns = [
+    'issue_read',
+    'list_issues',
+    'search_issues',
+    'pull_request_read',
+    'get_issue_comments',
+    'list_pull_requests',
+    'search_pull_requests',
+    'discussion',
+    'discussion_comment',
+  ];
+  const instructionFetchPatterns = ['fetch', 'fetch_url', 'web_fetch', 'http_get', 'retrieve_url'];
+  const isInstructionFromUserGenerated = matchesAny(name, instructionUserGeneratedPatterns);
+  const isInstructionFromFetch = matchesAny(name, instructionFetchPatterns);
+  const isInstructionCapable =
+    isInstructionFromUserGenerated ||
+    isInstructionFromFetch ||
+    caps.has(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+  const isUntrusted = isInstructionCapable;
+
+  const hasReadLikeCapability =
+    caps.has(Capability.READ_LOCAL_FILE) ||
+    caps.has(Capability.READ_REMOTE_DATA) ||
+    caps.has(Capability.READ_CREDENTIAL_HIGH) ||
+    caps.has(Capability.READ_SECRET_HIGH) ||
+    caps.has(Capability.READ_SECRET) ||
+    caps.has(Capability.READ_SENSITIVE_MEDIUM) ||
+    caps.has(Capability.READ_METADATA_LOW) ||
+    caps.has(Capability.QUERY_DATABASE) ||
+    caps.has(Capability.QUERY_REMOTE_SYSTEM);
+  const sourceRoleSet = new Set<SourceRole>();
+  if (hasReadLikeCapability || isInstructionCapable) sourceRoleSet.add(SourceRole.DATA_SOURCE);
+  if (isInstructionCapable) sourceRoleSet.add(SourceRole.INSTRUCTION_SOURCE);
+
+  let contentOrigin: ContentOrigin = ContentOrigin.LOCAL;
+  if (isInstructionFromUserGenerated) {
+    contentOrigin = ContentOrigin.USER_GENERATED;
+  } else if (isInstructionFromFetch) {
+    contentOrigin = ContentOrigin.REMOTE;
+  } else if (caps.has(Capability.QUERY_DATABASE)) {
+    contentOrigin = ContentOrigin.DB_ROW;
+  } else if (remoteSaas) {
+    contentOrigin = ContentOrigin.EXTERNAL_SAAS;
+  } else if (caps.has(Capability.READ_REMOTE_DATA) || caps.has(Capability.QUERY_REMOTE_SYSTEM)) {
+    contentOrigin = ContentOrigin.REMOTE;
+  }
+
   return {
     capabilities: capsArray,
     riskScore: Math.min(baseScore + bonus, 100),
+    sourceRole: Array.from(sourceRoleSet),
+    isUntrusted,
+    isInstructionCapable,
+    contentOrigin,
   };
 }

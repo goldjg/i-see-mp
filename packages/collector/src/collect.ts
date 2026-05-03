@@ -83,6 +83,10 @@ export async function collect(options: {
         description: tool.description ?? null,
         input_schema: tool.inputSchema ? JSON.stringify(tool.inputSchema) : null,
         capabilities: JSON.stringify(classification.capabilities),
+        source_role: JSON.stringify(classification.sourceRole),
+        is_untrusted: classification.isUntrusted ? 1 : 0,
+        is_instruction_capable: classification.isInstructionCapable ? 1 : 0,
+        content_origin: classification.contentOrigin,
         risk_score: classification.riskScore,
         created_at: now,
       });

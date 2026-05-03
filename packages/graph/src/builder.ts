@@ -1,4 +1,4 @@
-import { NodeType, EdgeType, Capability, TrustBoundary } from '@iseemp/core';
+import { NodeType, EdgeType, Capability, TrustBoundary, SourceRole } from '@iseemp/core';
 import type { GraphNode, GraphEdge } from '@iseemp/core';
 import type { ServerRow, ToolRow, ResourceRow, PromptRow } from '@iseemp/storage';
 
@@ -23,6 +23,14 @@ function parseCaps(capsJson: string): Capability[] {
   }
 }
 
+function parseSourceRole(sourceRoleJson: string): SourceRole[] {
+  try {
+    return JSON.parse(sourceRoleJson) as SourceRole[];
+  } catch {
+    return [];
+  }
+}
+
 function isNonLocalhost(url: string | null): boolean {
   if (!url) return false;
   return !url.includes('localhost') && !url.includes('127.0.0.1') && !url.includes('::1');
@@ -41,8 +49,6 @@ export function buildGraph(context: BuildContext): GraphResult {
   const { collectionId, servers, tools, resources, prompts } = context;
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
-  const now = new Date().toISOString();
-
   const edgeId = (type: string, source: string, target: string) =>
     `edge:${type}:${source}->${target}`;
 
@@ -123,6 +129,7 @@ export function buildGraph(context: BuildContext): GraphResult {
     for (const tool of serverTools) {
       const toolNodeId = `tool:${tool.id}`;
       const caps = parseCaps(tool.capabilities);
+      const sourceRole = parseSourceRole(tool.source_role);
 
       nodes.push({
         id: toolNodeId,
@@ -134,6 +141,10 @@ export function buildGraph(context: BuildContext): GraphResult {
         metadata: {
           description: tool.description ?? undefined,
           inputSchema: tool.input_schema ? (JSON.parse(tool.input_schema) as Record<string, unknown>) : undefined,
+          sourceRole,
+          isUntrusted: tool.is_untrusted === 1,
+          isInstructionCapable: tool.is_instruction_capable === 1,
+          contentOrigin: tool.content_origin,
         },
       });
 
@@ -232,6 +243,38 @@ export function buildGraph(context: BuildContext): GraphResult {
           source: toolNodeId,
           target: agentId,
           type: EdgeType.CAN_EXECUTE,
+        });
+      }
+
+      if (
+        tool.is_instruction_capable === 1 &&
+        caps.includes(Capability.UNTRUSTED_CONTENT_EXPOSURE)
+      ) {
+        const instructionSourceNodeId = `instruction_source:${tool.id}`;
+        nodes.push({
+          id: instructionSourceNodeId,
+          type: NodeType.INSTRUCTION_SOURCE,
+          label: `Instruction Source: ${tool.name}`,
+          serverId: server.id,
+          capabilities: [Capability.UNTRUSTED_CONTENT_EXPOSURE],
+          riskScore: Math.min(100, Math.max(tool.risk_score, 60)),
+          metadata: {
+            sourceToolId: tool.id,
+            contentOrigin: tool.content_origin,
+            isUntrusted: tool.is_untrusted === 1,
+          },
+        });
+        edges.push({
+          id: edgeId(EdgeType.RETURNS_TO_CONTEXT, toolNodeId, instructionSourceNodeId),
+          source: toolNodeId,
+          target: instructionSourceNodeId,
+          type: EdgeType.RETURNS_TO_CONTEXT,
+        });
+        edges.push({
+          id: edgeId(EdgeType.CARRIES_INSTRUCTION, instructionSourceNodeId, agentId),
+          source: instructionSourceNodeId,
+          target: agentId,
+          type: EdgeType.CARRIES_INSTRUCTION,
         });
       }
     }

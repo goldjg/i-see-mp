@@ -35,6 +35,22 @@ function parseCaps(capsJson: string): Capability[] {
   }
 }
 
+function parseSourceRole(sourceRoleJson: string): string[] {
+  try {
+    return JSON.parse(sourceRoleJson) as string[];
+  } catch {
+    return [];
+  }
+}
+
+function isInstructionCapableTool(tool: ToolRow): boolean {
+  if (tool.is_instruction_capable === 1) return true;
+  const sourceRoles = parseSourceRole(tool.source_role);
+  if (sourceRoles.includes('INSTRUCTION_SOURCE')) return true;
+  const caps = parseCaps(tool.capabilities);
+  return caps.includes(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+}
+
 function isNonLocalhost(url: string | null): boolean {
   if (!url) return false;
   return !url.includes('localhost') && !url.includes('127.0.0.1') && !url.includes('::1');
@@ -302,7 +318,9 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
     const hasServerExternalSink = hasAny(serverCapsArr, EXTERNAL_SINK_CAPS);
     const hasServerExternalCommunication = hasAny(serverCapsArr, EXTERNAL_COMM_CAPS);
     const hasServerPrivateData = hasAny(serverCapsArr, PRIVATE_DATA_SOURCE_CAPS);
-    const hasServerUntrustedContent = hasAny(serverCapsArr, UNTRUSTED_CONTENT_SOURCE_CAPS);
+    const hasServerUntrustedContent =
+      hasAny(serverCapsArr, UNTRUSTED_CONTENT_SOURCE_CAPS) ||
+      serverTools.some(isInstructionCapableTool);
     const hasServerExec = hasAny(serverCapsArr, EXEC_CAPS);
     const hasServerLowOnly =
       serverCapsArr.length > 0 &&
@@ -563,7 +581,7 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         pathSummary: `READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL (${boundary})`,
         lethalTrifectaStatus:
           hasServerPrivateData && hasServerUntrustedContent && hasServerExternalCommunication
-            ? LethalTrifectaStatus.CANDIDATE
+            ? LethalTrifectaStatus.POSSIBLE
             : LethalTrifectaStatus.NONE,
         candidatePathId:
           sourceTools[0] && pickToolByNameOrFirst(sinkTools, 'send_to_mock_sink')
@@ -607,7 +625,7 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         pathSummary: `READ_SENSITIVE_MEDIUM -> MODEL_CONTEXT -> SEND_EXTERNAL (${boundary})`,
         lethalTrifectaStatus:
           hasServerPrivateData && hasServerUntrustedContent && hasServerExternalCommunication
-            ? LethalTrifectaStatus.CANDIDATE
+            ? LethalTrifectaStatus.POSSIBLE
             : LethalTrifectaStatus.NONE,
         candidatePathId:
           sourceTools[0] && sinkTools[0]
@@ -651,7 +669,7 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         pathSummary: `READ_METADATA_LOW -> MODEL_CONTEXT -> SEND_EXTERNAL (${boundary})`,
         lethalTrifectaStatus:
           hasServerPrivateData && hasServerUntrustedContent && hasServerExternalCommunication
-            ? LethalTrifectaStatus.CANDIDATE
+            ? LethalTrifectaStatus.POSSIBLE
             : LethalTrifectaStatus.NONE,
         candidatePathId:
           sourceTools[0] && pickToolByNameOrFirst(sinkTools, 'blocked_send')
@@ -688,8 +706,58 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         pathSummary: `READ_LOCAL_FILE -> MODEL_CONTEXT -> SEND_EXTERNAL (${boundary})`,
         lethalTrifectaStatus:
           hasServerPrivateData && hasServerUntrustedContent && hasServerExternalCommunication
-            ? LethalTrifectaStatus.CANDIDATE
+            ? LethalTrifectaStatus.POSSIBLE
             : LethalTrifectaStatus.NONE,
+      });
+    }
+
+    if (hasServerPrivateData && hasServerUntrustedContent && hasServerExternalCommunication) {
+      const instructionTools = serverTools.filter(isInstructionCapableTool);
+      const sourceTools = serverTools.filter((t) =>
+        hasAny(parseCaps(t.capabilities), PRIVATE_DATA_SOURCE_CAPS),
+      );
+      const sinkTools = serverTools.filter((t) =>
+        hasAny(parseCaps(t.capabilities), EXTERNAL_COMM_CAPS),
+      );
+      const instructionTool = instructionTools[0];
+      const sourceTool = sourceTools[0];
+      const sinkTool = sinkTools[0];
+
+      findings.push({
+        id: `finding:${collectionId}:prompt_injection:${server.id}`,
+        collectionId,
+        category: RiskCategory.PROMPT_INJECTION,
+        severity: hasServerHighSecret ? 'high' : 'medium',
+        title: `Prompt-injection candidate chain on ${server.name}`,
+        description: `Server "${server.name}" exposes private-data access, instruction-bearing untrusted content, and external communication capabilities. This combination is a prompt-injection exploitability candidate and should be tested with deterministic canaries.`,
+        affectedNodeIds: [
+          `server:${server.id}`,
+          ...(instructionTools.map((t) => `tool:${t.id}`)),
+          ...(sourceTools.map((t) => `tool:${t.id}`)),
+          ...(sinkTools.map((t) => `tool:${t.id}`)),
+        ],
+        remediationHint:
+          'Isolate instruction-bearing tools from sensitive reads and external sinks, then run prompt-injection canary tests.',
+        createdAt: now,
+        confidence: Confidence.MEDIUM,
+        staticPossible: true,
+        observed: false,
+        tested: false,
+        sourceCapabilities: PRIVATE_DATA_SOURCE_CAPS.filter((c) => serverCapsArr.includes(c)),
+        sinkCapabilities: EXTERNAL_COMM_CAPS.filter((c) => serverCapsArr.includes(c)),
+        boundaryCrossed: boundary,
+        pathSummary: `INSTRUCTION_SOURCE -> MODEL_CONTEXT -> PRIVATE_DATA -> SEND_EXTERNAL (${boundary})`,
+        lethalTrifectaStatus: LethalTrifectaStatus.POSSIBLE,
+        candidatePathId:
+          instructionTool && sourceTool && sinkTool
+            ? makeCandidatePathId({
+                category: RiskCategory.PROMPT_INJECTION,
+                sourceToolId: instructionTool.id,
+                sinkToolId: sinkTool.id,
+                serverId: server.id,
+                pathSummary: `INSTRUCTION_SOURCE -> MODEL_CONTEXT -> PRIVATE_DATA -> SEND_EXTERNAL (${boundary})`,
+              })
+            : undefined,
       });
     }
   }
@@ -783,7 +851,7 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         boundaryCrossed: sinkBoundary,
         pathSummary,
         lethalTrifectaStatus: lethalCandidate
-          ? LethalTrifectaStatus.CANDIDATE
+          ? LethalTrifectaStatus.POSSIBLE
           : LethalTrifectaStatus.NONE,
         candidatePathId:
           sourceToolRepresentative && sinkToolRepresentative

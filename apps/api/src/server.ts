@@ -71,6 +71,10 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
       name: t.name,
       description: t.description,
       capabilities: JSON.parse(t.capabilities) as string[],
+      sourceRole: JSON.parse(t.source_role) as string[],
+      isUntrusted: t.is_untrusted === 1,
+      isInstructionCapable: t.is_instruction_capable === 1,
+      contentOrigin: t.content_origin,
       riskScore: t.risk_score,
     }));
   });

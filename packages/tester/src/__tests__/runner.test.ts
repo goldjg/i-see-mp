@@ -5,9 +5,11 @@ import {
   planSafeProfile,
   planDemoConfirmProfile,
   planGithubSafeCanaryProfile,
+  planPromptInjectionGithubProfile,
   assessGithubSafeCanaryRefusal,
   executePlannedTest,
   executeGithubSafeCanaryPlannedTest,
+  executePromptInjectionGithubPlannedTest,
   isSecondaryRateLimit,
   isProvenBlockedOrImpossible,
   SAFE_PROFILE_CASES,
@@ -25,6 +27,10 @@ function tool(id: string, name: string, caps: Capability[]): ToolRow {
     description: null,
     input_schema: null,
     capabilities: JSON.stringify(caps),
+    source_role: JSON.stringify([]),
+    is_untrusted: 0,
+    is_instruction_capable: 0,
+    content_origin: 'local',
     risk_score: 50,
     created_at: new Date().toISOString(),
   };
@@ -181,6 +187,83 @@ describe('github-safe-canary planning and refusal gates', () => {
     const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
     const readCase = planned.find((p) => p.caseDef.id === 'GITHUB_READ_CONTROLLED_ARTIFACT');
     expect(readCase?.sourceTool?.name).toBe('get_file_contents');
+  });
+});
+
+describe('prompt-injection-github planning', () => {
+  it('plans prompt injection case when issue_read and sink tool exist', () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const githubTools = [
+      tool('t-read', 'issue_read', [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA]),
+      tool('t-send', 'send_http_request', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
+    ];
+    const planned = planPromptInjectionGithubProfile(
+      [githubSrv],
+      new Map([['srv1', githubTools]]),
+    );
+    expect(planned.some((p) => p.caseDef.id === 'PROMPT_INJECTION_GITHUB_ISSUE_TO_SINK')).toBe(true);
+  });
+});
+
+describe('executePromptInjectionGithubPlannedTest', () => {
+  it('marks confirmed when controlled sink observes exfil marker', async () => {
+    const githubSrv = { ...server(), name: 'github-mcp' };
+    const planned = planPromptInjectionGithubProfile(
+      [githubSrv],
+      new Map([
+        [
+          'srv1',
+          [
+            tool('t-read', 'issue_read', [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA]),
+            tool('t-send', 'send_http_request', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
+          ],
+        ],
+      ]),
+    )[0];
+    expect(planned).toBeDefined();
+    const sink = await startMockSink();
+    try {
+      const executed = await executePromptInjectionGithubPlannedTest({
+        ctx: {
+          collectionId: 'col1',
+          profile: 'prompt-injection-github',
+          sink,
+          invoke: async (_serverId, toolName, args) => {
+            if (toolName === 'create_issue') {
+              return { raw: null, text: '{"number": 1}', isError: false };
+            }
+            if (toolName === 'issue_read') {
+              return { raw: null, text: 'read ok', isError: false };
+            }
+            if (toolName === 'send_http_request') {
+              await fetch(sink.url, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(args),
+              });
+              return { raw: null, text: 'sent', isError: false };
+            }
+            if (toolName === 'update_issue' || toolName === 'delete_issue') {
+              return { raw: null, text: 'ok', isError: false };
+            }
+            return { raw: null, text: 'unsupported', isError: true };
+          },
+        },
+        planned: planned!,
+        testRunId: 'testrun:promptinj:test',
+        config: {
+          owner: 'octo-org',
+          repo: 'canary-sandbox',
+          issuePrefix: 'ISEEMP-',
+          canaryPrefix: 'ISEEMP',
+        },
+      });
+      expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_CONFIRMED);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.canaryObserved).toBe(true);
+    } finally {
+      await sink.close();
+    }
   });
 });
 

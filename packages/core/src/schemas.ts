@@ -12,6 +12,9 @@ import {
   TestOutcome,
   TrifectaStage,
   LethalTrifectaStatus,
+  ContentOrigin,
+  SourceRole,
+  DataflowClassification,
 } from './types.js';
 
 export const NodeTypeSchema = z.enum(
@@ -61,6 +64,18 @@ export const TrifectaStageSchema = z.enum(
 export const LethalTrifectaStatusSchema = z.enum(
   Object.values(LethalTrifectaStatus) as [string, ...string[]],
 ) as z.ZodEnum<[LethalTrifectaStatus, ...LethalTrifectaStatus[]]>;
+
+export const ContentOriginSchema = z.enum(
+  Object.values(ContentOrigin) as [string, ...string[]],
+) as z.ZodEnum<[ContentOrigin, ...ContentOrigin[]]>;
+
+export const SourceRoleSchema = z.enum(
+  Object.values(SourceRole) as [string, ...string[]],
+) as z.ZodEnum<[SourceRole, ...SourceRole[]]>;
+
+export const DataflowClassificationSchema = z.enum(
+  Object.values(DataflowClassification) as [string, ...string[]],
+) as z.ZodEnum<[DataflowClassification, ...DataflowClassification[]]>;
 
 export const McpToolSchema = z.object({
   name: z.string(),
@@ -156,6 +171,7 @@ export const FindingSchema = z.object({
   trustTransition: z.string().optional(),
   isHighSignal: z.boolean().optional(),
   trifectaStage: TrifectaStageSchema.optional(),
+  dataflowClassification: DataflowClassificationSchema.optional(),
   trifectaScore: z.number().optional(),
   trifectaComplete: z.boolean().optional(),
   lethalTrifectaStatus: LethalTrifectaStatusSchema.optional(),

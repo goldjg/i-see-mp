@@ -53,7 +53,7 @@ Options:
   -d, --db <path>           SQLite database path (default: iseemp.db)
   -p, --port <n>            API server port (default: 7474)
   --collection <id>         Collection ID to analyze/test (default: latest)
-  --profile <name>          Test profile to run (default: safe; also: demo-confirm, github-safe-canary)
+  --profile <name>          Test profile to run (default: safe; also: demo-confirm, github-safe-canary, prompt-injection-github, prompt-injection-fetch, prompt-injection-db)
   --test-repo-owner <name>  Disposable GitHub owner for github-safe-canary
   --test-repo-name <name>   Disposable GitHub repo for github-safe-canary
   --test-branch-prefix <p>  Branch prefix for github-safe-canary artifacts
@@ -123,18 +123,31 @@ if (command === 'collect') {
   }
 } else if (command === 'test') {
   const profile = (args.profile as string | undefined) ?? 'safe';
-  if (profile !== 'safe' && profile !== 'demo-confirm' && profile !== 'github-safe-canary') {
-    console.error(`Unknown test profile: ${profile}. Supported: safe, demo-confirm, github-safe-canary`);
+  if (
+    profile !== 'safe' &&
+    profile !== 'demo-confirm' &&
+    profile !== 'github-safe-canary' &&
+    profile !== 'prompt-injection-github' &&
+    profile !== 'prompt-injection-fetch' &&
+    profile !== 'prompt-injection-db'
+  ) {
+    console.error(`Unknown test profile: ${profile}. Supported: safe, demo-confirm, github-safe-canary, prompt-injection-github, prompt-injection-fetch, prompt-injection-db`);
     process.exit(1);
   }
   try {
     console.log(`🧪 Running deterministic test profile: ${profile}…`);
     const summary = await runTests({
       collectionId: args.collection as string | undefined,
-      profile: profile as 'safe' | 'demo-confirm' | 'github-safe-canary',
+      profile: profile as
+        | 'safe'
+        | 'demo-confirm'
+        | 'github-safe-canary'
+        | 'prompt-injection-github'
+        | 'prompt-injection-fetch'
+        | 'prompt-injection-db',
       profileExplicitlySelected: typeof args.profile === 'string',
       githubSafeCanary:
-        profile === 'github-safe-canary'
+        profile === 'github-safe-canary' || profile === 'prompt-injection-github'
           ? {
               owner: args['test-repo-owner'] as string | undefined,
               repo: args['test-repo-name'] as string | undefined,
@@ -152,11 +165,11 @@ if (command === 'collect') {
       console.log(`ℹ️  No tools matched any test case in the ${profile} profile.`);
       if (profile === 'demo-confirm') {
         console.log('   Run `iseemp demo up` then `iseemp demo collect` and retry.');
-      } else if (profile === 'github-safe-canary') {
-        console.log('   Ensure a GitHub MCP server is collected and required github-safe-canary flags are set.');
-      } else {
-        console.log('   Add the canary-mcp fixture to your iseemp.config.json and re-run collect.');
-      }
+       } else if (profile === 'github-safe-canary' || profile === 'prompt-injection-github') {
+         console.log('   Ensure a GitHub MCP server is collected and required github-safe-canary flags are set.');
+       } else {
+         console.log('   Add the canary-mcp fixture to your iseemp.config.json and re-run collect.');
+       }
     } else {
       console.log(`\n✅ Test run complete:`);
       console.log(`  planned     : ${summary.totalPlanned}`);
@@ -166,6 +179,9 @@ if (command === 'collect') {
       if (summary.skipped > 0) {
         console.log(`  skipped     : ${summary.skipped} (server unavailable or missing credentials)`);
       }
+      console.log(
+        `  lethal trifecta: CONFIRMED ${summary.lethalTrifectaConfirmed} | POSSIBLE ${summary.lethalTrifectaPossible} | NONE ${summary.lethalTrifectaNone}`,
+      );
       for (const r of summary.testRuns) {
         const obs = r.canaryObserved ? '🚨 canary observed' : '— canary not observed';
         console.log(`   - [${r.pathStatus}] ${r.testCaseName} (${r.id}) ${obs}`);

@@ -21,6 +21,14 @@ const FINDINGS_NEW_COLUMNS: Array<[string, string]> = [
   ['trust_transition', 'TEXT'],
   ['explanation', 'TEXT'],
   ['evidence', 'TEXT'],
+  ['lethal_trifecta_status', 'TEXT'],
+];
+
+const TOOLS_NEW_COLUMNS: Array<[string, string]> = [
+  ['source_role', `TEXT NOT NULL DEFAULT '[]'`],
+  ['is_untrusted', 'INTEGER NOT NULL DEFAULT 0'],
+  ['is_instruction_capable', 'INTEGER NOT NULL DEFAULT 0'],
+  ['content_origin', `TEXT NOT NULL DEFAULT 'local'`],
 ];
 
 const TEST_RUNS_NEW_COLUMNS: Array<[string, string]> = [
@@ -62,6 +70,7 @@ function migrate(db: Database.Database): void {
 
   // Ensure new findings columns exist on legacy databases (idempotent)
   ensureColumns('findings', FINDINGS_NEW_COLUMNS);
+  ensureColumns('tools', TOOLS_NEW_COLUMNS);
 
   // Legacy test_runs table (reserved/unused in MVP) had a different shape.
   // If the new required columns aren't present, drop and let SCHEMA_SQL recreate it.

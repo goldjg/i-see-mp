@@ -59,7 +59,7 @@ describe('API routes', () => {
     colRepo.create('col1', now);
     colRepo.complete('col1', { serverCount: 1, toolCount: 1, resourceCount: 0, promptCount: 0 });
     srvRepo.upsert({ id: 'srv1', collection_id: 'col1', name: 'Test', url: null, command: 'node', args: null, env: null, transport: 'stdio', is_verified: 0, created_at: now });
-    toolRepo.upsert({ id: 'tool1', collection_id: 'col1', server_id: 'srv1', name: 'read_file', description: 'Reads a file', input_schema: null, capabilities: JSON.stringify([Capability.READ_LOCAL_FILE]), risk_score: 30, created_at: now });
+    toolRepo.upsert({ id: 'tool1', collection_id: 'col1', server_id: 'srv1', name: 'read_file', description: 'Reads a file', input_schema: null, capabilities: JSON.stringify([Capability.READ_LOCAL_FILE]), source_role: JSON.stringify(['DATA_SOURCE']), is_untrusted: 0, is_instruction_capable: 0, content_origin: 'local', risk_score: 30, created_at: now });
 
     const app = buildServer();
     const res = await app.inject({ method: 'GET', url: '/tools' });

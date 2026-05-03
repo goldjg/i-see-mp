@@ -100,16 +100,16 @@ export function FindingBadges({ finding }: { finding: Finding }) {
         'Single capability present. Not part of a detected structural complete or partial chain.',
     });
   }
-  if (finding.lethalTrifectaStatus === 'CANDIDATE') {
+  if (finding.lethalTrifectaStatus === 'CANDIDATE' || finding.lethalTrifectaStatus === 'POSSIBLE') {
     badges.push({
-      label: 'LETHAL_TRIFECTA_CANDIDATE',
+      label: 'LETHAL_TRIFECTA_POSSIBLE',
       cls: 'badge-lethal-trifecta-candidate',
       title:
         'Untrusted-content exposure + private data access + external communication are all present. This is a prompt-injection candidate path, not a confirmed exploit.',
     });
-  } else if (finding.lethalTrifectaStatus === 'COMPLETE') {
+  } else if (finding.lethalTrifectaStatus === 'COMPLETE' || finding.lethalTrifectaStatus === 'CONFIRMED') {
     badges.push({
-      label: 'LETHAL_TRIFECTA_COMPLETE',
+      label: 'LETHAL_TRIFECTA_CONFIRMED',
       cls: 'badge-lethal-trifecta-complete',
       title: 'Lethal trifecta was confirmed.',
     });
@@ -241,7 +241,7 @@ export function TrifectaLegend() {
       </div>
       <div className="legend-row">
         <span className="finding-badge badge-lethal-trifecta-candidate legend-badge">
-          LETHAL_TRIFECTA_CANDIDATE
+          LETHAL_TRIFECTA_POSSIBLE
         </span>
         <span className="legend-text">
           Candidate prompt-injection path: private data access + untrusted content exposure + external communication.

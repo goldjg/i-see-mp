@@ -142,6 +142,10 @@ describe('classifyTool — GitHub MCP shaped tools (precise)', () => {
     expect(result.capabilities).toContain(Capability.QUERY_REMOTE_SYSTEM);
     expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
     expect(result.capabilities).toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+    expect(result.isInstructionCapable).toBe(true);
+    expect(result.isUntrusted).toBe(true);
+    expect(result.contentOrigin).toBe('user_generated');
+    expect(result.sourceRole).toContain('INSTRUCTION_SOURCE');
   });
 
   it('list_issues is UNTRUSTED_CONTENT_EXPOSURE', () => {
@@ -321,6 +325,8 @@ describe('classifyTool — schema-based inference', () => {
       description: 'Fetch content from arbitrary URL',
     });
     expect(result.capabilities).toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+    expect(result.isInstructionCapable).toBe(true);
+    expect(result.contentOrigin).toBe('remote');
   });
 
   it('classifies web_fetch as UNTRUSTED_CONTENT_EXPOSURE', () => {

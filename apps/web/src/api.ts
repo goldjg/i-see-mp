@@ -27,6 +27,10 @@ export interface Tool {
   name: string;
   description: string | null;
   capabilities: string[];
+  sourceRole: string[];
+  isUntrusted: boolean;
+  isInstructionCapable: boolean;
+  contentOrigin: 'local' | 'remote' | 'user_generated' | 'external_saas' | 'db_row';
   riskScore: number;
 }
 
@@ -71,9 +75,10 @@ export interface Finding {
   trustTransition?: string;
   isHighSignal?: boolean;
   trifectaStage?: 'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY';
+  dataflowClassification?: 'COMPLETE' | 'PARTIAL' | 'NONE';
   trifectaScore?: number;
   trifectaComplete?: boolean;
-  lethalTrifectaStatus?: 'NONE' | 'CANDIDATE' | 'COMPLETE';
+  lethalTrifectaStatus?: 'NONE' | 'POSSIBLE' | 'CONFIRMED' | 'CANDIDATE' | 'COMPLETE';
   hasPrivateDataAccess?: boolean;
   hasUntrustedContentExposure?: boolean;
   hasExternalCommunication?: boolean;

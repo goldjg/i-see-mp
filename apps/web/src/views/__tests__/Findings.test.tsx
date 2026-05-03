@@ -158,12 +158,12 @@ describe('Trifecta explanation and legend UI', () => {
     expect(screen.getByText('TRIFECTA_COMPLETE')).toBeTruthy();
     expect(screen.getByText('TRIFECTA_PARTIAL')).toBeTruthy();
     expect(screen.getByText('CAPABILITY_ONLY')).toBeTruthy();
-    expect(screen.getByText('LETHAL_TRIFECTA_CANDIDATE')).toBeTruthy();
+    expect(screen.getByText('LETHAL_TRIFECTA_POSSIBLE')).toBeTruthy();
   });
 
   it('renders lethal trifecta candidate badge', () => {
-    render(<FindingBadges finding={makeFinding({ lethalTrifectaStatus: 'CANDIDATE' })} />);
-    const badge = screen.getByText('LETHAL_TRIFECTA_CANDIDATE');
+    render(<FindingBadges finding={makeFinding({ lethalTrifectaStatus: 'POSSIBLE' })} />);
+    const badge = screen.getByText('LETHAL_TRIFECTA_POSSIBLE');
     expect(badge.getAttribute('title')).toContain('candidate path');
   });
 });

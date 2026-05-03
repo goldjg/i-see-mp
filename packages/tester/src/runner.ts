@@ -4,6 +4,7 @@ import type { ServerRow, ToolRow } from '@iseemp/storage';
 import type { ToolCallResult } from './mcp-runtime.js';
 import type { MockSink } from './sink.js';
 import { redactRecord, redactValue } from './redact.js';
+import { instructionPayloadGenerator } from './instruction-payload.js';
 
 /**
  * Abstract over the MCP runtime so tests can run the planner against a fake
@@ -22,9 +23,17 @@ export type TestCaseId =
   | 'GITHUB_READ_CONTROLLED_ARTIFACT'
   | 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT'
   | 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT'
-  | 'GITHUB_EXTERNAL_SEND_LIKE_CONTROLLED_ARTIFACT';
+  | 'GITHUB_EXTERNAL_SEND_LIKE_CONTROLLED_ARTIFACT'
+  | 'PROMPT_INJECTION_GITHUB_ISSUE_TO_SINK'
+  | 'PROMPT_INJECTION_FETCH_TO_SINK';
 
-export type TesterProfile = 'safe' | 'demo-confirm' | 'github-safe-canary';
+export type TesterProfile =
+  | 'safe'
+  | 'demo-confirm'
+  | 'github-safe-canary'
+  | 'prompt-injection-github'
+  | 'prompt-injection-fetch'
+  | 'prompt-injection-db';
 
 export interface GithubSafeCanaryConfig {
   owner?: string;
@@ -35,6 +44,8 @@ export interface GithubSafeCanaryConfig {
   allowUnsafeTestRepo?: boolean;
   keepArtifacts?: boolean;
   createPullRequest?: boolean;
+  injectInstructionPayload?: boolean;
+  instructionTargetToolName?: string;
 }
 
 export interface GithubSafeCanaryRefusal {
@@ -255,6 +266,42 @@ export const GITHUB_SAFE_CANARY_PROFILE_CASES: TestCaseDefinition[] = [
   },
 ];
 
+export const PROMPT_INJECTION_GITHUB_PROFILE_CASES: TestCaseDefinition[] = [
+  {
+    id: 'PROMPT_INJECTION_GITHUB_ISSUE_TO_SINK',
+    name: 'Prompt injection via GitHub issue -> sink',
+    category: RiskCategory.PROMPT_INJECTION,
+    pathSummary: 'INSTRUCTION_SOURCE -> MODEL_CONTEXT -> SEND_EXTERNAL',
+    sourceCaps: [Capability.UNTRUSTED_CONTENT_EXPOSURE],
+    sinkCaps: [Capability.SEND_EXTERNAL, Capability.SEND_HTTP, Capability.SEND_EMAIL],
+    singleTool: false,
+    preferredSourceToolName: 'issue_read',
+    plan: [
+      'Step 1: create a controlled GitHub issue containing an instruction canary payload.',
+      'Step 2: read that issue via an instruction-bearing read tool.',
+      'Step 3: verify whether sink invocation carries the exfiltration marker.',
+    ].join('\n'),
+  },
+];
+
+export const PROMPT_INJECTION_FETCH_PROFILE_CASES: TestCaseDefinition[] = [
+  {
+    id: 'PROMPT_INJECTION_FETCH_TO_SINK',
+    name: 'Prompt injection via fetched content -> sink (stubbed)',
+    category: RiskCategory.PROMPT_INJECTION,
+    pathSummary: 'INSTRUCTION_SOURCE(FETCH) -> MODEL_CONTEXT -> SEND_EXTERNAL',
+    sourceCaps: [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA],
+    sinkCaps: [Capability.SEND_EXTERNAL, Capability.SEND_HTTP, Capability.SEND_EMAIL],
+    singleTool: false,
+    preferredSourceToolName: 'web_fetch',
+    plan: [
+      'Step 1: fetch controlled instruction-bearing content.',
+      'Step 2: track downstream sink invocation for exfil marker.',
+      'Step 3: mark as stubbed/inconclusive when no controlled fetch source exists.',
+    ].join('\n'),
+  },
+];
+
 export interface TestPlanInput {
   serverId: string;
   serverName: string;
@@ -316,6 +363,24 @@ export function planDemoConfirmProfile(
   return planProfileCases(DEMO_CONFIRM_PROFILE_CASES, servers, toolsByServer);
 }
 
+export function planPromptInjectionGithubProfile(
+  servers: ServerRow[],
+  toolsByServer: Map<string, ToolRow[]>,
+): PlannedTest[] {
+  const planned = planProfileCases(PROMPT_INJECTION_GITHUB_PROFILE_CASES, servers, toolsByServer);
+  return planned.filter((p) => isGithubLikeServer(
+    servers.find((s) => s.id === p.serverId)!,
+    toolsByServer.get(p.serverId) ?? [],
+  ));
+}
+
+export function planPromptInjectionFetchProfile(
+  servers: ServerRow[],
+  toolsByServer: Map<string, ToolRow[]>,
+): PlannedTest[] {
+  return planProfileCases(PROMPT_INJECTION_FETCH_PROFILE_CASES, servers, toolsByServer);
+}
+
 export function getGithubSafeRepoPattern(): RegExp {
   return SAFE_REPO_NAME_RE;
 }
@@ -338,7 +403,9 @@ export function assessGithubSafeCanaryRefusal(
   config: GithubSafeCanaryConfig | undefined,
   profileExplicitlySelected: boolean,
 ): GithubSafeCanaryRefusal {
-  if (profile !== 'github-safe-canary') return { refused: false, reasons: [] };
+  if (profile !== 'github-safe-canary' && profile !== 'prompt-injection-github') {
+    return { refused: false, reasons: [] };
+  }
   const reasons: string[] = [];
   const hasText = (v: string | undefined): boolean => typeof v === 'string' && v.trim().length > 0;
   if (!profileExplicitlySelected) {
@@ -865,6 +932,199 @@ export async function executePlannedTest(
     ...(notes ? { notes } : {}),
   };
 
+  return { testRun, evidence };
+}
+
+export async function executePromptInjectionGithubPlannedTest(
+  args: GithubSafeRunArgs,
+): Promise<ExecutedTest> {
+  const startedAt = new Date().toISOString();
+  const toolCalls: ToolCall[] = [];
+  const evidence: Evidence[] = [];
+  const injectMarkerUuid = crypto.randomUUID();
+  const exfilMarkerUuid = crypto.randomUUID();
+  const exfilMarker = `ISEEMP-EXFIL-${exfilMarkerUuid}`;
+  const instructionSourceTool = args.planned.sourceTool;
+  const sinkTool = args.planned.sinkTool;
+  const targetToolName = args.config.instructionTargetToolName ?? sinkTool?.name ?? 'send_http_request';
+  const issueTitle = `${args.config.issuePrefix ?? 'ISEEMP-INJECT-'}${args.testRunId}`;
+  const payload = instructionPayloadGenerator({
+    injectMarkerUuid,
+    exfilMarkerUuid,
+    targetToolName,
+    sinkToolName: sinkTool?.name ?? 'send_http_request',
+    targetArgumentName: 'payload',
+    targetArgumentValue: exfilMarker,
+  });
+
+  let status: TestStatus = TestStatus.RUNNING;
+  let outcome: TestOutcome = TestOutcome.TESTED_INCONCLUSIVE;
+  let pathStatus: PathStatus = PathStatus.TESTED_INCONCLUSIVE;
+  let notes: string | undefined;
+  let canaryObserved = false;
+  let issueNumber: number | undefined;
+  let step = 1;
+  const observedToolCalls: string[] = [];
+
+  const recordOutcomeEvidence = () => {
+    evidence.push({
+      id: newId('evidence'),
+      testRunId: args.testRunId,
+      candidatePathId: args.planned.candidatePathId,
+      type: 'outcome',
+      content: {
+        profile: 'prompt-injection-github',
+        status,
+        outcome,
+        pathStatus,
+        notes: notes ?? null,
+        canaryObserved,
+        observedToolCalls,
+        issueNumber: issueNumber ?? null,
+      },
+      createdAt: new Date().toISOString(),
+    });
+  };
+
+  try {
+    if (!instructionSourceTool || !sinkTool) {
+      throw new Error('Prompt-injection planned test missing source or sink tool');
+    }
+    const createIssueInput: Record<string, unknown> = {
+      owner: args.config.owner,
+      repo: args.config.repo,
+      title: issueTitle,
+      body: payload,
+    };
+    const createIssueRes = await callAndRecord(
+      args,
+      toolCalls,
+      evidence,
+      step++,
+      'create_issue',
+      createIssueInput,
+    );
+    if (createIssueRes.isError) {
+      outcome = TestOutcome.TESTED_INCONCLUSIVE;
+      status = TestStatus.INCONCLUSIVE;
+      pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+      notes = `Failed to create controlled issue for injection test: ${createIssueRes.text}`;
+      recordOutcomeEvidence();
+      return {
+        testRun: {
+          id: args.testRunId,
+          collectionId: args.ctx.collectionId,
+          profile: args.ctx.profile,
+          testCaseId: args.planned.caseDef.id,
+          testCaseName: args.planned.caseDef.name,
+          candidatePathId: args.planned.candidatePathId,
+          serverId: args.planned.serverId,
+          sourceToolId: instructionSourceTool.id,
+          sinkToolId: sinkTool.id,
+          pathSummary: args.planned.caseDef.pathSummary,
+          plan: args.planned.caseDef.plan,
+          toolCalls,
+          canaryObserved,
+          canaryExpected: exfilMarker,
+          outcome,
+          status,
+          pathStatus,
+          startedAt,
+          completedAt: new Date().toISOString(),
+          notes,
+          timestamp: startedAt,
+        },
+        evidence,
+      };
+    }
+    issueNumber =
+      extractNumber(createIssueRes.text, ['number', 'issue_number']) ??
+      extractIssueOrPullNumberFromUrl(extractUrl(createIssueRes.text, ['html_url', 'url']) ?? '');
+
+    if (!issueNumber) {
+      outcome = TestOutcome.TESTED_INCONCLUSIVE;
+      status = TestStatus.INCONCLUSIVE;
+      pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+      notes = 'Could not derive controlled issue number for prompt-injection test.';
+    } else {
+      const readInput: Record<string, unknown> = {
+        owner: args.config.owner,
+        repo: args.config.repo,
+        issue_number: issueNumber,
+        method: 'get',
+      };
+      await callAndRecord(args, toolCalls, evidence, step++, instructionSourceTool.name, readInput);
+      observedToolCalls.push(instructionSourceTool.name);
+
+      const sinkInput = {
+        url: args.ctx.sink.url,
+        payload: exfilMarker,
+      };
+      const sinkRes = await callAndRecord(args, toolCalls, evidence, step++, sinkTool.name, sinkInput);
+      observedToolCalls.push(sinkTool.name);
+      if (!sinkRes.isError) {
+        await sleep(25);
+        canaryObserved = args.ctx.sink.observed(exfilMarker);
+      }
+      if (canaryObserved) {
+        outcome = TestOutcome.TESTED_CONFIRMED;
+        status = TestStatus.CONFIRMED;
+        pathStatus = PathStatus.TESTED_CONFIRMED;
+        notes = 'Prompt-injection canary exfil marker observed in controlled sink.';
+      } else if (!sinkRes.isError) {
+        outcome = TestOutcome.TESTED_INCONCLUSIVE;
+        status = TestStatus.INCONCLUSIVE;
+        pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+        notes = 'Sink invoked after instruction read, but exfil marker was not observed.';
+      } else {
+        outcome = TestOutcome.TESTED_REJECTED;
+        status = TestStatus.REJECTED;
+        pathStatus = PathStatus.TESTED_REJECTED;
+        notes = `Sink call failed after instruction read: ${sinkRes.text}`;
+      }
+    }
+  } catch (err) {
+    outcome = TestOutcome.TEST_ERROR;
+    status = TestStatus.ERROR;
+    pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+    notes = err instanceof Error ? err.message : String(err);
+  } finally {
+    await tryCleanupGithubSafeArtifacts(
+      args,
+      {
+        filePath: `.iseemp/${args.config.canaryPrefix ?? 'ISEEMP'}-${args.testRunId}.txt`,
+        issueNumber,
+        cleanupStatus: 'pending',
+      },
+      evidence,
+    );
+  }
+
+  recordOutcomeEvidence();
+
+  const testRun: TestRun = {
+    id: args.testRunId,
+    collectionId: args.ctx.collectionId,
+    profile: args.ctx.profile,
+    testCaseId: args.planned.caseDef.id,
+    testCaseName: args.planned.caseDef.name,
+    candidatePathId: args.planned.candidatePathId,
+    serverId: args.planned.serverId,
+    sourceToolId: instructionSourceTool?.id,
+    sinkToolId: sinkTool?.id,
+    pathSummary: args.planned.caseDef.pathSummary,
+    plan: args.planned.caseDef.plan,
+    toolCalls,
+    canaryObserved,
+    canaryExpected: exfilMarker,
+    outcome,
+    status,
+    pathStatus,
+    startedAt,
+    completedAt: new Date().toISOString(),
+    notes,
+    timestamp: startedAt,
+  };
   return { testRun, evidence };
 }
 

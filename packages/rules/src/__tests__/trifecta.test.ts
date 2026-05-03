@@ -106,7 +106,7 @@ describe('classifyFindingTrifecta', () => {
     expect(out.hasPrivateDataAccess).toBe(true);
     expect(out.hasUntrustedContentExposure).toBe(true);
     expect(out.hasExternalCommunication).toBe(true);
-    expect(out.lethalTrifectaStatus).toBe(LethalTrifectaStatus.CANDIDATE);
+    expect(out.lethalTrifectaStatus).toBe(LethalTrifectaStatus.POSSIBLE);
   });
 
   it('keeps lethal trifecta NONE for untrusted-content-only finding', () => {

@@ -5,6 +5,7 @@ export const NodeType = {
   RESOURCE: 'resource',
   PROMPT: 'prompt',
   DATA_SOURCE: 'data_source',
+  INSTRUCTION_SOURCE: 'instruction_source',
   EXTERNAL_SYSTEM: 'external_system',
   TRUST_BOUNDARY: 'trust_boundary',
   SENSITIVE_DATA: 'sensitive_data',
@@ -20,13 +21,30 @@ export const EdgeType = {
   CAN_EXECUTE: 'can_execute',
   CAN_SEND_TO: 'can_send_to',
   RETURNS_TO_CONTEXT: 'returns_to_context',
+  CARRIES_INSTRUCTION: 'carries_instruction',
   INFLUENCES: 'influences',
+  INFLUENCED_BY: 'influenced_by',
   CROSSES_BOUNDARY: 'crosses_boundary',
   // Reserved for post-MVP tester — do not use in MVP
   OBSERVED_CALL: 'observed_call',
   TESTED_PATH: 'tested_path',
 } as const;
 export type EdgeType = (typeof EdgeType)[keyof typeof EdgeType];
+
+export const SourceRole = {
+  DATA_SOURCE: 'DATA_SOURCE',
+  INSTRUCTION_SOURCE: 'INSTRUCTION_SOURCE',
+} as const;
+export type SourceRole = (typeof SourceRole)[keyof typeof SourceRole];
+
+export const ContentOrigin = {
+  LOCAL: 'local',
+  REMOTE: 'remote',
+  USER_GENERATED: 'user_generated',
+  EXTERNAL_SAAS: 'external_saas',
+  DB_ROW: 'db_row',
+} as const;
+export type ContentOrigin = (typeof ContentOrigin)[keyof typeof ContentOrigin];
 
 export const Capability = {
   // Read / data access
@@ -67,8 +85,12 @@ export type Capability = (typeof Capability)[keyof typeof Capability];
 
 export const LethalTrifectaStatus = {
   NONE: 'NONE',
-  CANDIDATE: 'CANDIDATE',
-  COMPLETE: 'COMPLETE',
+  POSSIBLE: 'POSSIBLE',
+  CONFIRMED: 'CONFIRMED',
+  /** @deprecated compatibility alias for POSSIBLE */
+  CANDIDATE: 'POSSIBLE',
+  /** @deprecated compatibility alias for CONFIRMED */
+  COMPLETE: 'CONFIRMED',
 } as const;
 export type LethalTrifectaStatus = (typeof LethalTrifectaStatus)[keyof typeof LethalTrifectaStatus];
 
@@ -100,6 +122,9 @@ export const TestProfile = {
   SAFE: 'safe',
   DEMO_CONFIRM: 'demo-confirm',
   GITHUB_SAFE_CANARY: 'github-safe-canary',
+  PROMPT_INJECTION_GITHUB: 'prompt-injection-github',
+  PROMPT_INJECTION_FETCH: 'prompt-injection-fetch',
+  PROMPT_INJECTION_DB: 'prompt-injection-db',
 } as const;
 export type TestProfile = (typeof TestProfile)[keyof typeof TestProfile];
 
@@ -129,6 +154,7 @@ export const RiskCategory = {
   TRUST_BOUNDARY_CROSSING: 'TRUST_BOUNDARY_CROSSING',
   UNTRUSTED_CONTEXT_INFLUENCE: 'UNTRUSTED_CONTEXT_INFLUENCE',
   SENSITIVE_DATA_EXPOSURE: 'SENSITIVE_DATA_EXPOSURE',
+  PROMPT_INJECTION: 'PROMPT_INJECTION',
   UNVERIFIED_SERVER: 'UNVERIFIED_SERVER',
   OVERBROAD_TOOL: 'OVERBROAD_TOOL',
   DANGEROUS_TOOL_CHAIN: 'DANGEROUS_TOOL_CHAIN',
@@ -141,3 +167,11 @@ export const TrifectaStage = {
   CAPABILITY_ONLY: 'CAPABILITY_ONLY',
 } as const;
 export type TrifectaStage = (typeof TrifectaStage)[keyof typeof TrifectaStage];
+
+export const DataflowClassification = {
+  COMPLETE: 'COMPLETE',
+  PARTIAL: 'PARTIAL',
+  NONE: 'NONE',
+} as const;
+export type DataflowClassification =
+  (typeof DataflowClassification)[keyof typeof DataflowClassification];
