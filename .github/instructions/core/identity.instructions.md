@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # Identity & Trust Pack
 
 -   Do not assume trust based on first-party status

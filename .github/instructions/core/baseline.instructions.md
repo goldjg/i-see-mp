@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # Baseline Pack
 
 Defines core engineering operating model, modes, and expectations.

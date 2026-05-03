@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # Docker Pack
 
 Use this guidance when working with Dockerfiles, Docker Compose, container images, build pipelines, runtime configuration, or containerised development environments.

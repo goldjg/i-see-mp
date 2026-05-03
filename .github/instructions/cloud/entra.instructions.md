@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # Microsoft Entra ID Pack
 
 Use this guidance when working with Microsoft Entra ID, identity configuration, Conditional Access, app registrations, enterprise applications, devices, roles, authentication, or authorization flows.

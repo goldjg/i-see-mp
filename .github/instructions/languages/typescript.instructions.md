@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # TypeScript Language Pack
 
 Use this guidance when working with TypeScript code.
@@ -48,7 +49,7 @@ Validate data from:
 - generated model output
 - webhook payloads
 
-For small validation needs, write native validation. For complex schemas, use the project’s existing validation library if one is already present.
+For small validation needs, write native validation. For complex schemas, use the project's existing validation library if one is already present.
 
 Do not add a validation dependency for small, simple validation tasks unless justified.
 

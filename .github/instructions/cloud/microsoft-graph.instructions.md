@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # Microsoft Graph Pack
 
 Use this guidance when working with Microsoft Graph APIs, SDKs, PowerShell, automation, app permissions, queries, or Graph-based integrations.
@@ -75,7 +76,7 @@ Always validate:
 
 ## SDK usage
 
-Use the repository’s existing SDK style where present.
+Use the repository's existing SDK style where present.
 
 Do not mix raw REST, SDK, Graph PowerShell, and CLI styles unnecessarily.
 

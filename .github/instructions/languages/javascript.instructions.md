@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # JavaScript Language Pack
 
 Use this guidance when working with JavaScript code.
@@ -33,7 +34,7 @@ Do not add validation dependencies for small functionality unless justified.
 
 ## Modules and compatibility
 
-Respect the project’s module system:
+Respect the project's module system:
 
 - ESM
 - CommonJS
@@ -113,7 +114,7 @@ When working in Node.js:
 
 ## Testing
 
-Use the project’s existing test framework.
+Use the project's existing test framework.
 
 Add or update focused tests for changed behaviour.
 

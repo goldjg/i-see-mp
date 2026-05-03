@@ -1,3 +1,4 @@
+<!-- version: 1.0.0 -->
 # HTML Language Pack
 
 Use this guidance when working with HTML, templates, and static markup.
@@ -85,7 +86,7 @@ Use safe external link patterns when opening new tabs:
 
 - `rel="noopener noreferrer"` with `target="_blank"`
 
-Avoid vague link text such as “click here.”
+Avoid vague link text such as "click here."
 
 ## Images and media
 
