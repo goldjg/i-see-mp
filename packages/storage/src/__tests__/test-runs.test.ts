@@ -118,14 +118,23 @@ describe('TestRunsRepo', () => {
         { step: 2, toolName: 'send_http_request', input: {}, output: {} },
       ],
       deviationDetected: true,
+      deviationScore: 8,
       injectionConfirmed: true,
+      injectionChain: [
+        { step: 1, serverId: 'srv-a', toolName: 'issue_read', markerPresent: true },
+        { step: 2, serverId: 'srv-b', toolName: 'send_http_request', markerPresent: true },
+      ],
+      trustBoundaryExploitConfirmed: true,
     });
     repo.insert(testRunToRow(run));
     const back = repo.findById('tr-pi');
     expect(back?.baselineToolCalls?.length).toBe(1);
     expect(back?.injectedToolCalls?.length).toBe(2);
     expect(back?.deviationDetected).toBe(true);
+    expect(back?.deviationScore).toBe(8);
     expect(back?.injectionConfirmed).toBe(true);
+    expect(back?.injectionChain?.length).toBe(2);
+    expect(back?.trustBoundaryExploitConfirmed).toBe(true);
   });
 
   it('deletes test runs and dependent evidence', () => {

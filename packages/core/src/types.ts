@@ -119,6 +119,7 @@ export const PathStatus = {
   TESTED_REJECTED: 'tested_rejected',
   TESTED_INCONCLUSIVE: 'tested_inconclusive',
   TRUST_BOUNDARY_CONFIRMED: 'trust_boundary_confirmed',
+  TRUST_BOUNDARY_EXPLOIT_CONFIRMED: 'trust_boundary_exploit_confirmed',
 } as const;
 export type PathStatus = (typeof PathStatus)[keyof typeof PathStatus];
 
@@ -179,3 +180,65 @@ export const DataflowClassification = {
 } as const;
 export type DataflowClassification =
   (typeof DataflowClassification)[keyof typeof DataflowClassification];
+
+export const InstructionPayloadEncoding = {
+  PLAIN: 'plain',
+  OBFUSCATED: 'obfuscated',
+  MULTI_STEP: 'multi-step',
+} as const;
+export type InstructionPayloadEncoding =
+  (typeof InstructionPayloadEncoding)[keyof typeof InstructionPayloadEncoding];
+
+export const InjectionSurface = {
+  GITHUB_ISSUE: 'github_issue',
+  GITHUB_PR_COMMENT: 'github_pr_comment',
+  GITHUB_FILE: 'github_file',
+  HTTP_RESPONSE: 'http_response',
+} as const;
+export type InjectionSurface = (typeof InjectionSurface)[keyof typeof InjectionSurface];
+
+export interface InjectionPayloadRecord {
+  injectMarkerUuid: string;
+  exfilMarkerUuid: string;
+  encoding: InstructionPayloadEncoding;
+  surface: InjectionSurface;
+  payloadText: string;
+  stepIndex?: number;
+  stepTotal?: number;
+}
+
+export interface InjectionChainStep {
+  step: number;
+  serverId?: string;
+  toolName: string;
+  markerPresent: boolean;
+}
+
+export type DeviationEvent =
+  | { type: 'PROMPT_INJECTION_DEVIATION'; toolName: string }
+  | { type: 'CAPABILITY_ESCALATION'; capabilities: Capability[] }
+  | { type: 'SERVER_ESCALATION'; serverIds: string[] }
+  | { type: 'EXFIL_MARKER_OBSERVED'; marker: string; toolName: string }
+  | { type: 'INJECT_MARKER_IN_CALL_INPUT'; marker: string; toolName: string }
+  | { type: 'INJECTED_TOOL_REFERENCED'; toolName: string }
+  | { type: 'SEQUENCE_DEVIATION'; baseline: string[]; injected: string[] }
+  | {
+      type: 'CROSS_SERVER_INJECT_PROPAGATION';
+      fromServerId: string;
+      toServerId: string;
+      toolName: string;
+      markerFound: string;
+    };
+
+export interface DeviationReport {
+  deviationDetected: boolean;
+  injectionConfirmed: boolean;
+  events: DeviationEvent[];
+  injectMarkerPropagated: boolean;
+  exfilMarkerPropagated: boolean;
+  newToolsCalled: string[];
+  newServersCalled: string[];
+  capabilityEscalation: Capability[];
+  sequenceChanged: boolean;
+  deviationScore: number;
+}

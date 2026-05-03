@@ -255,6 +255,7 @@ describe('FindingsRepo', () => {
       sub_category: 'TRUST_BOUNDARY_CONFIRMED',
       injection_confirmed: 1,
       trust_boundary_confirmed: 1,
+      trust_boundary_exploit_confirmed: 1,
       baseline_plan: JSON.stringify([
         { step: 1, toolName: 'issue_read', input: {}, output: {} },
       ]),
@@ -269,6 +270,7 @@ describe('FindingsRepo', () => {
     expect(finding?.subCategory).toBe('TRUST_BOUNDARY_CONFIRMED');
     expect(finding?.injectionConfirmed).toBe(true);
     expect(finding?.trustBoundaryConfirmed).toBe(true);
+    expect(finding?.trustBoundaryExploitConfirmed).toBe(true);
     expect(finding?.baselinePlan?.length).toBe(1);
   });
 

@@ -4,10 +4,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Graph } from '../Graph.js';
 
-let latestConfig: { elements: Array<{ data: Record<string, unknown> }> } | null = null;
+let latestConfig: { elements: Array<{ data: Record<string, unknown> }>; style?: Array<{ selector: string }> } | null = null;
 
 vi.mock('cytoscape', () => ({
-  default: vi.fn((config: { elements: Array<{ data: Record<string, unknown> }> }) => {
+  default: vi.fn((config: { elements: Array<{ data: Record<string, unknown> }>; style?: Array<{ selector: string }> }) => {
     latestConfig = config;
     return {
       on: vi.fn(),
@@ -108,5 +108,15 @@ describe('Graph trifecta filter controls', () => {
     const select = container.querySelector('.graph-trifecta-filter') as HTMLSelectElement;
     fireEvent.change(select, { target: { value: 'trifecta' } });
     expect(screen.getByText(/No trifecta findings/i)).toBeTruthy();
+  });
+
+  it('includes observed_call and tested_path edge styles', async () => {
+    render(<Graph trifectaNodeIds={new Set()} completeNodeIds={new Set()} />);
+    await waitFor(() => {
+      expect(latestConfig?.style).toBeTruthy();
+    });
+    const selectors = (latestConfig?.style ?? []).map((entry) => entry.selector);
+    expect(selectors).toContain('edge[type = "observed_call"]');
+    expect(selectors).toContain('edge[type = "tested_path"]');
   });
 });

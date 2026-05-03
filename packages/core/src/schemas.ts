@@ -15,6 +15,8 @@ import {
   ContentOrigin,
   SourceRole,
   DataflowClassification,
+  InjectionSurface,
+  InstructionPayloadEncoding,
 } from './types.js';
 
 export const NodeTypeSchema = z.enum(
@@ -76,6 +78,14 @@ export const SourceRoleSchema = z.enum(
 export const DataflowClassificationSchema = z.enum(
   Object.values(DataflowClassification) as [string, ...string[]],
 ) as z.ZodEnum<[DataflowClassification, ...DataflowClassification[]]>;
+
+export const InjectionSurfaceSchema = z.enum(
+  Object.values(InjectionSurface) as [string, ...string[]],
+) as z.ZodEnum<[InjectionSurface, ...InjectionSurface[]]>;
+
+export const InstructionPayloadEncodingSchema = z.enum(
+  Object.values(InstructionPayloadEncoding) as [string, ...string[]],
+) as z.ZodEnum<[InstructionPayloadEncoding, ...InstructionPayloadEncoding[]]>;
 
 export const McpToolSchema = z.object({
   name: z.string(),
@@ -181,6 +191,8 @@ export const FindingSchema = z.object({
   subCategory: z.string().optional(),
   injectionConfirmed: z.boolean().optional(),
   trustBoundaryConfirmed: z.boolean().optional(),
+  trustBoundaryExploitConfirmed: z.boolean().optional(),
+  injectionExploitChain: z.boolean().optional(),
   baselinePlan: z.array(z.lazy(() => ToolCallSchema)).optional(),
 });
 export type Finding = z.infer<typeof FindingSchema>;
@@ -210,6 +222,13 @@ export const ToolCallSchema = z.object({
 });
 export type ToolCall = z.infer<typeof ToolCallSchema>;
 
+export const InjectionChainStepSchema = z.object({
+  step: z.number(),
+  serverId: z.string().optional(),
+  toolName: z.string(),
+  markerPresent: z.boolean(),
+});
+
 export const TestRunSchema = z.object({
   id: z.string(),
   collectionId: z.string(),
@@ -227,7 +246,10 @@ export const TestRunSchema = z.object({
   baselineToolCalls: z.array(ToolCallSchema).optional(),
   injectedToolCalls: z.array(ToolCallSchema).optional(),
   deviationDetected: z.boolean().optional(),
+  deviationScore: z.number().optional(),
   injectionConfirmed: z.boolean().optional(),
+  injectionChain: z.array(InjectionChainStepSchema).optional(),
+  trustBoundaryExploitConfirmed: z.boolean().optional(),
   canaryExpected: z.string().optional(),
   canaryObserved: z.boolean(),
   outcome: TestOutcomeSchema,

@@ -141,6 +141,20 @@ describe('Trifecta explanation and legend UI', () => {
     expect(screen.getByText('TRUST_BOUNDARY')).toBeTruthy();
   });
 
+  it('renders exploit subcategory badges for confirmed chains', () => {
+    render(
+      <FindingBadges
+        finding={makeFinding({
+          subCategory: 'PROMPT_INJECTION_EXPLOIT_CHAIN',
+          tested: true,
+          pathStatus: 'trust_boundary_exploit_confirmed',
+        })}
+      />,
+    );
+    expect(screen.getByText('PROMPT_INJECTION_EXPLOIT_CHAIN')).toBeTruthy();
+    expect(screen.getByText('Exploit Confirmed')).toBeTruthy();
+  });
+
   it('renders cross-server badge when not crossing trust tiers', () => {
     render(
       <FindingBadges

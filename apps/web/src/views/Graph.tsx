@@ -154,6 +154,24 @@ export function Graph({
             'target-arrow-color': '#a855f7',
           },
         },
+        {
+          selector: 'edge[type = "observed_call"]',
+          style: {
+            'line-color': '#22c55e',
+            'target-arrow-color': '#22c55e',
+            'line-style': 'dashed',
+            'width': 2,
+          },
+        },
+        {
+          selector: 'edge[type = "tested_path"]',
+          style: {
+            'line-color': '#0ea5e9',
+            'target-arrow-color': '#0ea5e9',
+            'line-style': 'dashed',
+            'width': 2,
+          },
+        },
         ...(hasTrifectaFocus
           ? [
               {

@@ -49,15 +49,21 @@ describe('summarizeRunsForCli', () => {
         deviationDetected: true,
         injectionConfirmed: true,
       }),
+      makeRun({
+        id: 'trust-boundary-exploit',
+        outcome: TestOutcome.TESTED_CONFIRMED,
+        status: TestStatus.CONFIRMED,
+        pathStatus: PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED,
+      }),
     ];
 
     const summary = summarizeRunsForCli(runs);
-    expect(summary.confirmed).toBe(2);
+    expect(summary.confirmed).toBe(3);
     expect(summary.rejected).toBe(1);
     expect(summary.inconclusive).toBe(1);
     expect(summary.skipped).toBe(1);
     expect(summary.injectionConfirmed).toBe(1);
-    expect(summary.trustBoundaryConfirmed).toBe(1);
+    expect(summary.trustBoundaryConfirmed).toBe(2);
     expect(summary.behaviouralDeviation).toBe(1);
   });
 });

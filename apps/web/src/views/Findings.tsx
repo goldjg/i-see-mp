@@ -50,6 +50,12 @@ export function FindingBadges({ finding }: { finding: Finding }) {
         cls: 'badge-tested-confirmed',
         title: 'Path confirmed by deterministic test (canary observed at mock sink).',
       });
+    } else if (finding.pathStatus === 'trust_boundary_exploit_confirmed') {
+      badges.push({
+        label: 'Exploit Confirmed',
+        cls: 'badge-tested-confirmed',
+        title: 'Prompt-injection exploit confirmed across a trust boundary.',
+      });
     } else if (finding.pathStatus === 'tested_rejected') {
       badges.push({
         label: 'Rejected',
@@ -135,14 +141,14 @@ export function FindingBadges({ finding }: { finding: Finding }) {
     });
   }
   if (finding.subCategory) {
-    const cls =
-      finding.subCategory === 'PROMPT_INJECTION_CONFIRMED'
-        ? 'badge-subcategory-prompt-confirmed'
-        : finding.subCategory === 'PROMPT_INJECTION_BEHAVIOURAL'
-          ? 'badge-subcategory-prompt-behavioural'
-          : finding.subCategory === 'TRUST_BOUNDARY_CONFIRMED'
-            ? 'badge-subcategory-trust-confirmed'
-            : 'badge-subcategory-prompt-possible';
+    const SUBCATEGORY_BADGE_CLASS: Record<string, string> = {
+      PROMPT_INJECTION_CONFIRMED: 'badge-subcategory-prompt-confirmed',
+      PROMPT_INJECTION_EXPLOIT_CHAIN: 'badge-subcategory-prompt-confirmed',
+      PROMPT_INJECTION_BEHAVIOURAL: 'badge-subcategory-prompt-behavioural',
+      TRUST_BOUNDARY_CONFIRMED: 'badge-subcategory-trust-confirmed',
+      TRUST_BOUNDARY_EXPLOIT_CONFIRMED: 'badge-subcategory-trust-confirmed',
+    };
+    const cls = SUBCATEGORY_BADGE_CLASS[finding.subCategory] ?? 'badge-subcategory-prompt-possible';
     badges.push({
       label: finding.subCategory,
       cls,
@@ -351,6 +357,26 @@ function EvidenceSummary({ findingId }: { findingId: string }) {
               </>
             )}
           </p>
+          {typeof r.deviationScore === 'number' && (
+            <p><strong>Deviation score:</strong> {r.deviationScore}</p>
+          )}
+          {r.injectionChain && r.injectionChain.length > 0 && (
+            <details>
+              <summary>Injection chain ({r.injectionChain.length})</summary>
+              <ol className="evidence-calls">
+                {r.injectionChain.map((step, idx) => (
+                  <li key={`${step.step}-${idx}`}>
+                    <code>
+                      {step.serverId ?? 'unknown-server'} → {step.toolName} (marker: {step.markerPresent ? 'yes' : 'no'})
+                    </code>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
+          {r.trustBoundaryExploitConfirmed && (
+            <p><strong>Trust boundary exploit:</strong> confirmed</p>
+          )}
           {r.notes && <p className="evidence-notes">Notes: {r.notes}</p>}
         </div>
       ))}

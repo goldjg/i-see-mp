@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS findings (
   sub_category TEXT,
   injection_confirmed INTEGER NOT NULL DEFAULT 0,
   trust_boundary_confirmed INTEGER NOT NULL DEFAULT 0,
+  trust_boundary_exploit_confirmed INTEGER NOT NULL DEFAULT 0,
   baseline_plan TEXT
 );
 
@@ -141,7 +142,10 @@ CREATE TABLE IF NOT EXISTS test_runs (
   baseline_tool_calls TEXT,
   injected_tool_calls TEXT,
   deviation_detected INTEGER NOT NULL DEFAULT 0,
+  deviation_score INTEGER,
   injection_confirmed INTEGER NOT NULL DEFAULT 0,
+  injection_chain TEXT,
+  trust_boundary_exploit_confirmed INTEGER NOT NULL DEFAULT 0,
   canary_expected TEXT,
   canary_observed INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'pending',

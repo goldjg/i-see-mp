@@ -35,12 +35,13 @@ export interface FindingRow {
   sub_category?: string | null;
   injection_confirmed?: number | null;
   trust_boundary_confirmed?: number | null;
+  trust_boundary_exploit_confirmed?: number | null;
   baseline_plan?: string | null;
 }
 
 const COLUMNS =
-  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, is_cross_server, source_server_id, sink_server_id, crosses_trust_boundary, trust_transition, explanation, evidence, lethal_trifecta_status, sub_category, injection_confirmed, trust_boundary_confirmed, baseline_plan';
-const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
+  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, is_cross_server, source_server_id, sink_server_id, crosses_trust_boundary, trust_transition, explanation, evidence, lethal_trifecta_status, sub_category, injection_confirmed, trust_boundary_confirmed, trust_boundary_exploit_confirmed, baseline_plan';
+const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function bind(f: FindingRow): unknown[] {
   return [
@@ -76,6 +77,7 @@ function bind(f: FindingRow): unknown[] {
     f.sub_category ?? null,
     f.injection_confirmed ?? null,
     f.trust_boundary_confirmed ?? null,
+    f.trust_boundary_exploit_confirmed ?? null,
     f.baseline_plan ?? null,
   ];
 }
@@ -122,6 +124,12 @@ function rowToFinding(r: FindingRow): Finding {
     finding.injectionConfirmed = r.injection_confirmed === 1;
   if (r.trust_boundary_confirmed !== null && r.trust_boundary_confirmed !== undefined)
     finding.trustBoundaryConfirmed = r.trust_boundary_confirmed === 1;
+  if (
+    r.trust_boundary_exploit_confirmed !== null &&
+    r.trust_boundary_exploit_confirmed !== undefined
+  ) {
+    finding.trustBoundaryExploitConfirmed = r.trust_boundary_exploit_confirmed === 1;
+  }
   if (r.baseline_plan) finding.baselinePlan = JSON.parse(r.baseline_plan) as Finding['baselinePlan'];
   return finding;
 }
@@ -162,6 +170,8 @@ export function findingToRow(f: Finding): FindingRow {
     injection_confirmed: f.injectionConfirmed === undefined ? null : f.injectionConfirmed ? 1 : 0,
     trust_boundary_confirmed:
       f.trustBoundaryConfirmed === undefined ? null : f.trustBoundaryConfirmed ? 1 : 0,
+    trust_boundary_exploit_confirmed:
+      f.trustBoundaryExploitConfirmed === undefined ? null : f.trustBoundaryExploitConfirmed ? 1 : 0,
     baseline_plan: f.baselinePlan ? JSON.stringify(f.baselinePlan) : null,
   };
 }

@@ -97,6 +97,8 @@ export interface TrifectaClassification {
   subCategory?: string;
   injectionConfirmed: boolean;
   trustBoundaryConfirmed: boolean;
+  injectionExploitChain: boolean;
+  trustBoundaryExploitConfirmed: boolean;
 }
 
 export function deriveIsCrossServer(findingLike: {
@@ -172,9 +174,17 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     hasPrivateDataAccess && hasUntrustedContentExposure && hasExternalCommunication;
   const lethalFromFinding = finding.lethalTrifectaStatus as string | undefined;
   const injectionConfirmed = finding.injectionConfirmed === true;
+  const injectionExploitChain = finding.subCategory === 'PROMPT_INJECTION_EXPLOIT_CHAIN';
   const trustBoundaryConfirmed =
     finding.trustBoundaryConfirmed === true ||
-    finding.pathStatus === 'trust_boundary_confirmed';
+    finding.pathStatus === 'trust_boundary_confirmed' ||
+    finding.pathStatus === 'trust_boundary_exploit_confirmed';
+  const trustBoundaryExploitConfirmed =
+    finding.trustBoundaryExploitConfirmed === true ||
+    finding.pathStatus === 'trust_boundary_exploit_confirmed' ||
+    (injectionConfirmed &&
+      crossesTrustBoundary === true &&
+      Array.from(sinkPool).some((cap) => EXTERNAL_COMM_CAPS.includes(cap)));
   const lethalTrifectaStatus =
     injectionConfirmed || lethalFromFinding === 'CONFIRMED' || lethalFromFinding === 'COMPLETE'
       ? LethalTrifectaStatus.CONFIRMED
@@ -216,7 +226,9 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     trustTransition,
     isHighSignal:
       injectionConfirmed ||
+      injectionExploitChain ||
       trustBoundaryConfirmed ||
+      trustBoundaryExploitConfirmed ||
       (trifectaStage === TrifectaStage.COMPLETE && crossesTrustBoundary === true),
     hasPrivateDataAccess,
     hasUntrustedContentExposure,
@@ -225,6 +237,8 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     subCategory: finding.subCategory,
     injectionConfirmed,
     trustBoundaryConfirmed,
+    injectionExploitChain,
+    trustBoundaryExploitConfirmed,
   };
 }
 
