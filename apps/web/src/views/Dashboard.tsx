@@ -58,7 +58,10 @@ export function Dashboard() {
   const topFindings = [...findings].slice(0, 5);
   const completeCount = findings.filter((f) => f.trifectaComplete).length;
   const promptInjectionConfirmed = findings.filter(
-    (f) => f.subCategory === 'PROMPT_INJECTION_CONFIRMED',
+    (f) =>
+      f.subCategory === 'PROMPT_INJECTION_CONFIRMED' ||
+      f.subCategory === 'PROMPT_INJECTION_EXPLOIT_CHAIN' ||
+      f.subCategory === 'TRUST_BOUNDARY_EXPLOIT_CONFIRMED',
   ).length;
   const trustBoundaryConfirmed = findings.filter((f) => f.trustBoundaryConfirmed === true).length;
   const maxCap = Math.max(...Object.values(capMap), 1);

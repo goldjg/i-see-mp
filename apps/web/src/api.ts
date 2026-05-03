@@ -71,7 +71,8 @@ export interface Finding {
     | 'tested_confirmed'
     | 'tested_rejected'
     | 'tested_inconclusive'
-    | 'trust_boundary_confirmed';
+    | 'trust_boundary_confirmed'
+    | 'trust_boundary_exploit_confirmed';
   testRunIds?: string[];
   candidatePathId?: string;
   isCrossServer?: boolean;
@@ -91,6 +92,8 @@ export interface Finding {
   subCategory?: string;
   injectionConfirmed?: boolean;
   trustBoundaryConfirmed?: boolean;
+  trustBoundaryExploitConfirmed?: boolean;
+  injectionExploitChain?: boolean;
   pathSummary?: string;
   sourceCapabilities?: string[];
   sinkCapabilities?: string[];
@@ -125,7 +128,10 @@ export interface TestRun {
   baselineToolCalls?: ToolCallRecord[];
   injectedToolCalls?: ToolCallRecord[];
   deviationDetected?: boolean;
+  deviationScore?: number;
   injectionConfirmed?: boolean;
+  injectionChain?: InjectionChainStepRecord[];
+  trustBoundaryExploitConfirmed?: boolean;
   canaryExpected?: string;
   canaryObserved: boolean;
   status: string;
@@ -134,11 +140,19 @@ export interface TestRun {
     | 'tested_confirmed'
     | 'tested_rejected'
     | 'tested_inconclusive'
-    | 'trust_boundary_confirmed';
+    | 'trust_boundary_confirmed'
+    | 'trust_boundary_exploit_confirmed';
   timestamp?: string;
   startedAt: string;
   completedAt?: string;
   notes?: string;
+}
+
+export interface InjectionChainStepRecord {
+  step: number;
+  serverId?: string;
+  toolName: string;
+  markerPresent: boolean;
 }
 
 export interface EvidenceRecord {

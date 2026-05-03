@@ -232,10 +232,11 @@ describe('baseline/deviation helpers', () => {
           output: { ok: true },
         },
       ],
-      'ISEEMP-EXFIL-x',
+      { exfilMarker: 'ISEEMP-EXFIL-x' },
     );
     expect(report.deviationDetected).toBe(false);
     expect(report.injectionConfirmed).toBe(false);
+    expect(report.deviationScore).toBe(0);
   });
 
   it('detects tool + sequence deviation and exfil marker', async () => {
@@ -269,13 +270,16 @@ describe('baseline/deviation helpers', () => {
           output: { ok: true },
         },
       ],
-      'ISEEMP-EXFIL-abc',
+      { exfilMarker: 'ISEEMP-EXFIL-abc', targetToolName: 'send_http_request' },
     );
     expect(report.deviationDetected).toBe(true);
     expect(report.injectionConfirmed).toBe(true);
+    expect(report.exfilMarkerPropagated).toBe(true);
+    expect(report.deviationScore).toBeGreaterThanOrEqual(7);
     expect(report.events.some((e) => e.type === 'PROMPT_INJECTION_DEVIATION')).toBe(true);
     expect(report.events.some((e) => e.type === 'SEQUENCE_DEVIATION')).toBe(true);
     expect(report.events.some((e) => e.type === 'EXFIL_MARKER_OBSERVED')).toBe(true);
+    expect(report.events.some((e) => e.type === 'INJECTED_TOOL_REFERENCED')).toBe(true);
   });
 });
 

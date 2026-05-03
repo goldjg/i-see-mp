@@ -25,6 +25,7 @@ const FINDINGS_NEW_COLUMNS: Array<[string, string]> = [
   ['sub_category', 'TEXT'],
   ['injection_confirmed', 'INTEGER NOT NULL DEFAULT 0'],
   ['trust_boundary_confirmed', 'INTEGER NOT NULL DEFAULT 0'],
+  ['trust_boundary_exploit_confirmed', 'INTEGER NOT NULL DEFAULT 0'],
   ['baseline_plan', 'TEXT'],
 ];
 
@@ -45,7 +46,10 @@ const TEST_RUNS_NEW_COLUMNS: Array<[string, string]> = [
   ['baseline_tool_calls', 'TEXT'],
   ['injected_tool_calls', 'TEXT'],
   ['deviation_detected', 'INTEGER NOT NULL DEFAULT 0'],
+  ['deviation_score', 'INTEGER'],
   ['injection_confirmed', 'INTEGER NOT NULL DEFAULT 0'],
+  ['injection_chain', 'TEXT'],
+  ['trust_boundary_exploit_confirmed', 'INTEGER NOT NULL DEFAULT 0'],
 ];
 
 const NODES_NEW_COLUMNS: Array<[string, string]> = [['trust_zone', 'TEXT']];

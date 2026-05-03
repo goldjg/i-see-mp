@@ -320,6 +320,22 @@ describe('applyTrifectaAnalysis ordering', () => {
     expect(sorted[0]?.isHighSignal).toBe(true);
     expect(sorted[0]?.lethalTrifectaStatus).toBe('CONFIRMED');
   });
+
+  it('marks trustBoundaryExploitConfirmed when injected sink crosses trust boundary', () => {
+    const findings = [
+      makeFinding({
+        id: 'f-trust-exploit',
+        category: RiskCategory.PROMPT_INJECTION,
+        sourceCapabilities: [Capability.UNTRUSTED_CONTENT_EXPOSURE],
+        sinkCapabilities: [Capability.SEND_EXTERNAL],
+        injectionConfirmed: true,
+        crossesTrustBoundary: true,
+      }),
+    ];
+    const sorted = applyTrifectaAnalysis(findings);
+    expect(sorted[0]?.trustBoundaryExploitConfirmed).toBe(true);
+    expect(sorted[0]?.isHighSignal).toBe(true);
+  });
 });
 
 describe('suppression interaction', () => {

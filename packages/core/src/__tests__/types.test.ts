@@ -157,6 +157,8 @@ describe('FindingSchema', () => {
       subCategory: 'PROMPT_INJECTION_POSSIBLE',
       injectionConfirmed: false,
       trustBoundaryConfirmed: true,
+      trustBoundaryExploitConfirmed: false,
+      injectionExploitChain: false,
       baselinePlan: [
         {
           step: 1,
@@ -168,6 +170,7 @@ describe('FindingSchema', () => {
     });
     expect(finding.subCategory).toBe('PROMPT_INJECTION_POSSIBLE');
     expect(finding.trustBoundaryConfirmed).toBe(true);
+    expect(finding.trustBoundaryExploitConfirmed).toBe(false);
     expect(finding.baselinePlan?.length).toBe(1);
   });
 });
