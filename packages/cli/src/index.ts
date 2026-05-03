@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util';
 import { collect } from '@iseemp/collector';
 import { analyze } from '@iseemp/graph';
-import { runTests } from '@iseemp/tester';
+import { runTests, PROFILE_REGISTRY } from '@iseemp/tester';
 import { buildServer } from '@iseemp/api';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
@@ -123,28 +123,16 @@ if (command === 'collect') {
   }
 } else if (command === 'test') {
   const profile = (args.profile as string | undefined) ?? 'safe';
-  if (
-    profile !== 'safe' &&
-    profile !== 'demo-confirm' &&
-    profile !== 'github-safe-canary' &&
-    profile !== 'prompt-injection-github' &&
-    profile !== 'prompt-injection-fetch' &&
-    profile !== 'prompt-injection-db'
-  ) {
-    console.error(`Unknown test profile: ${profile}. Supported: safe, demo-confirm, github-safe-canary, prompt-injection-github, prompt-injection-fetch, prompt-injection-db`);
+  if (!PROFILE_REGISTRY.has(profile as never)) {
+    const supported = Array.from(PROFILE_REGISTRY.keys()).join(', ');
+    console.error(`Unknown test profile: ${profile}. Supported: ${supported}`);
     process.exit(1);
   }
   try {
     console.log(`🧪 Running deterministic test profile: ${profile}…`);
     const summary = await runTests({
       collectionId: args.collection as string | undefined,
-      profile: profile as
-        | 'safe'
-        | 'demo-confirm'
-        | 'github-safe-canary'
-        | 'prompt-injection-github'
-        | 'prompt-injection-fetch'
-        | 'prompt-injection-db',
+      profile: profile as Parameters<typeof runTests>[0]['profile'],
       profileExplicitlySelected: typeof args.profile === 'string',
       githubSafeCanary:
         profile === 'github-safe-canary' || profile === 'prompt-injection-github'
@@ -172,6 +160,11 @@ if (command === 'collect') {
        }
     } else {
       console.log(`\n✅ Test run complete:`);
+      console.log(`  profiles planned : ${summary.profilesPlanned}`);
+      console.log(`  profiles run     : ${summary.profilesRun}`);
+      console.log(`  profiles skipped : ${summary.profilesSkipped}`);
+      console.log(`  profiles passed  : ${summary.profilesPassed}`);
+      console.log(`  profiles failed  : ${summary.profilesFailed}`);
       console.log(`  planned     : ${summary.totalPlanned}`);
       console.log(`  confirmed   : ${summary.confirmed}`);
       console.log(`  rejected    : ${summary.rejected}`);
@@ -181,6 +174,12 @@ if (command === 'collect') {
       console.log(`  behavioural-deviation    : ${summary.behaviouralDeviation}`);
       if (summary.skipped > 0) {
         console.log(`  skipped     : ${summary.skipped} (server unavailable or missing credentials)`);
+      }
+      if (summary.skippedReasons.length > 0) {
+        console.log(`  skip reasons: ${summary.skippedReasons.join(' | ')}`);
+      }
+      if (summary.failedReasons.length > 0) {
+        console.log(`  fail reasons: ${summary.failedReasons.join(' | ')}`);
       }
       console.log(
         `  lethal trifecta: CONFIRMED ${summary.lethalTrifectaConfirmed} | POSSIBLE ${summary.lethalTrifectaPossible} | NONE ${summary.lethalTrifectaNone}`,

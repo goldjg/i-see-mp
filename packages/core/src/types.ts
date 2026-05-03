@@ -123,6 +123,15 @@ export const PathStatus = {
 } as const;
 export type PathStatus = (typeof PathStatus)[keyof typeof PathStatus];
 
+export const ValidationMode = {
+  STATIC_ONLY: 'STATIC_ONLY',
+  DATAFLOW_CANARY: 'DATAFLOW_CANARY',
+  COERCION_CANARY: 'COERCION_CANARY',
+  TRUST_BOUNDARY: 'TRUST_BOUNDARY',
+  COMPOSITE: 'COMPOSITE',
+} as const;
+export type ValidationMode = (typeof ValidationMode)[keyof typeof ValidationMode];
+
 export const TestProfile = {
   SAFE: 'safe',
   DEMO_CONFIRM: 'demo-confirm',
@@ -196,6 +205,18 @@ export const InjectionSurface = {
   HTTP_RESPONSE: 'http_response',
 } as const;
 export type InjectionSurface = (typeof InjectionSurface)[keyof typeof InjectionSurface];
+
+export const EvidenceType = {
+  CAPABILITY_OBSERVED: 'capabilityObserved',
+  CANARY_OBSERVED: 'canaryObserved',
+  BASELINE_TRACE: 'baselineTrace',
+  INJECTED_TRACE: 'injectedTrace',
+  BEHAVIOURAL_DEVIATION: 'behaviouralDeviation',
+  TRUST_TRANSITION_OBSERVED: 'trustTransitionObserved',
+  SINK_INVOCATION_OBSERVED: 'sinkInvocationObserved',
+  MUTATION_OBSERVED: 'mutationObserved',
+} as const;
+export type EvidenceType = (typeof EvidenceType)[keyof typeof EvidenceType];
 
 export interface InjectionPayloadRecord {
   injectMarkerUuid: string;

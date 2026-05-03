@@ -58,6 +58,13 @@ describe('summarizeRunsForCli', () => {
     ];
 
     const summary = summarizeRunsForCli(runs);
+    expect(summary.profilesPlanned).toBe(1);
+    expect(summary.profilesRun).toBe(1);
+    expect(summary.profilesSkipped).toBe(0);
+    expect(summary.profilesPassed).toBe(0);
+    expect(summary.profilesFailed).toBe(1);
+    expect(summary.skippedReasons).toEqual([]);
+    expect(summary.failedReasons).toEqual([]);
     expect(summary.confirmed).toBe(3);
     expect(summary.rejected).toBe(1);
     expect(summary.inconclusive).toBe(1);

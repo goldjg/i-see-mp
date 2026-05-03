@@ -7,6 +7,7 @@ import {
   TrustBoundary,
   Confidence,
   PathStatus,
+  ValidationMode,
   TestProfile,
   TestStatus,
   TestOutcome,
@@ -17,6 +18,7 @@ import {
   DataflowClassification,
   InjectionSurface,
   InstructionPayloadEncoding,
+  EvidenceType,
 } from './types.js';
 
 export const NodeTypeSchema = z.enum(
@@ -46,6 +48,10 @@ export const ConfidenceSchema = z.enum(
 export const PathStatusSchema = z.enum(
   Object.values(PathStatus) as [string, ...string[]],
 ) as z.ZodEnum<[PathStatus, ...PathStatus[]]>;
+
+export const ValidationModeSchema = z.enum(
+  Object.values(ValidationMode) as [string, ...string[]],
+) as z.ZodEnum<[ValidationMode, ...ValidationMode[]]>;
 
 export const TestProfileSchema = z.enum(
   Object.values(TestProfile) as [string, ...string[]],
@@ -86,6 +92,10 @@ export const InjectionSurfaceSchema = z.enum(
 export const InstructionPayloadEncodingSchema = z.enum(
   Object.values(InstructionPayloadEncoding) as [string, ...string[]],
 ) as z.ZodEnum<[InstructionPayloadEncoding, ...InstructionPayloadEncoding[]]>;
+
+export const EvidenceTypeSchema = z.enum(
+  Object.values(EvidenceType) as [string, ...string[]],
+) as z.ZodEnum<[EvidenceType, ...EvidenceType[]]>;
 
 export const McpToolSchema = z.object({
   name: z.string(),
@@ -267,6 +277,7 @@ export const EvidenceSchema = z.object({
   testRunId: z.string(),
   candidatePathId: z.string().optional(),
   type: z.string(),
+  evidenceType: EvidenceTypeSchema.optional(),
   stepIndex: z.number().optional(),
   toolName: z.string().optional(),
   redactedInput: z.record(z.unknown()).optional(),

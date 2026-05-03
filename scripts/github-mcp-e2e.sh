@@ -156,13 +156,81 @@ run_iseemp collect --config "${CONFIG_PATH_IN_CONTAINER}"
 echo "▶ iseemp analyze…"
 run_iseemp analyze
 
-echo "▶ iseemp test --profile github-safe-canary…"
-run_iseemp test \
-  --profile github-safe-canary \
-  --test-repo-owner "${ISEEMP_TEST_REPO_OWNER}" \
-  --test-repo-name "${ISEEMP_TEST_REPO_NAME}" \
-  --test-branch-prefix "${BRANCH_PREFIX}" \
-  --test-issue-prefix "${ISSUE_PREFIX}" \
-  --test-canary-prefix "${CANARY_PREFIX}"
+echo "▶ Running topology-selected deterministic profiles…"
+"${DC[@]}" exec -T \
+  -e "GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}" \
+  -e "ISEEMP_API_PORT=${API_PORT}" \
+  -e "ISEEMP_TEST_REPO_OWNER=${ISEEMP_TEST_REPO_OWNER}" \
+  -e "ISEEMP_TEST_REPO_NAME=${ISEEMP_TEST_REPO_NAME}" \
+  -e "ISEEMP_TEST_BRANCH_PREFIX=${BRANCH_PREFIX}" \
+  -e "ISEEMP_TEST_ISSUE_PREFIX=${ISSUE_PREFIX}" \
+  -e "ISEEMP_TEST_CANARY_PREFIX=${CANARY_PREFIX}" \
+  "$SERVICE" node - <<'JS'
+(async () => {
+  const apiPort = process.env.ISEEMP_API_PORT || '7474';
+  const { spawnSync } = await import('node:child_process');
+  const testerModulePath = process.env.ISEEMP_TESTER_MODULE || '/app/packages/tester/dist/index.js';
+  const tester = await import(testerModulePath);
+  const { selectProfilesForTopology, E2E_PROFILE_DESCRIPTORS } = tester;
+
+  async function getJson(path) {
+    const res = await fetch(`http://127.0.0.1:${apiPort}${path}`);
+    if (!res.ok) throw new Error(`API ${path} returned HTTP ${res.status}`);
+    return res.json();
+  }
+
+  const [servers, tools] = await Promise.all([getJson('/servers'), getJson('/tools')]);
+  const { selected, skipped } = selectProfilesForTopology(
+    servers.map((s) => ({ id: s.id, name: s.name })),
+    tools.map((t) => ({
+      serverId: t.serverId,
+      capabilities: Array.isArray(t.capabilities) ? t.capabilities : [],
+    })),
+    E2E_PROFILE_DESCRIPTORS,
+    { hasCredentials: true },
+  );
+
+  const uniqueSelected = [];
+  const seenTypes = new Set();
+  for (const descriptor of selected) {
+    if (seenTypes.has(descriptor.profileType)) continue;
+    seenTypes.add(descriptor.profileType);
+    uniqueSelected.push(descriptor);
+  }
+
+  console.log(`🧪 profiles planned: ${selected.length}`);
+  console.log(`🧪 profiles skipped: ${skipped.length}`);
+  for (const item of skipped) {
+    console.log(`⚠️  SKIPPED: ${item.profileId} — ${item.reason}`);
+  }
+
+  let passed = 0;
+  let failed = 0;
+  for (const descriptor of uniqueSelected) {
+    const args = ['test', '--profile', descriptor.profileType];
+    if (descriptor.profileType === 'github-safe-canary' || descriptor.profileType === 'prompt-injection-github') {
+      args.push(
+        '--test-repo-owner', process.env.ISEEMP_TEST_REPO_OWNER ?? '',
+        '--test-repo-name', process.env.ISEEMP_TEST_REPO_NAME ?? '',
+        '--test-branch-prefix', process.env.ISEEMP_TEST_BRANCH_PREFIX ?? '',
+        '--test-issue-prefix', process.env.ISEEMP_TEST_ISSUE_PREFIX ?? '',
+        '--test-canary-prefix', process.env.ISEEMP_TEST_CANARY_PREFIX ?? '',
+      );
+    }
+    console.log(`▶ profile run: ${descriptor.profileId} (${descriptor.profileType})`);
+    const result = spawnSync('iseemp', args, { stdio: 'inherit', env: process.env });
+    if (result.status === 0) passed += 1;
+    else failed += 1;
+  }
+
+  console.log(`🧪 profiles run: ${uniqueSelected.length}`);
+  console.log(`🧪 profiles passed: ${passed}`);
+  console.log(`🧪 profiles failed: ${failed}`);
+  if (failed > 0) process.exit(1);
+})().catch((err) => {
+  console.error(`❌ Profile execution failed: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+});
+JS
 
 echo "✅ Done. Open http://localhost:${API_PORT} to inspect findings, badges, and evidence."
