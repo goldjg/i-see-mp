@@ -11,6 +11,7 @@ import {
   TestStatus,
   TestOutcome,
   TrifectaStage,
+  LethalTrifectaStatus,
 } from './types.js';
 
 export const NodeTypeSchema = z.enum(
@@ -56,6 +57,10 @@ export const TestOutcomeSchema = z.enum(
 export const TrifectaStageSchema = z.enum(
   Object.values(TrifectaStage) as [string, ...string[]],
 ) as z.ZodEnum<[TrifectaStage, ...TrifectaStage[]]>;
+
+export const LethalTrifectaStatusSchema = z.enum(
+  Object.values(LethalTrifectaStatus) as [string, ...string[]],
+) as z.ZodEnum<[LethalTrifectaStatus, ...LethalTrifectaStatus[]]>;
 
 export const McpToolSchema = z.object({
   name: z.string(),
@@ -153,6 +158,10 @@ export const FindingSchema = z.object({
   trifectaStage: TrifectaStageSchema.optional(),
   trifectaScore: z.number().optional(),
   trifectaComplete: z.boolean().optional(),
+  lethalTrifectaStatus: LethalTrifectaStatusSchema.optional(),
+  hasPrivateDataAccess: z.boolean().optional(),
+  hasUntrustedContentExposure: z.boolean().optional(),
+  hasExternalCommunication: z.boolean().optional(),
 });
 export type Finding = z.infer<typeof FindingSchema>;
 

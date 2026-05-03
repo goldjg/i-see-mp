@@ -208,6 +208,12 @@ if (exfilFindings.length > 0) fail('Unexpected DATA_EXFILTRATION finding(s).');
 const trifectaFindings = findings.filter((finding) => finding.trifectaComplete === true);
 if (trifectaFindings.length > 0) fail('Unexpected trifectaComplete=true finding(s).');
 
+const lethalTrifectaFindings = findings.filter(
+  (finding) =>
+    finding.lethalTrifectaStatus === 'CANDIDATE' || finding.lethalTrifectaStatus === 'COMPLETE',
+);
+if (lethalTrifectaFindings.length > 0) fail('Unexpected lethalTrifectaStatus candidate/complete finding(s).');
+
 const externalBoundaryFindings = findings.filter(
   (finding) => finding.boundaryCrossed === 'EXTERNAL' || finding.boundaryCrossed === 'SAAS',
 );

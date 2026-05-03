@@ -30,7 +30,7 @@ describe('Trifecta explanation and legend UI', () => {
         })}
       />,
     );
-    expect(screen.getByText(/potentially exploitable end-to-end path/i)).toBeTruthy();
+    expect(screen.getByText(/structural source-to-sink path/i)).toBeTruthy();
   });
 
   it('renders trifecta explanation wording for PARTIAL findings', () => {
@@ -42,7 +42,7 @@ describe('Trifecta explanation and legend UI', () => {
         })}
       />,
     );
-    expect(screen.getByText(/Two elements of the path are present/i)).toBeTruthy();
+    expect(screen.getByText(/full structural source-to-sink chain is not present/i)).toBeTruthy();
   });
 
   it('renders trifecta explanation wording for CAPABILITY_ONLY findings', () => {
@@ -114,13 +114,13 @@ describe('Trifecta explanation and legend UI', () => {
   it('renders COMPLETE badge tooltip text', () => {
     render(<FindingBadges finding={makeFinding({ trifectaStage: 'COMPLETE' })} />);
     const badge = screen.getByText('TRIFECTA_COMPLETE');
-    expect(badge.getAttribute('title')).toContain('potentially complete exploit chain');
+    expect(badge.getAttribute('title')).toContain('Structural dataflow complete');
   });
 
   it('renders PARTIAL badge tooltip text', () => {
     render(<FindingBadges finding={makeFinding({ trifectaStage: 'PARTIAL' })} />);
     const badge = screen.getByText('TRIFECTA_PARTIAL');
-    expect(badge.getAttribute('title')).toContain('not proven');
+    expect(badge.getAttribute('title')).toContain('Structural dataflow partial');
   });
 
   it('renders CAPABILITY_ONLY badge tooltip text', () => {
@@ -158,5 +158,12 @@ describe('Trifecta explanation and legend UI', () => {
     expect(screen.getByText('TRIFECTA_COMPLETE')).toBeTruthy();
     expect(screen.getByText('TRIFECTA_PARTIAL')).toBeTruthy();
     expect(screen.getByText('CAPABILITY_ONLY')).toBeTruthy();
+    expect(screen.getByText('LETHAL_TRIFECTA_CANDIDATE')).toBeTruthy();
+  });
+
+  it('renders lethal trifecta candidate badge', () => {
+    render(<FindingBadges finding={makeFinding({ lethalTrifectaStatus: 'CANDIDATE' })} />);
+    const badge = screen.getByText('LETHAL_TRIFECTA_CANDIDATE');
+    expect(badge.getAttribute('title')).toContain('candidate path');
   });
 });

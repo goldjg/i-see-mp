@@ -141,6 +141,47 @@ describe('classifyTool — GitHub MCP shaped tools (precise)', () => {
     });
     expect(result.capabilities).toContain(Capability.QUERY_REMOTE_SYSTEM);
     expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
+    expect(result.capabilities).toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+  });
+
+  it('list_issues is UNTRUSTED_CONTENT_EXPOSURE', () => {
+    const result = classifyTool({
+      name: 'list_issues',
+      description: 'List issues in a GitHub repository',
+    });
+    expect(result.capabilities).toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+  });
+
+  it('search_pull_requests is UNTRUSTED_CONTENT_EXPOSURE', () => {
+    const result = classifyTool({
+      name: 'search_pull_requests',
+      description: 'Search pull requests in GitHub repositories',
+    });
+    expect(result.capabilities).toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+  });
+
+  it('get_secret_scanning_alert is not UNTRUSTED_CONTENT_EXPOSURE', () => {
+    const result = classifyTool({
+      name: 'get_secret_scanning_alert',
+      description: 'Get details of a specific secret scanning alert in a repository',
+    });
+    expect(result.capabilities).not.toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+  });
+
+  it('list_secret_scanning_alerts is not UNTRUSTED_CONTENT_EXPOSURE', () => {
+    const result = classifyTool({
+      name: 'list_secret_scanning_alerts',
+      description: 'List secret scanning alerts in a repository',
+    });
+    expect(result.capabilities).not.toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+  });
+
+  it('list_tags is not UNTRUSTED_CONTENT_EXPOSURE', () => {
+    const result = classifyTool({
+      name: 'list_tags',
+      description: 'List tags in a GitHub repository',
+    });
+    expect(result.capabilities).not.toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
   });
 
   it('create_pull_request is MUTATE_ISSUE_OR_PR', () => {
@@ -261,6 +302,30 @@ describe('classifyTool — schema-based inference', () => {
     });
     expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
   });
+
+  it('classifies fetch_url as UNTRUSTED_CONTENT_EXPOSURE', () => {
+    const result = classifyTool({
+      name: 'fetch_url',
+      description: 'Fetch content from an arbitrary URL',
+    });
+    expect(result.capabilities).toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+  });
+
+  it('classifies fetch as UNTRUSTED_CONTENT_EXPOSURE', () => {
+    const result = classifyTool({
+      name: 'fetch',
+      description: 'Fetch content from arbitrary URL',
+    });
+    expect(result.capabilities).toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+  });
+
+  it('classifies web_fetch as UNTRUSTED_CONTENT_EXPOSURE', () => {
+    const result = classifyTool({
+      name: 'web_fetch',
+      description: 'Fetch a web page from arbitrary URL',
+    });
+    expect(result.capabilities).toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+  });
 });
 
 describe('classifyTool — filesystem MCP local/source-only tools', () => {
@@ -328,6 +393,7 @@ describe('classifyTool — filesystem MCP local/source-only tools', () => {
     expect(result.capabilities).not.toContain(Capability.QUERY_REMOTE_SYSTEM);
     expect(result.capabilities).not.toContain(Capability.SEND_HTTP);
     expect(result.capabilities).not.toContain(Capability.SEND_EXTERNAL);
+    expect(result.capabilities).not.toContain(Capability.UNTRUSTED_CONTENT_EXPOSURE);
   });
 
   it('classifies edit_file as WRITE_LOCAL_FILE', () => {

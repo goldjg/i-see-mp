@@ -20,11 +20,11 @@ const TRIFECTA_LABEL: Record<'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY', string>
 
 const TRIFECTA_EXPLANATION: Record<'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY', string> = {
   COMPLETE:
-    'Read capability, model context, and a send/mutation sink are all present — this finding represents a potentially exploitable end-to-end path.',
+    'Dataflow source, model context, and a send/mutation sink are all present — this is a structural source-to-sink path, not proof of prompt-injection exploitability.',
   PARTIAL:
-    'Two elements of the path are present, but the full end-to-end chain is not proven.',
+    'At least one side of the source/sink chain is present, but a full structural source-to-sink chain is not present.',
   CAPABILITY_ONLY:
-    'This is a standalone exposed capability and is not currently part of a complete or partial exploit chain.',
+    'This is a standalone exposed capability and is not currently part of a structural source-to-sink chain.',
 };
 
 function renderCapabilityList(list: string[] | undefined): string {
@@ -83,21 +83,35 @@ export function FindingBadges({ finding }: { finding: Finding }) {
       label: 'TRIFECTA_COMPLETE',
       cls: 'badge-trifecta-complete',
       title:
-        'Source + model context + sink all present. This path has a read capability, passes through the model, and reaches an external send or mutation — a potentially complete exploit chain.',
+        'Structural dataflow complete: source + model context + sink are present. This does not by itself prove prompt-injection exploitability.',
     });
   } else if (finding.trifectaStage === 'PARTIAL') {
     badges.push({
       label: 'TRIFECTA_PARTIAL',
       cls: 'badge-trifecta-partial',
       title:
-        'Source or sink present but not both. Two elements of the exploit chain are detected; the full end-to-end path is not proven.',
+        'Structural dataflow partial: source or sink side is present, but not a full source-to-sink chain.',
     });
   } else if (finding.trifectaStage === 'CAPABILITY_ONLY') {
     badges.push({
       label: 'CAPABILITY_ONLY',
       cls: 'badge-trifecta-capability',
       title:
-        'Single capability present. Not part of a detected complete or partial chain.',
+        'Single capability present. Not part of a detected structural complete or partial chain.',
+    });
+  }
+  if (finding.lethalTrifectaStatus === 'CANDIDATE') {
+    badges.push({
+      label: 'LETHAL_TRIFECTA_CANDIDATE',
+      cls: 'badge-lethal-trifecta-candidate',
+      title:
+        'Untrusted-content exposure + private data access + external communication are all present. This is a prompt-injection candidate path, not a confirmed exploit.',
+    });
+  } else if (finding.lethalTrifectaStatus === 'COMPLETE') {
+    badges.push({
+      label: 'LETHAL_TRIFECTA_COMPLETE',
+      cls: 'badge-lethal-trifecta-complete',
+      title: 'Lethal trifecta was confirmed.',
     });
   }
   if (finding.isCrossServer && finding.crossesTrustBoundary) {
@@ -182,6 +196,22 @@ export function TrifectaExplanation({ finding }: { finding: Finding }) {
         <span className="trifecta-label">Sink</span>
         <span className="trifecta-value">{renderCapabilityList(finding.sinkCapabilities)}</span>
       </div>
+      <div className="trifecta-row">
+        <span className="trifecta-label">Private data access</span>
+        <span className="trifecta-value">{finding.hasPrivateDataAccess ? 'Yes' : 'No'}</span>
+      </div>
+      <div className="trifecta-row">
+        <span className="trifecta-label">Untrusted content exposure</span>
+        <span className="trifecta-value">{finding.hasUntrustedContentExposure ? 'Yes' : 'No'}</span>
+      </div>
+      <div className="trifecta-row">
+        <span className="trifecta-label">External communication</span>
+        <span className="trifecta-value">{finding.hasExternalCommunication ? 'Yes' : 'No'}</span>
+      </div>
+      <div className="trifecta-row">
+        <span className="trifecta-label">Lethal trifecta status</span>
+        <span className="trifecta-value">{finding.lethalTrifectaStatus ?? 'NONE'}</span>
+      </div>
       <p className="trifecta-sentence">{TRIFECTA_EXPLANATION[finding.trifectaStage]}</p>
     </div>
   );
@@ -194,19 +224,27 @@ export function TrifectaLegend() {
       <div className="legend-row">
         <span className="finding-badge badge-trifecta-complete legend-badge">TRIFECTA_COMPLETE</span>
         <span className="legend-text">
-          Source + model context + sink all present, indicating a potentially complete exploit chain.
+          Structural source + model context + sink path is present (dataflow/exfil capability).
         </span>
       </div>
       <div className="legend-row">
         <span className="finding-badge badge-trifecta-partial legend-badge">TRIFECTA_PARTIAL</span>
         <span className="legend-text">
-          Source or sink present but not both, so the full end-to-end path is not proven.
+          Structural source or sink side is present, but no complete source-to-sink path.
         </span>
       </div>
       <div className="legend-row">
         <span className="finding-badge badge-trifecta-capability legend-badge">CAPABILITY_ONLY</span>
         <span className="legend-text">
-          Standalone capability exposure without a detected complete or partial chain.
+          Standalone capability exposure without a detected structural chain.
+        </span>
+      </div>
+      <div className="legend-row">
+        <span className="finding-badge badge-lethal-trifecta-candidate legend-badge">
+          LETHAL_TRIFECTA_CANDIDATE
+        </span>
+        <span className="legend-text">
+          Candidate prompt-injection path: private data access + untrusted content exposure + external communication.
         </span>
       </div>
     </details>

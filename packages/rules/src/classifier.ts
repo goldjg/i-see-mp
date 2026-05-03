@@ -22,6 +22,7 @@ const CAPABILITY_SCORES: Record<Capability, number> = {
   [Capability.READ_SENSITIVE_MEDIUM]: 55,
   [Capability.WRITE_LOCAL_FILE]: 55,
   [Capability.WRITE_REMOTE_DATA]: 50,
+  [Capability.UNTRUSTED_CONTENT_EXPOSURE]: 45,
   [Capability.MUTATE_REMOTE_STATE]: 45,
   [Capability.MUTATE_ISSUE_OR_PR]: 40,
   [Capability.QUERY_DATABASE]: 50,
@@ -267,6 +268,31 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   if (matchesAny(name, ['issue_read', 'pull_request_read'])) {
     caps.add(Capability.QUERY_REMOTE_SYSTEM);
     caps.add(Capability.READ_REMOTE_DATA);
+  }
+
+  // ---------- Untrusted content exposure ----------
+  // Conservative: only classify tools that commonly surface attacker-controlled content
+  // (issues/PRs/comments/discussions/external web fetch) as UNTRUSTED_CONTENT_EXPOSURE.
+  const untrustedContentPatterns = [
+    'issue_read',
+    'get_issue_comments',
+    'list_issues',
+    'search_issues',
+    'pull_request_read',
+    'get_pull_request_comments',
+    'list_pull_requests',
+    'search_pull_requests',
+    'discussion',
+    'discussions',
+    'discussion_comment',
+    'fetch',
+    'fetch_url',
+    'web_fetch',
+    'http_get',
+    'retrieve_url',
+  ];
+  if (matchesAny(name, untrustedContentPatterns)) {
+    caps.add(Capability.UNTRUSTED_CONTENT_EXPOSURE);
   }
 
   if (matchesAny(name, ['mutate_remote_state', 'update_remote_state', 'modify_remote_state'])) {

@@ -1,4 +1,10 @@
-import { Capability, RiskCategory, TrustBoundary, TrifectaStage } from '@iseemp/core';
+import {
+  Capability,
+  LethalTrifectaStatus,
+  RiskCategory,
+  TrustBoundary,
+  TrifectaStage,
+} from '@iseemp/core';
 import type { Confidence, Finding } from '@iseemp/core';
 import { deriveCrossesTrustBoundary, deriveTrustTransition } from './trust.js';
 
@@ -38,6 +44,22 @@ const TRIFECTA_SINK_CAPS: Capability[] = [
   Capability.EXECUTE_CODE,
 ];
 
+const UNTRUSTED_CONTENT_CAPS: Capability[] = [Capability.UNTRUSTED_CONTENT_EXPOSURE];
+
+const PRIVATE_DATA_CAPS: Capability[] = [
+  Capability.READ_CREDENTIAL_HIGH,
+  Capability.READ_SECRET_HIGH,
+  Capability.READ_SECRET,
+  Capability.READ_LOCAL_FILE,
+  Capability.READ_SENSITIVE_MEDIUM,
+];
+
+const EXTERNAL_COMM_CAPS: Capability[] = [
+  Capability.SEND_EXTERNAL,
+  Capability.SEND_HTTP,
+  Capability.SEND_EMAIL,
+];
+
 const SEVERITY_RANK: Record<Finding['severity'], number> = {
   info: 0,
   low: 1,
@@ -66,6 +88,10 @@ export interface TrifectaClassification {
   crossesTrustBoundary: boolean;
   trustTransition?: string;
   isHighSignal: boolean;
+  hasPrivateDataAccess: boolean;
+  hasUntrustedContentExposure: boolean;
+  hasExternalCommunication: boolean;
+  lethalTrifectaStatus: (typeof LethalTrifectaStatus)[keyof typeof LethalTrifectaStatus];
 }
 
 export function deriveIsCrossServer(findingLike: {
@@ -131,6 +157,18 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     trifectaStage = TrifectaStage.PARTIAL;
   }
 
+  const combinedPool = new Set<Capability>([...sourcePool, ...sinkPool]);
+  const hasPrivateDataAccess = Array.from(combinedPool).some((cap) => PRIVATE_DATA_CAPS.includes(cap));
+  const hasUntrustedContentExposure = Array.from(combinedPool).some((cap) =>
+    UNTRUSTED_CONTENT_CAPS.includes(cap),
+  );
+  const hasExternalCommunication = Array.from(combinedPool).some((cap) => EXTERNAL_COMM_CAPS.includes(cap));
+  const hasLethalTrifectaIngredients =
+    hasPrivateDataAccess && hasUntrustedContentExposure && hasExternalCommunication;
+  const lethalTrifectaStatus = hasLethalTrifectaIngredients
+    ? LethalTrifectaStatus.CANDIDATE
+    : LethalTrifectaStatus.NONE;
+
   let trifectaScore = 0;
   if (hasSource) trifectaScore += 3;
   if (hasSink) trifectaScore += 3;
@@ -151,6 +189,10 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     crossesTrustBoundary,
     trustTransition,
     isHighSignal: trifectaStage === TrifectaStage.COMPLETE && crossesTrustBoundary === true,
+    hasPrivateDataAccess,
+    hasUntrustedContentExposure,
+    hasExternalCommunication,
+    lethalTrifectaStatus,
   };
 }
 
