@@ -64,6 +64,20 @@ export interface TrifectaClassification {
   isCrossServer: boolean;
 }
 
+export function deriveIsCrossServer(findingLike: {
+  sourceServerId?: string;
+  sinkServerId?: string;
+  isCrossServer?: boolean;
+}): boolean {
+  return (
+    typeof findingLike.sourceServerId === 'string' &&
+    findingLike.sourceServerId.length > 0 &&
+    typeof findingLike.sinkServerId === 'string' &&
+    findingLike.sinkServerId.length > 0 &&
+    findingLike.sourceServerId !== findingLike.sinkServerId
+  );
+}
+
 export function classifyFindingTrifecta(finding: Finding): TrifectaClassification {
   const sourcePool = new Set<Capability>(finding.sourceCapabilities ?? []);
   const initialSinkPool = new Set<Capability>(finding.sinkCapabilities ?? []);
@@ -96,12 +110,10 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     Array.from(sinkPool).every((cap) => cap === Capability.RUN_SHELL || cap === Capability.EXECUTE_CODE);
   if (hasSource && hasSink && !inferredExecutionSinkOnly) trifectaStage = TrifectaStage.COMPLETE;
   else if (hasSource || hasSink) trifectaStage = TrifectaStage.PARTIAL;
-  const hasBothServerIds =
-    typeof finding.sourceServerId === 'string' && typeof finding.sinkServerId === 'string';
-  const crossServer = hasBothServerIds
-    ? finding.sourceServerId !== finding.sinkServerId
-    : finding.isCrossServer === true;
+  const crossServer = deriveIsCrossServer(finding);
   if (crossServer && trifectaStage === TrifectaStage.COMPLETE) {
+    // Intentional: structural source+sink completeness across different servers is not treated
+    // as a same-server complete chain.
     trifectaStage = TrifectaStage.PARTIAL;
   }
 
