@@ -302,7 +302,8 @@ echo "▶ Running topology-selected deterministic profiles…"
   const hasCredentials = process.env.ISEEMP_HAS_CREDENTIALS === 'true';
   const includeUnsafe = process.env.ISEEMP_E2E_INCLUDE_UNSAFE === 'true';
   const { spawnSync } = await import('node:child_process');
-  const tester = await import('/app/packages/tester/dist/index.js');
+  const testerModulePath = process.env.ISEEMP_TESTER_MODULE || '/app/packages/tester/dist/index.js';
+  const tester = await import(testerModulePath);
   const { selectProfilesForTopology, E2E_PROFILE_DESCRIPTORS } = tester;
 
   async function getJson(path) {

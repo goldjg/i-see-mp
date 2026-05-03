@@ -244,7 +244,8 @@ echo "▶ Running topology-selected deterministic profiles…"
 (async () => {
   const apiPort = process.env.ISEEMP_API_PORT || '7474';
   const { spawnSync } = await import('node:child_process');
-  const tester = await import('/app/packages/tester/dist/index.js');
+  const testerModulePath = process.env.ISEEMP_TESTER_MODULE || '/app/packages/tester/dist/index.js';
+  const tester = await import(testerModulePath);
   const { selectProfilesForTopology, E2E_PROFILE_DESCRIPTORS } = tester;
 
   async function getJson(path) {
