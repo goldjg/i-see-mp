@@ -237,6 +237,65 @@ echo "▶ iseemp analyze…"
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T "$SERVICE" \
   iseemp analyze
 
+echo "▶ Running topology-selected deterministic profiles…"
+"${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T \
+  -e "ISEEMP_API_PORT=${API_PORT}" \
+  "$SERVICE" node - <<'JS'
+(async () => {
+  const apiPort = process.env.ISEEMP_API_PORT || '7474';
+  const { spawnSync } = await import('node:child_process');
+  const tester = await import('@iseemp/tester');
+  const { selectProfilesForTopology, E2E_PROFILE_DESCRIPTORS } = tester;
+
+  async function getJson(path) {
+    const res = await fetch(`http://127.0.0.1:${apiPort}${path}`);
+    if (!res.ok) throw new Error(`API ${path} returned HTTP ${res.status}`);
+    return res.json();
+  }
+
+  const [servers, tools] = await Promise.all([getJson('/servers'), getJson('/tools')]);
+  const { selected, skipped } = selectProfilesForTopology(
+    servers.map((s) => ({ id: s.id, name: s.name })),
+    tools.map((t) => ({
+      serverId: t.serverId,
+      capabilities: Array.isArray(t.capabilities) ? t.capabilities : [],
+    })),
+    E2E_PROFILE_DESCRIPTORS,
+    { hasCredentials: false },
+  );
+  const uniqueSelected = [];
+  const seenTypes = new Set();
+  for (const descriptor of selected) {
+    if (seenTypes.has(descriptor.profileType)) continue;
+    seenTypes.add(descriptor.profileType);
+    uniqueSelected.push(descriptor);
+  }
+
+  console.log(`🧪 profiles planned: ${selected.length}`);
+  console.log(`🧪 profiles skipped: ${skipped.length}`);
+  for (const item of skipped) console.log(`⚠️  SKIPPED: ${item.profileId} — ${item.reason}`);
+
+  let passed = 0;
+  let failed = 0;
+  for (const descriptor of uniqueSelected) {
+    console.log(`▶ profile run: ${descriptor.profileId} (${descriptor.profileType})`);
+    const result = spawnSync('iseemp', ['test', '--profile', descriptor.profileType], {
+      stdio: 'inherit',
+      env: process.env,
+    });
+    if (result.status === 0) passed += 1;
+    else failed += 1;
+  }
+  console.log(`🧪 profiles run: ${uniqueSelected.length}`);
+  console.log(`🧪 profiles passed: ${passed}`);
+  console.log(`🧪 profiles failed: ${failed}`);
+  if (failed > 0) process.exit(1);
+})().catch((err) => {
+  console.error(`❌ Profile execution failed: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+});
+JS
+
 echo "▶ Validating cross-server classification expectations through API…"
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T \
   -e "ISEEMP_API_PORT=${API_PORT}" \
