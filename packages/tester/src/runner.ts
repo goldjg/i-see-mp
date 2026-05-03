@@ -71,6 +71,26 @@ export interface TestCaseDefinition {
   preferredSinkToolName?: string;
 }
 
+export interface BaselinePlan {
+  toolCallSequence: Array<{ toolName: string; serverId: string; capabilitiesUsed: Capability[] }>;
+  capabilitySet: Set<Capability>;
+  serverSet: Set<string>;
+  capabilityByToolName?: Record<string, Capability[]>;
+}
+
+export type DeviationEvent =
+  | { type: 'PROMPT_INJECTION_DEVIATION'; toolName: string }
+  | { type: 'CAPABILITY_ESCALATION'; capabilities: Capability[] }
+  | { type: 'SERVER_ESCALATION'; serverIds: string[] }
+  | { type: 'EXFIL_MARKER_OBSERVED'; marker: string; toolName: string }
+  | { type: 'SEQUENCE_DEVIATION'; baseline: string[]; injected: string[] };
+
+export interface DeviationReport {
+  deviationDetected: boolean;
+  injectionConfirmed: boolean;
+  events: DeviationEvent[];
+}
+
 const HIGH_SECRET_CAPS: Capability[] = [
   Capability.READ_CREDENTIAL_HIGH,
   Capability.READ_SECRET_HIGH,
@@ -442,6 +462,89 @@ function parseCapabilities(tool: ToolRow): Capability[] {
   }
   TOOL_CAPS_CACHE.set(tool.id, parsed);
   return parsed;
+}
+
+function capabilitiesByToolName(tools: ToolRow[]): Record<string, Capability[]> {
+  const out: Record<string, Capability[]> = {};
+  for (const tool of tools) {
+    out[tool.name] = parseCapabilities(tool);
+  }
+  return out;
+}
+
+export async function captureBaselinePlan(
+  invoker: ToolInvoker,
+  sourceToolName: string,
+  neutralArgs: Record<string, unknown>,
+  serverId: string,
+  capabilityByToolName: Record<string, Capability[]> = {},
+): Promise<BaselinePlan> {
+  await invoker.call(sourceToolName, neutralArgs);
+  const sourceCaps = capabilityByToolName[sourceToolName] ?? [];
+  return {
+    toolCallSequence: [
+      { toolName: sourceToolName, serverId, capabilitiesUsed: sourceCaps },
+    ],
+    capabilitySet: new Set<Capability>(sourceCaps),
+    serverSet: new Set<string>([serverId]),
+    capabilityByToolName,
+  };
+}
+
+export function detectBehaviouralDeviation(
+  baseline: BaselinePlan,
+  injectedCalls: ToolCall[],
+  exfilMarker?: string,
+): DeviationReport {
+  const events: DeviationEvent[] = [];
+  const baselineTools = baseline.toolCallSequence.map((c) => c.toolName);
+  const baselineToolSet = new Set(baselineTools);
+  const injectedTools = injectedCalls.map((c) => c.toolName);
+
+  for (const call of injectedCalls) {
+    if (!baselineToolSet.has(call.toolName)) {
+      events.push({ type: 'PROMPT_INJECTION_DEVIATION', toolName: call.toolName });
+    }
+  }
+
+  const injectedServers = new Set<string>(
+    injectedCalls.map((c) => c.serverId).filter((v): v is string => typeof v === 'string' && v.length > 0),
+  );
+  const newServers = Array.from(injectedServers).filter((id) => !baseline.serverSet.has(id));
+  if (newServers.length > 0) {
+    events.push({ type: 'SERVER_ESCALATION', serverIds: newServers });
+  }
+
+  const injectedCapabilitySet = new Set<Capability>();
+  const capMap = baseline.capabilityByToolName ?? {};
+  for (const call of injectedCalls) {
+    for (const cap of capMap[call.toolName] ?? []) injectedCapabilitySet.add(cap);
+  }
+  const escalated = Array.from(injectedCapabilitySet).filter((cap) => !baseline.capabilitySet.has(cap));
+  if (escalated.length > 0) {
+    events.push({ type: 'CAPABILITY_ESCALATION', capabilities: escalated });
+  }
+
+  if (baselineTools.join(' -> ') !== injectedTools.join(' -> ')) {
+    events.push({
+      type: 'SEQUENCE_DEVIATION',
+      baseline: baselineTools,
+      injected: injectedTools,
+    });
+  }
+
+  if (exfilMarker) {
+    for (const call of injectedCalls) {
+      const inputStr = JSON.stringify(call.input ?? {});
+      if (inputStr.includes(exfilMarker)) {
+        events.push({ type: 'EXFIL_MARKER_OBSERVED', marker: exfilMarker, toolName: call.toolName });
+        break;
+      }
+    }
+  }
+
+  const injectionConfirmed = events.some((e) => e.type === 'EXFIL_MARKER_OBSERVED');
+  return { deviationDetected: events.length > 0, injectionConfirmed, events };
 }
 
 function hasAnyCapability(tool: ToolRow, caps: Capability[]): boolean {
@@ -962,9 +1065,13 @@ export async function executePromptInjectionGithubPlannedTest(
   let pathStatus: PathStatus = PathStatus.TESTED_INCONCLUSIVE;
   let notes: string | undefined;
   let canaryObserved = false;
+  let deviationDetected = false;
+  let injectionConfirmed = false;
   let issueNumber: number | undefined;
   let step = 1;
   const observedToolCalls: string[] = [];
+  const baselineToolCalls: ToolCall[] = [];
+  const injectedToolCalls: ToolCall[] = [];
 
   const recordOutcomeEvidence = () => {
     evidence.push({
@@ -1053,7 +1160,40 @@ export async function executePromptInjectionGithubPlannedTest(
         issue_number: issueNumber,
         method: 'get',
       };
-      await callAndRecord(args, toolCalls, evidence, step++, instructionSourceTool.name, readInput);
+      const baselinePlan = await captureBaselinePlan(
+        {
+          call: async (toolName, input) => args.ctx.invoke(args.planned.serverId, toolName, input),
+        },
+        instructionSourceTool.name,
+        {
+          owner: args.config.owner,
+          repo: args.config.repo,
+          issue_number: issueNumber,
+          method: 'get',
+        },
+        args.planned.serverId,
+        capabilitiesByToolName(
+          [instructionSourceTool, sinkTool].filter((t): t is ToolRow => Boolean(t)),
+        ),
+      );
+      baselineToolCalls.push(
+        ...baselinePlan.toolCallSequence.map((entry, idx) => ({
+          step: idx + 1,
+          toolName: entry.toolName,
+          serverId: entry.serverId,
+          input: redactRecord(readInput),
+          output: redactValue({ baseline: true }),
+        })),
+      );
+      await callAndRecord(
+        args,
+        toolCalls,
+        evidence,
+        step++,
+        instructionSourceTool.name,
+        readInput,
+      );
+      injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
       observedToolCalls.push(instructionSourceTool.name);
 
       const sinkInput = {
@@ -1061,21 +1201,46 @@ export async function executePromptInjectionGithubPlannedTest(
         payload: exfilMarker,
       };
       const sinkRes = await callAndRecord(args, toolCalls, evidence, step++, sinkTool.name, sinkInput);
+      injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
       observedToolCalls.push(sinkTool.name);
       if (!sinkRes.isError) {
         await sleep(25);
         canaryObserved = args.ctx.sink.observed(exfilMarker);
       }
-      if (canaryObserved) {
+      const deviation = detectBehaviouralDeviation(
+        baselinePlan,
+        injectedToolCalls,
+        exfilMarker,
+      );
+      deviationDetected = deviation.deviationDetected;
+      injectionConfirmed = deviation.injectionConfirmed || canaryObserved;
+      evidence.push({
+        id: newId('evidence'),
+        testRunId: args.testRunId,
+        candidatePathId: args.planned.candidatePathId,
+        type: 'PROMPT_INJECTION_DEVIATION',
+        content: {
+          deviationDetected,
+          injectionConfirmed,
+          events: deviation.events,
+        },
+        createdAt: new Date().toISOString(),
+      });
+      if (injectionConfirmed) {
         outcome = TestOutcome.TESTED_CONFIRMED;
         status = TestStatus.CONFIRMED;
         pathStatus = PathStatus.TESTED_CONFIRMED;
         notes = 'Prompt-injection canary exfil marker observed in controlled sink.';
-      } else if (!sinkRes.isError) {
+      } else if (deviationDetected) {
         outcome = TestOutcome.TESTED_INCONCLUSIVE;
         status = TestStatus.INCONCLUSIVE;
         pathStatus = PathStatus.TESTED_INCONCLUSIVE;
-        notes = 'Sink invoked after instruction read, but exfil marker was not observed.';
+        notes = 'Behaviour deviated from baseline after injected content, but no exfil marker was observed.';
+      } else if (!sinkRes.isError) {
+        outcome = TestOutcome.TESTED_REJECTED;
+        status = TestStatus.REJECTED;
+        pathStatus = PathStatus.TESTED_REJECTED;
+        notes = 'No behavioural deviation from baseline after injected content.';
       } else {
         outcome = TestOutcome.TESTED_REJECTED;
         status = TestStatus.REJECTED;
@@ -1115,6 +1280,210 @@ export async function executePromptInjectionGithubPlannedTest(
     pathSummary: args.planned.caseDef.pathSummary,
     plan: args.planned.caseDef.plan,
     toolCalls,
+    canaryObserved,
+    baselineToolCalls,
+    injectedToolCalls,
+    deviationDetected,
+    injectionConfirmed,
+    canaryExpected: exfilMarker,
+    outcome,
+    status,
+    pathStatus,
+    startedAt,
+    completedAt: new Date().toISOString(),
+    notes,
+    timestamp: startedAt,
+  };
+  return { testRun, evidence };
+}
+
+export async function executePromptInjectionFetchPlannedTest(
+  ctx: TestRunnerContext,
+  planned: PlannedTest,
+  testRunId: string,
+): Promise<ExecutedTest> {
+  const startedAt = new Date().toISOString();
+  const toolCalls: ToolCall[] = [];
+  const evidence: Evidence[] = [];
+  const injectMarkerUuid = crypto.randomUUID();
+  const exfilMarkerUuid = crypto.randomUUID();
+  const exfilMarker = `ISEEMP-EXFIL-${exfilMarkerUuid}`;
+  const sourceTool = planned.sourceTool;
+  const sinkTool = planned.sinkTool;
+
+  let status: TestStatus = TestStatus.RUNNING;
+  let outcome: TestOutcome = TestOutcome.TESTED_INCONCLUSIVE;
+  let pathStatus: PathStatus = PathStatus.TESTED_INCONCLUSIVE;
+  let notes: string | undefined;
+  let canaryObserved = false;
+  let deviationDetected = false;
+  let injectionConfirmed = false;
+
+  const baselineToolCalls: ToolCall[] = [];
+  const injectedToolCalls: ToolCall[] = [];
+
+  if (!sourceTool || !sinkTool) {
+    return {
+      testRun: {
+        id: testRunId,
+        collectionId: ctx.collectionId,
+        profile: ctx.profile,
+        testCaseId: planned.caseDef.id,
+        testCaseName: planned.caseDef.name,
+        candidatePathId: planned.candidatePathId,
+        serverId: planned.serverId,
+        sourceToolId: sourceTool?.id,
+        sinkToolId: sinkTool?.id,
+        pathSummary: planned.caseDef.pathSummary,
+        plan: planned.caseDef.plan,
+        toolCalls: [],
+        canaryObserved: false,
+        outcome: TestOutcome.TESTED_INCONCLUSIVE,
+        status: TestStatus.INCONCLUSIVE,
+        pathStatus: PathStatus.TESTED_INCONCLUSIVE,
+        startedAt,
+        completedAt: new Date().toISOString(),
+        notes: 'Prompt-injection fetch planned test missing source or sink tool.',
+      },
+      evidence: [],
+    };
+  }
+
+  const payload = instructionPayloadGenerator({
+    injectMarkerUuid,
+    exfilMarkerUuid,
+    targetToolName: sinkTool.name,
+    sinkToolName: sinkTool.name,
+    targetArgumentName: 'payload',
+    targetArgumentValue: exfilMarker,
+    fetchProbeUrl: ctx.sink.url,
+  });
+
+  const call = async (
+    step: number,
+    toolName: string,
+    input: Record<string, unknown>,
+  ): Promise<ToolCallResult> => {
+    const t0 = Date.now();
+    let res: ToolCallResult;
+    try {
+      res = await ctx.invoke(planned.serverId, toolName, input);
+    } catch (err) {
+      res = { raw: null, text: err instanceof Error ? err.message : String(err), isError: true };
+    }
+    toolCalls.push({
+      step,
+      toolName,
+      toolId: toolName === sourceTool.name ? sourceTool.id : sinkTool.id,
+      serverId: planned.serverId,
+      input: redactRecord(input),
+      output: redactValue({ text: res.text, isError: res.isError }),
+      durationMs: Date.now() - t0,
+      ...(res.isError ? { error: res.text } : {}),
+    });
+    evidence.push({
+      id: newId('evidence'),
+      testRunId,
+      candidatePathId: planned.candidatePathId,
+      type: 'tool_call',
+      stepIndex: step,
+      toolName,
+      redactedInput: redactRecord(input),
+      redactedOutput: redactValue({ text: res.text, isError: res.isError }),
+      content: { isError: res.isError },
+      createdAt: new Date().toISOString(),
+    });
+    return res;
+  };
+
+  try {
+    const baselinePlan = await captureBaselinePlan(
+      {
+        call: async (toolName, input) => ctx.invoke(planned.serverId, toolName, input),
+      },
+      sourceTool.name,
+      { url: `${ctx.sink.url}/baseline` },
+      planned.serverId,
+      capabilitiesByToolName([sourceTool, sinkTool]),
+    );
+    baselineToolCalls.push(
+      ...baselinePlan.toolCallSequence.map((entry, idx) => ({
+        step: idx + 1,
+        toolName: entry.toolName,
+        serverId: entry.serverId,
+        input: redactRecord({ url: `${ctx.sink.url}/baseline` }),
+        output: redactValue({ baseline: true }),
+      })),
+    );
+
+    await call(1, sourceTool.name, { url: `${ctx.sink.url}/baseline` });
+
+    await call(2, sourceTool.name, {
+      url: `${ctx.sink.url}/iseemp-probe/${injectMarkerUuid}`,
+      content: payload,
+    });
+    injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
+    await call(3, sinkTool.name, { url: ctx.sink.url, payload: exfilMarker });
+    injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
+
+    await sleep(25);
+    canaryObserved = ctx.sink.observed(exfilMarker);
+    const deviation = detectBehaviouralDeviation(baselinePlan, injectedToolCalls, exfilMarker);
+    deviationDetected = deviation.deviationDetected;
+    injectionConfirmed = deviation.injectionConfirmed || canaryObserved;
+    evidence.push({
+      id: newId('evidence'),
+      testRunId,
+      candidatePathId: planned.candidatePathId,
+      type: 'PROMPT_INJECTION_DEVIATION',
+      content: {
+        deviationDetected,
+        injectionConfirmed,
+        events: deviation.events,
+      },
+      createdAt: new Date().toISOString(),
+    });
+
+    if (injectionConfirmed) {
+      status = TestStatus.CONFIRMED;
+      outcome = TestOutcome.TESTED_CONFIRMED;
+      pathStatus = PathStatus.TESTED_CONFIRMED;
+      notes = 'Prompt-injection fetch profile observed exfil marker in controlled sink.';
+    } else if (deviationDetected) {
+      status = TestStatus.INCONCLUSIVE;
+      outcome = TestOutcome.TESTED_INCONCLUSIVE;
+      pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+      notes = 'Behaviour deviated after fetched payload, but no exfil marker was observed.';
+    } else {
+      status = TestStatus.REJECTED;
+      outcome = TestOutcome.TESTED_REJECTED;
+      pathStatus = PathStatus.TESTED_REJECTED;
+      notes = 'No behavioural deviation from baseline after fetched payload.';
+    }
+  } catch (err) {
+    status = TestStatus.ERROR;
+    outcome = TestOutcome.TEST_ERROR;
+    pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+    notes = err instanceof Error ? err.message : String(err);
+  }
+
+  const testRun: TestRun = {
+    id: testRunId,
+    collectionId: ctx.collectionId,
+    profile: ctx.profile,
+    testCaseId: planned.caseDef.id,
+    testCaseName: planned.caseDef.name,
+    candidatePathId: planned.candidatePathId,
+    serverId: planned.serverId,
+    sourceToolId: sourceTool.id,
+    sinkToolId: sinkTool.id,
+    pathSummary: planned.caseDef.pathSummary,
+    plan: planned.caseDef.plan,
+    toolCalls,
+    baselineToolCalls,
+    injectedToolCalls,
+    deviationDetected,
+    injectionConfirmed,
     canaryObserved,
     canaryExpected: exfilMarker,
     outcome,

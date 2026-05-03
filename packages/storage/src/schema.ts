@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS tools (
   is_untrusted INTEGER NOT NULL DEFAULT 0,
   is_instruction_capable INTEGER NOT NULL DEFAULT 0,
   content_origin TEXT NOT NULL DEFAULT 'local',
+  trust_zone TEXT,
   risk_score INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS nodes (
   server_id TEXT,
   capabilities TEXT NOT NULL DEFAULT '[]',
   risk_score INTEGER NOT NULL DEFAULT 0,
+  trust_zone TEXT,
   metadata TEXT,
   created_at TEXT NOT NULL
 );
@@ -112,7 +114,11 @@ CREATE TABLE IF NOT EXISTS findings (
   trust_transition TEXT,
   explanation TEXT,
   evidence TEXT,
-  lethal_trifecta_status TEXT
+  lethal_trifecta_status TEXT,
+  sub_category TEXT,
+  injection_confirmed INTEGER NOT NULL DEFAULT 0,
+  trust_boundary_confirmed INTEGER NOT NULL DEFAULT 0,
+  baseline_plan TEXT
 );
 
 -- Test-run model (deterministic path testing).
@@ -132,6 +138,10 @@ CREATE TABLE IF NOT EXISTS test_runs (
   path_summary TEXT,
   plan TEXT NOT NULL,
   tool_calls TEXT NOT NULL DEFAULT '[]',
+  baseline_tool_calls TEXT,
+  injected_tool_calls TEXT,
+  deviation_detected INTEGER NOT NULL DEFAULT 0,
+  injection_confirmed INTEGER NOT NULL DEFAULT 0,
   canary_expected TEXT,
   canary_observed INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'pending',

@@ -9,6 +9,7 @@ export interface NodeRow {
   server_id: string | null;
   capabilities: string; // JSON array
   risk_score: number;
+  trust_zone: string | null;
   metadata: string | null; // JSON
   created_at: string;
 }
@@ -18,8 +19,8 @@ export function createNodesRepo(db: Database.Database) {
     upsert(node: NodeRow): void {
       db.prepare(
         `INSERT OR REPLACE INTO nodes
-          (id, collection_id, type, label, server_id, capabilities, risk_score, metadata, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
+          (id, collection_id, type, label, server_id, capabilities, risk_score, trust_zone, metadata, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
       ).run(
         node.id,
         node.collection_id,
@@ -28,6 +29,7 @@ export function createNodesRepo(db: Database.Database) {
         node.server_id,
         node.capabilities,
         node.risk_score,
+        node.trust_zone,
         node.metadata,
         node.created_at,
       );
@@ -36,12 +38,23 @@ export function createNodesRepo(db: Database.Database) {
     upsertMany(nodes: NodeRow[]): void {
       const stmt = db.prepare(
         `INSERT OR REPLACE INTO nodes
-          (id, collection_id, type, label, server_id, capabilities, risk_score, metadata, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
+          (id, collection_id, type, label, server_id, capabilities, risk_score, trust_zone, metadata, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
       );
       const insertMany = db.transaction((rows: NodeRow[]) => {
         for (const n of rows) {
-          stmt.run(n.id, n.collection_id, n.type, n.label, n.server_id, n.capabilities, n.risk_score, n.metadata, n.created_at);
+          stmt.run(
+            n.id,
+            n.collection_id,
+            n.type,
+            n.label,
+            n.server_id,
+            n.capabilities,
+            n.risk_score,
+            n.trust_zone,
+            n.metadata,
+            n.created_at,
+          );
         }
       });
       insertMany(nodes);
@@ -58,6 +71,7 @@ export function createNodesRepo(db: Database.Database) {
         serverId: r.server_id ?? undefined,
         capabilities: JSON.parse(r.capabilities) as GraphNode['capabilities'],
         riskScore: r.risk_score,
+        trustBoundary: (r.trust_zone as GraphNode['trustBoundary']) ?? undefined,
         metadata: r.metadata ? (JSON.parse(r.metadata) as Record<string, unknown>) : undefined,
       }));
     },

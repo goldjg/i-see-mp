@@ -31,6 +31,7 @@ export interface Tool {
   isUntrusted: boolean;
   isInstructionCapable: boolean;
   contentOrigin: 'local' | 'remote' | 'user_generated' | 'external_saas' | 'db_row';
+  trustZone?: string;
   riskScore: number;
 }
 
@@ -65,7 +66,12 @@ export interface Finding {
   staticPossible?: boolean;
   observed?: boolean;
   tested?: boolean;
-  pathStatus?: 'static_possible' | 'tested_confirmed' | 'tested_rejected' | 'tested_inconclusive';
+  pathStatus?:
+    | 'static_possible'
+    | 'tested_confirmed'
+    | 'tested_rejected'
+    | 'tested_inconclusive'
+    | 'trust_boundary_confirmed';
   testRunIds?: string[];
   candidatePathId?: string;
   isCrossServer?: boolean;
@@ -82,10 +88,14 @@ export interface Finding {
   hasPrivateDataAccess?: boolean;
   hasUntrustedContentExposure?: boolean;
   hasExternalCommunication?: boolean;
+  subCategory?: string;
+  injectionConfirmed?: boolean;
+  trustBoundaryConfirmed?: boolean;
   pathSummary?: string;
   sourceCapabilities?: string[];
   sinkCapabilities?: string[];
   explanation?: string;
+  baselinePlan?: ToolCallRecord[];
 }
 
 export interface ToolCallRecord {
@@ -112,10 +122,19 @@ export interface TestRun {
   pathSummary?: string;
   plan: string;
   toolCalls: ToolCallRecord[];
+  baselineToolCalls?: ToolCallRecord[];
+  injectedToolCalls?: ToolCallRecord[];
+  deviationDetected?: boolean;
+  injectionConfirmed?: boolean;
   canaryExpected?: string;
   canaryObserved: boolean;
   status: string;
-  pathStatus: 'static_possible' | 'tested_confirmed' | 'tested_rejected' | 'tested_inconclusive';
+  pathStatus:
+    | 'static_possible'
+    | 'tested_confirmed'
+    | 'tested_rejected'
+    | 'tested_inconclusive'
+    | 'trust_boundary_confirmed';
   timestamp?: string;
   startedAt: string;
   completedAt?: string;

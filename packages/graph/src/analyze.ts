@@ -56,6 +56,7 @@ export async function analyze(options: {
     server_id: n.serverId ?? null,
     capabilities: JSON.stringify(n.capabilities),
     risk_score: n.riskScore,
+    trust_zone: n.trustBoundary ?? null,
     metadata: n.metadata ? JSON.stringify(n.metadata) : null,
     created_at: new Date().toISOString(),
   }));

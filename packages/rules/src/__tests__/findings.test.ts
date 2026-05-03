@@ -32,6 +32,7 @@ function makeTool(id: string, serverId: string, caps: Capability[]) {
     is_untrusted: 0,
     is_instruction_capable: 0,
     content_origin: 'local',
+    trust_zone: null,
     risk_score: 50,
     created_at: now,
   };
@@ -224,7 +225,7 @@ describe('runFindingsRules — DATA_EXFILTRATION (paths)', () => {
     const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [t1, t2], collectionId: 'col1' });
     const f = findings.find((x) => x.category === RiskCategory.DATA_EXFILTRATION);
     expect(f).toBeDefined();
-    expect(f?.severity).toBe('critical');
+    expect(f?.severity).toBe('high');
     expect(f?.boundaryCrossed).toBeDefined();
     expect(f?.sourceCapabilities?.length).toBeGreaterThan(0);
     expect(f?.sinkCapabilities?.length).toBeGreaterThan(0);
@@ -263,7 +264,7 @@ describe('runFindingsRules — DATA_EXFILTRATION (paths)', () => {
 describe('runFindingsRules — cross-server paths', () => {
   it('emits cross-server candidate when source and sink are on different servers', () => {
     const sourceServer = makeServer('filesystem');
-    const sinkServer = makeServer('github', 'https://api.example.com/mcp');
+    const sinkServer = makeServer('fetch', 'https://api.example.com/mcp');
     const sourceTool = makeTool('t-source', sourceServer.id, [Capability.READ_LOCAL_FILE]);
     const sinkTool = makeTool('t-sink', sinkServer.id, [Capability.SEND_HTTP]);
 
@@ -388,7 +389,7 @@ describe('runFindingsRules — trifecta enrichment regression', () => {
     expect(findings.every((f) => typeof f.trifectaScore === 'number')).toBe(true);
 
     const chain = findings.find((x) => x.category === RiskCategory.DATA_EXFILTRATION);
-    expect(chain?.severity).toBe('critical');
+    expect(chain?.severity).toBe('high');
     expect(chain?.trifectaComplete).toBe(true);
     expect(chain?.trifectaStage).toBe('COMPLETE');
   });

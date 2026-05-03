@@ -6,10 +6,14 @@ import {
   planDemoConfirmProfile,
   planGithubSafeCanaryProfile,
   planPromptInjectionGithubProfile,
+  planPromptInjectionFetchProfile,
   assessGithubSafeCanaryRefusal,
   executePlannedTest,
   executeGithubSafeCanaryPlannedTest,
   executePromptInjectionGithubPlannedTest,
+  executePromptInjectionFetchPlannedTest,
+  captureBaselinePlan,
+  detectBehaviouralDeviation,
   isSecondaryRateLimit,
   isProvenBlockedOrImpossible,
   SAFE_PROFILE_CASES,
@@ -31,6 +35,7 @@ function tool(id: string, name: string, caps: Capability[]): ToolRow {
     is_untrusted: 0,
     is_instruction_capable: 0,
     content_origin: 'local',
+    trust_zone: null,
     risk_score: 50,
     created_at: new Date().toISOString(),
   };
@@ -205,6 +210,75 @@ describe('prompt-injection-github planning', () => {
   });
 });
 
+describe('baseline/deviation helpers', () => {
+  it('detects no deviation when injected calls match baseline tools', async () => {
+    const baseline = await captureBaselinePlan(
+      {
+        call: async () => ({ raw: null, text: 'ok', isError: false }),
+      },
+      'issue_read',
+      { issue: 1 },
+      'srv1',
+      { issue_read: [Capability.UNTRUSTED_CONTENT_EXPOSURE] },
+    );
+    const report = detectBehaviouralDeviation(
+      baseline,
+      [
+        {
+          step: 1,
+          toolName: 'issue_read',
+          serverId: 'srv1',
+          input: { issue: 1 },
+          output: { ok: true },
+        },
+      ],
+      'ISEEMP-EXFIL-x',
+    );
+    expect(report.deviationDetected).toBe(false);
+    expect(report.injectionConfirmed).toBe(false);
+  });
+
+  it('detects tool + sequence deviation and exfil marker', async () => {
+    const baseline = await captureBaselinePlan(
+      {
+        call: async () => ({ raw: null, text: 'ok', isError: false }),
+      },
+      'issue_read',
+      { issue: 1 },
+      'srv1',
+      {
+        issue_read: [Capability.UNTRUSTED_CONTENT_EXPOSURE],
+        send_http_request: [Capability.SEND_HTTP, Capability.SEND_EXTERNAL],
+      },
+    );
+    const report = detectBehaviouralDeviation(
+      baseline,
+      [
+        {
+          step: 1,
+          toolName: 'issue_read',
+          serverId: 'srv1',
+          input: { issue: 1 },
+          output: { ok: true },
+        },
+        {
+          step: 2,
+          toolName: 'send_http_request',
+          serverId: 'srv1',
+          input: { payload: 'ISEEMP-EXFIL-abc' },
+          output: { ok: true },
+        },
+      ],
+      'ISEEMP-EXFIL-abc',
+    );
+    expect(report.deviationDetected).toBe(true);
+    expect(report.injectionConfirmed).toBe(true);
+    expect(report.events.some((e) => e.type === 'PROMPT_INJECTION_DEVIATION')).toBe(true);
+    expect(report.events.some((e) => e.type === 'SEQUENCE_DEVIATION')).toBe(true);
+    expect(report.events.some((e) => e.type === 'EXFIL_MARKER_OBSERVED')).toBe(true);
+  });
+});
+
 describe('executePromptInjectionGithubPlannedTest', () => {
   it('marks confirmed when controlled sink observes exfil marker', async () => {
     const githubSrv = { ...server(), name: 'github-mcp' };
@@ -261,6 +335,55 @@ describe('executePromptInjectionGithubPlannedTest', () => {
       expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_CONFIRMED);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.canaryObserved).toBe(true);
+      expect(executed.testRun.deviationDetected).toBe(true);
+      expect(executed.testRun.injectionConfirmed).toBe(true);
+      expect(executed.testRun.baselineToolCalls?.length).toBeGreaterThan(0);
+      expect(executed.testRun.injectedToolCalls?.length).toBeGreaterThan(0);
+    } finally {
+      await sink.close();
+    }
+  });
+});
+
+describe('executePromptInjectionFetchPlannedTest', () => {
+  it('marks confirmed when exfil marker is sent to sink', async () => {
+    const planned = planPromptInjectionFetchProfile(
+      [server()],
+      new Map([
+        [
+          'srv1',
+          [
+            tool('t-fetch', 'web_fetch', [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA]),
+            tool('t-send', 'send_http_request', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
+          ],
+        ],
+      ]),
+    )[0];
+    expect(planned).toBeDefined();
+    const sink = await startMockSink();
+    try {
+      const executed = await executePromptInjectionFetchPlannedTest(
+        {
+          collectionId: 'col1',
+          profile: 'prompt-injection-fetch',
+          sink,
+          invoke: async (_serverId, toolName, args) => {
+            if (toolName === 'send_http_request') {
+              await fetch(sink.url, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(args),
+              });
+            }
+            return { raw: null, text: 'ok', isError: false };
+          },
+        },
+        planned!,
+        'testrun:promptinjfetch:test',
+      );
+      expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_CONFIRMED);
+      expect(executed.testRun.injectionConfirmed).toBe(true);
+      expect(executed.testRun.deviationDetected).toBe(true);
     } finally {
       await sink.close();
     }

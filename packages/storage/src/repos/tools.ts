@@ -12,6 +12,7 @@ export interface ToolRow {
   is_untrusted: number; // bool-ish
   is_instruction_capable: number; // bool-ish
   content_origin: string;
+  trust_zone: string | null;
   risk_score: number;
   created_at: string;
 }
@@ -21,8 +22,8 @@ export function createToolsRepo(db: Database.Database) {
     upsert(tool: ToolRow): void {
       db.prepare(
         `INSERT OR REPLACE INTO tools
-          (id, collection_id, server_id, name, description, input_schema, capabilities, source_role, is_untrusted, is_instruction_capable, content_origin, risk_score, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          (id, collection_id, server_id, name, description, input_schema, capabilities, source_role, is_untrusted, is_instruction_capable, content_origin, trust_zone, risk_score, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       ).run(
         tool.id,
         tool.collection_id,
@@ -35,6 +36,7 @@ export function createToolsRepo(db: Database.Database) {
         tool.is_untrusted,
         tool.is_instruction_capable,
         tool.content_origin,
+        tool.trust_zone,
         tool.risk_score,
         tool.created_at,
       );

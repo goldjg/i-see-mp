@@ -32,11 +32,15 @@ export interface FindingRow {
   explanation?: string | null;
   evidence?: string | null; // JSON
   lethal_trifecta_status?: string | null;
+  sub_category?: string | null;
+  injection_confirmed?: number | null;
+  trust_boundary_confirmed?: number | null;
+  baseline_plan?: string | null;
 }
 
 const COLUMNS =
-  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, is_cross_server, source_server_id, sink_server_id, crosses_trust_boundary, trust_transition, explanation, evidence, lethal_trifecta_status';
-const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
+  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, is_cross_server, source_server_id, sink_server_id, crosses_trust_boundary, trust_transition, explanation, evidence, lethal_trifecta_status, sub_category, injection_confirmed, trust_boundary_confirmed, baseline_plan';
+const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function bind(f: FindingRow): unknown[] {
   return [
@@ -69,6 +73,10 @@ function bind(f: FindingRow): unknown[] {
     f.explanation ?? null,
     f.evidence ?? null,
     f.lethal_trifecta_status ?? null,
+    f.sub_category ?? null,
+    f.injection_confirmed ?? null,
+    f.trust_boundary_confirmed ?? null,
+    f.baseline_plan ?? null,
   ];
 }
 
@@ -109,6 +117,12 @@ function rowToFinding(r: FindingRow): Finding {
   if (r.explanation) finding.explanation = r.explanation;
   if (r.evidence) finding.evidence = JSON.parse(r.evidence) as string[];
   if (r.lethal_trifecta_status) finding.lethalTrifectaStatus = r.lethal_trifecta_status as Finding['lethalTrifectaStatus'];
+  if (r.sub_category) finding.subCategory = r.sub_category;
+  if (r.injection_confirmed !== null && r.injection_confirmed !== undefined)
+    finding.injectionConfirmed = r.injection_confirmed === 1;
+  if (r.trust_boundary_confirmed !== null && r.trust_boundary_confirmed !== undefined)
+    finding.trustBoundaryConfirmed = r.trust_boundary_confirmed === 1;
+  if (r.baseline_plan) finding.baselinePlan = JSON.parse(r.baseline_plan) as Finding['baselinePlan'];
   return finding;
 }
 
@@ -144,6 +158,11 @@ export function findingToRow(f: Finding): FindingRow {
     explanation: f.explanation ?? null,
     evidence: f.evidence ? JSON.stringify(f.evidence) : null,
     lethal_trifecta_status: f.lethalTrifectaStatus ?? null,
+    sub_category: f.subCategory ?? null,
+    injection_confirmed: f.injectionConfirmed === undefined ? null : f.injectionConfirmed ? 1 : 0,
+    trust_boundary_confirmed:
+      f.trustBoundaryConfirmed === undefined ? null : f.trustBoundaryConfirmed ? 1 : 0,
+    baseline_plan: f.baselinePlan ? JSON.stringify(f.baselinePlan) : null,
   };
 }
 

@@ -280,7 +280,7 @@ describe('applyTrifectaAnalysis ordering', () => {
         sourceCapabilities: [Capability.READ_SECRET_HIGH],
         sinkCapabilities: [Capability.SEND_EXTERNAL],
         sourceServerId: 'filesystem',
-        sinkServerId: 'github',
+        sinkServerId: 'fetch',
       }),
     ];
     const sorted = applyTrifectaAnalysis(findings);
@@ -304,6 +304,21 @@ describe('applyTrifectaAnalysis ordering', () => {
     const sorted = applyTrifectaAnalysis(findings);
     expect(sorted[0]?.trifectaStage).toBe('COMPLETE');
     expect(sorted[0]?.isHighSignal).toBe(true);
+  });
+
+  it('sets isHighSignal when injection is confirmed', () => {
+    const findings = [
+      makeFinding({
+        id: 'f-injection',
+        category: RiskCategory.PROMPT_INJECTION,
+        sourceCapabilities: [Capability.UNTRUSTED_CONTENT_EXPOSURE],
+        sinkCapabilities: [Capability.SEND_EXTERNAL],
+        injectionConfirmed: true,
+      }),
+    ];
+    const sorted = applyTrifectaAnalysis(findings);
+    expect(sorted[0]?.isHighSignal).toBe(true);
+    expect(sorted[0]?.lethalTrifectaStatus).toBe('CONFIRMED');
   });
 });
 

@@ -17,6 +17,10 @@ export interface TestRunRow {
   path_summary: string | null;
   plan: string;
   tool_calls: string; // JSON
+  baseline_tool_calls: string | null; // JSON
+  injected_tool_calls: string | null; // JSON
+  deviation_detected: number;
+  injection_confirmed: number;
   canary_expected: string | null;
   canary_observed: number;
   status: string;
@@ -27,12 +31,13 @@ export interface TestRunRow {
 }
 
 const COLUMNS =
-  'id, collection_id, profile, test_case_id, test_case_name, finding_id, candidate_path_id, server_id, source_tool_id, sink_tool_id, outcome, path_summary, plan, tool_calls, canary_expected, canary_observed, status, path_status, started_at, completed_at, notes';
-const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
+  'id, collection_id, profile, test_case_id, test_case_name, finding_id, candidate_path_id, server_id, source_tool_id, sink_tool_id, outcome, path_summary, plan, tool_calls, baseline_tool_calls, injected_tool_calls, deviation_detected, injection_confirmed, canary_expected, canary_observed, status, path_status, started_at, completed_at, notes';
+const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function rowToTestRun(r: TestRunRow): TestRun {
   const outcome = (r.outcome ??
     (r.path_status === PathStatus.TESTED_CONFIRMED
+      || r.path_status === PathStatus.TRUST_BOUNDARY_CONFIRMED
       ? 'TESTED_CONFIRMED'
       : r.path_status === PathStatus.TESTED_REJECTED
         ? 'TESTED_REJECTED'
@@ -47,6 +52,14 @@ function rowToTestRun(r: TestRunRow): TestRun {
     testCaseName: r.test_case_name,
     plan: r.plan,
     toolCalls: JSON.parse(r.tool_calls) as ToolCall[],
+    baselineToolCalls: r.baseline_tool_calls
+      ? (JSON.parse(r.baseline_tool_calls) as ToolCall[])
+      : undefined,
+    injectedToolCalls: r.injected_tool_calls
+      ? (JSON.parse(r.injected_tool_calls) as ToolCall[])
+      : undefined,
+    deviationDetected: r.deviation_detected === 1,
+    injectionConfirmed: r.injection_confirmed === 1,
     canaryObserved: r.canary_observed === 1,
     outcome,
     status: r.status as TestStatus,
@@ -82,6 +95,10 @@ export function testRunToRow(t: TestRun): TestRunRow {
     path_summary: t.pathSummary ?? null,
     plan: t.plan,
     tool_calls: JSON.stringify(t.toolCalls),
+    baseline_tool_calls: t.baselineToolCalls ? JSON.stringify(t.baselineToolCalls) : null,
+    injected_tool_calls: t.injectedToolCalls ? JSON.stringify(t.injectedToolCalls) : null,
+    deviation_detected: t.deviationDetected ? 1 : 0,
+    injection_confirmed: t.injectionConfirmed ? 1 : 0,
     canary_expected: t.canaryExpected ?? null,
     canary_observed: t.canaryObserved ? 1 : 0,
     status: t.status,
@@ -109,6 +126,10 @@ export function createTestRunsRepo(db: Database.Database) {
     r.path_summary,
     r.plan,
     r.tool_calls,
+    r.baseline_tool_calls,
+    r.injected_tool_calls,
+    r.deviation_detected,
+    r.injection_confirmed,
     r.canary_expected,
     r.canary_observed,
     r.status,

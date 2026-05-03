@@ -15,10 +15,12 @@ export {
 } from './trifecta.js';
 export type { TrifectaClassification } from './trifecta.js';
 export {
-  TrustLevel,
+  TrustZone,
   SERVER_TRUST_MAP,
   getServerTrust,
   deriveTrustTransition,
   deriveCrossesTrustBoundary,
+  isSensitiveTrustTransition,
+  trustZoneToBoundary,
 } from './trust.js';
 export type { TrustTransition } from './trust.js';

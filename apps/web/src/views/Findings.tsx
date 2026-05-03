@@ -134,6 +134,21 @@ export function FindingBadges({ finding }: { finding: Finding }) {
       title: 'Structurally complete path that also crosses a trust boundary.',
     });
   }
+  if (finding.subCategory) {
+    const cls =
+      finding.subCategory === 'PROMPT_INJECTION_CONFIRMED'
+        ? 'badge-subcategory-prompt-confirmed'
+        : finding.subCategory === 'PROMPT_INJECTION_BEHAVIOURAL'
+          ? 'badge-subcategory-prompt-behavioural'
+          : finding.subCategory === 'TRUST_BOUNDARY_CONFIRMED'
+            ? 'badge-subcategory-trust-confirmed'
+            : 'badge-subcategory-prompt-possible';
+    badges.push({
+      label: finding.subCategory,
+      cls,
+      title: `Sub-classification: ${finding.subCategory}`,
+    });
+  }
 
   if (badges.length === 0) return null;
   return (
@@ -411,6 +426,9 @@ export function Findings({ onShowOnGraph }: { onShowOnGraph?: (nodeIds: string[]
             <p>{f.description}</p>
             {f.pathSummary && (
               <p><strong>Path:</strong> <code>{f.pathSummary}</code></p>
+            )}
+            {f.trustTransition && (
+              <p><strong>Trust transition:</strong> <code>{f.trustTransition}</code></p>
             )}
             {f.explanation && (
               <p className="explanation"><strong>Explanation:</strong> {f.explanation}</p>

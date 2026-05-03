@@ -51,6 +51,7 @@ describe('Capability', () => {
     expect(Capability.RUN_SHELL).toBe('RUN_SHELL');
     expect(Capability.READ_SECRET).toBe('READ_SECRET');
     expect(Capability.SEND_HTTP).toBe('SEND_HTTP');
+    expect(Capability.INSTRUCTION_SOURCE).toBe('INSTRUCTION_SOURCE');
   });
 
   it('schema parses valid value', () => {
@@ -141,6 +142,33 @@ describe('FindingSchema', () => {
       createdAt: new Date().toISOString(),
     });
     expect(finding.severity).toBe('critical');
+  });
+
+  it('parses extended prompt-injection/trust fields', () => {
+    const finding = FindingSchema.parse({
+      id: 'f2',
+      collectionId: 'c1',
+      category: 'PROMPT_INJECTION',
+      severity: 'high',
+      title: 'Prompt injection',
+      description: 'desc',
+      affectedNodeIds: ['tool:t1'],
+      createdAt: new Date().toISOString(),
+      subCategory: 'PROMPT_INJECTION_POSSIBLE',
+      injectionConfirmed: false,
+      trustBoundaryConfirmed: true,
+      baselinePlan: [
+        {
+          step: 1,
+          toolName: 'issue_read',
+          input: { issue: 1 },
+          output: { text: 'ok' },
+        },
+      ],
+    });
+    expect(finding.subCategory).toBe('PROMPT_INJECTION_POSSIBLE');
+    expect(finding.trustBoundaryConfirmed).toBe(true);
+    expect(finding.baselinePlan?.length).toBe(1);
   });
 });
 

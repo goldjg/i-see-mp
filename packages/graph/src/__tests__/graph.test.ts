@@ -43,6 +43,7 @@ const tool1 = {
   is_untrusted: 0,
   is_instruction_capable: 0,
   content_origin: 'local',
+  trust_zone: null,
   risk_score: 90,
   created_at: now,
 };
@@ -59,6 +60,7 @@ const tool2 = {
   is_untrusted: 0,
   is_instruction_capable: 0,
   content_origin: 'external_saas',
+  trust_zone: null,
   risk_score: 80,
   created_at: now,
 };
@@ -75,6 +77,7 @@ const tool3 = {
   is_untrusted: 1,
   is_instruction_capable: 1,
   content_origin: 'user_generated',
+  trust_zone: null,
   risk_score: 60,
   created_at: now,
 };
@@ -170,6 +173,7 @@ describe('findAttackPaths', () => {
       is_untrusted: 0,
       is_instruction_capable: 0,
       content_origin: 'external_saas',
+      trust_zone: null,
       risk_score: 65,
       created_at: now,
     };
