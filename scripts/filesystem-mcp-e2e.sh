@@ -19,6 +19,10 @@ API_PORT="${ISEEMP_API_PORT:-7474}"
 READY_TIMEOUT="${ISEEMP_READY_TIMEOUT_SECS:-60}"
 FIXTURE_DIR="${ISEEMP_FS_FIXTURE_DIR:-/tmp/fs-fixture}"
 FSMCP_PKG_DIR="${ISEEMP_FS_MCP_PKG_DIR:-/tmp/fs-mcp-pkg}"
+FSMCP_MOUNT_PATH="${ISEEMP_FS_MCP_MOUNT_PATH:-/tmp/fs-mcp-pkg}"
+FSMCP_BIN_NAME="mcp-server-filesystem"
+FSMCP_BIN_IN_CONTAINER="${FSMCP_MOUNT_PATH}/node_modules/.bin/${FSMCP_BIN_NAME}"
+MAX_FINDINGS_EXPECTED="${ISEEMP_FS_MAX_FINDINGS_EXPECTED:-10}"
 COMPOSE_OVERRIDE="${ISEEMP_FS_COMPOSE_OVERRIDE:-/tmp/compose-fs-e2e-override.yml}"
 CONFIG_PATH_IN_CONTAINER="/data/iseemp.filesystem.config.json"
 
@@ -39,7 +43,7 @@ echo "▶ Installing filesystem MCP package into ${FSMCP_PKG_DIR}…"
 rm -rf "$FSMCP_PKG_DIR"
 mkdir -p "$FSMCP_PKG_DIR"
 npm install --no-audit --no-fund --prefix "$FSMCP_PKG_DIR" @modelcontextprotocol/server-filesystem
-FSMCP_BIN="${FSMCP_PKG_DIR}/node_modules/.bin/mcp-server-filesystem"
+FSMCP_BIN="${FSMCP_PKG_DIR}/node_modules/.bin/${FSMCP_BIN_NAME}"
 if [[ ! -x "$FSMCP_BIN" ]]; then
   echo "❌ Filesystem MCP binary not found at ${FSMCP_BIN}." >&2
   exit 1
@@ -57,8 +61,8 @@ cat > "$COMPOSE_OVERRIDE" <<YAML
 services:
   ${SERVICE}:
     volumes:
-      - ${FIXTURE_DIR}:/fixture:ro
-      - ${FSMCP_PKG_DIR}:/tmp/fs-mcp-pkg:ro
+      - "${FIXTURE_DIR}:/fixture:ro"
+      - "${FSMCP_PKG_DIR}:${FSMCP_MOUNT_PATH}:ro"
 YAML
 
 echo "▶ Stopping existing stack with override (if running)…"
@@ -89,13 +93,13 @@ done
 
 echo "▶ Writing filesystem MCP config to ${CONFIG_PATH_IN_CONTAINER}…"
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T "$SERVICE" \
-  sh -c "cat > ${CONFIG_PATH_IN_CONTAINER}" <<'JSON'
+  sh -c "cat > ${CONFIG_PATH_IN_CONTAINER}" <<JSON
 {
   "mcpServers": {
     "filesystem": {
       "transport": "stdio",
       "command": "node",
-      "args": ["/tmp/fs-mcp-pkg/node_modules/.bin/mcp-server-filesystem", "/fixture"]
+      "args": ["${FSMCP_BIN_IN_CONTAINER}", "/fixture"]
     }
   }
 }
@@ -111,8 +115,15 @@ echo "▶ iseemp analyze…"
 
 echo "▶ Validating tools/findings expectations through API…"
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T \
-  -e "ISEEMP_API_PORT=${API_PORT}" "$SERVICE" node - <<'JS'
+  -e "ISEEMP_API_PORT=${API_PORT}" \
+  -e "ISEEMP_FS_MAX_FINDINGS_EXPECTED=${MAX_FINDINGS_EXPECTED}" \
+  "$SERVICE" node - <<'JS'
 const apiPort = process.env.ISEEMP_API_PORT || '7474';
+const maxFindingsExpected = Number(process.env.ISEEMP_FS_MAX_FINDINGS_EXPECTED ?? '10');
+if (!Number.isFinite(maxFindingsExpected) || maxFindingsExpected <= 0) {
+  console.error('❌ Invalid ISEEMP_FS_MAX_FINDINGS_EXPECTED value.');
+  process.exit(1);
+}
 
 function fail(message) {
   console.error(`❌ ${message}`);
@@ -154,7 +165,9 @@ if (sendCapTools.length > 0) {
 }
 
 if (findings.length === 0) fail('No findings produced.');
-if (findings.length >= 10) fail(`Unexpectedly high finding count (${findings.length}).`);
+if (findings.length >= maxFindingsExpected) {
+  fail(`Unexpectedly high finding count (${findings.length}); expected fewer than ${maxFindingsExpected}.`);
+}
 
 const exfilFindings = findings.filter((finding) => finding.category === 'DATA_EXFILTRATION');
 if (exfilFindings.length > 0) fail('Unexpected DATA_EXFILTRATION finding(s).');
