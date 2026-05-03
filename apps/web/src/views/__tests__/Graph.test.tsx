@@ -55,14 +55,14 @@ describe('Graph trifecta filter controls', () => {
   });
 
   it('defaults trifecta filter to all', () => {
-    render(
+    const { container } = render(
       <Graph
         trifectaNodeIds={new Set(['node-a'])}
         completeNodeIds={new Set(['node-a'])}
       />,
     );
-    const select = screen.getByRole('combobox', { name: '' });
-    expect((select as HTMLSelectElement).value).toBe('all');
+    const select = container.querySelector('.graph-trifecta-filter') as HTMLSelectElement;
+    expect(select.value).toBe('all');
   });
 
   it('keeps all graph nodes when trifecta filter is all', async () => {
@@ -82,14 +82,14 @@ describe('Graph trifecta filter controls', () => {
   });
 
   it('reset filters clears trifecta filter back to all', () => {
-    render(
+    const { container } = render(
       <Graph
         trifectaNodeIds={new Set(['node-a'])}
         completeNodeIds={new Set(['node-a'])}
       />,
     );
 
-    const select = screen.getByRole('combobox', { name: '' }) as HTMLSelectElement;
+    const select = container.querySelector('.graph-trifecta-filter') as HTMLSelectElement;
     fireEvent.change(select, { target: { value: 'trifecta' } });
     expect(select.value).toBe('trifecta');
 
@@ -98,16 +98,15 @@ describe('Graph trifecta filter controls', () => {
   });
 
   it('shows empty-set status when trifecta filter is enabled with no trifecta findings', () => {
-    render(
+    const { container } = render(
       <Graph
         trifectaNodeIds={new Set()}
         completeNodeIds={new Set()}
       />,
     );
 
-    const select = screen.getByRole('combobox', { name: '' }) as HTMLSelectElement;
+    const select = container.querySelector('.graph-trifecta-filter') as HTMLSelectElement;
     fireEvent.change(select, { target: { value: 'trifecta' } });
     expect(screen.getByText(/No trifecta findings/i)).toBeTruthy();
   });
 });
-
