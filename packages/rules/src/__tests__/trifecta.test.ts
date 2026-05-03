@@ -32,15 +32,16 @@ describe('classifyFindingTrifecta', () => {
     expect(out.trifectaScore).toBeGreaterThanOrEqual(9);
   });
 
-  it('caps cross-server source + sink findings at PARTIAL', () => {
+  it('does not treat isCrossServer flag alone as cross-server without server ids', () => {
     const f = makeFinding({
       sourceCapabilities: [Capability.READ_SECRET_HIGH],
       sinkCapabilities: [Capability.SEND_EXTERNAL],
       isCrossServer: true,
     });
     const out = classifyFindingTrifecta(f);
-    expect(out.trifectaStage).toBe('PARTIAL');
-    expect(out.trifectaComplete).toBe(false);
+    expect(out.trifectaStage).toBe('COMPLETE');
+    expect(out.trifectaComplete).toBe(true);
+    expect(out.isCrossServer).toBe(false);
   });
 
   it('caps cross-server source + sink findings at PARTIAL from differing server ids', () => {
