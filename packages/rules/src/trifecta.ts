@@ -1,5 +1,6 @@
 import {
   Capability,
+  DataflowClassification,
   LethalTrifectaStatus,
   RiskCategory,
   TrustBoundary,
@@ -82,6 +83,7 @@ const STAGE_RANK: Record<(typeof TrifectaStage)[keyof typeof TrifectaStage], num
 
 export interface TrifectaClassification {
   trifectaStage: (typeof TrifectaStage)[keyof typeof TrifectaStage];
+  dataflowClassification: (typeof DataflowClassification)[keyof typeof DataflowClassification];
   trifectaScore: number;
   trifectaComplete: boolean;
   isCrossServer: boolean;
@@ -165,9 +167,13 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
   const hasExternalCommunication = Array.from(combinedPool).some((cap) => EXTERNAL_COMM_CAPS.includes(cap));
   const hasLethalTrifectaIngredients =
     hasPrivateDataAccess && hasUntrustedContentExposure && hasExternalCommunication;
-  const lethalTrifectaStatus = hasLethalTrifectaIngredients
-    ? LethalTrifectaStatus.CANDIDATE
-    : LethalTrifectaStatus.NONE;
+  const lethalFromFinding = finding.lethalTrifectaStatus as string | undefined;
+  const lethalTrifectaStatus =
+    lethalFromFinding === 'CONFIRMED' || lethalFromFinding === 'COMPLETE'
+      ? LethalTrifectaStatus.CONFIRMED
+      : hasLethalTrifectaIngredients || lethalFromFinding === 'POSSIBLE' || lethalFromFinding === 'CANDIDATE'
+        ? LethalTrifectaStatus.POSSIBLE
+        : LethalTrifectaStatus.NONE;
 
   let trifectaScore = 0;
   if (hasSource) trifectaScore += 3;
@@ -181,8 +187,16 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     trifectaScore += 2;
   }
 
+  let dataflowClassification: (typeof DataflowClassification)[keyof typeof DataflowClassification] =
+    DataflowClassification.NONE;
+  if (trifectaStage === TrifectaStage.COMPLETE) dataflowClassification = DataflowClassification.COMPLETE;
+  else if (trifectaStage === TrifectaStage.PARTIAL || trifectaStage === TrifectaStage.CAPABILITY_ONLY) {
+    dataflowClassification = DataflowClassification.PARTIAL;
+  }
+
   return {
     trifectaStage,
+    dataflowClassification,
     trifectaScore,
     trifectaComplete: trifectaStage === TrifectaStage.COMPLETE,
     isCrossServer: crossServer,

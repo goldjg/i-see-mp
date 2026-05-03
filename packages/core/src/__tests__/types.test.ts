@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { NodeType, EdgeType, Capability, RiskCategory, TrifectaStage } from '../types.js';
+import {
+  NodeType,
+  EdgeType,
+  Capability,
+  RiskCategory,
+  TrifectaStage,
+  LethalTrifectaStatus,
+  DataflowClassification,
+} from '../types.js';
 import {
   NodeTypeSchema,
   EdgeTypeSchema,
@@ -10,6 +18,8 @@ import {
   FindingSchema,
   CollectionSchema,
   TrifectaStageSchema,
+  LethalTrifectaStatusSchema,
+  DataflowClassificationSchema,
 } from '../schemas.js';
 
 describe('NodeType', () => {
@@ -32,6 +42,7 @@ describe('EdgeType', () => {
   it('has post-MVP reserved edge types', () => {
     expect(EdgeType.OBSERVED_CALL).toBe('observed_call');
     expect(EdgeType.TESTED_PATH).toBe('tested_path');
+    expect(EdgeType.CARRIES_INSTRUCTION).toBe('carries_instruction');
   });
 });
 
@@ -67,6 +78,24 @@ describe('TrifectaStage', () => {
 
   it('schema parses valid value', () => {
     expect(TrifectaStageSchema.parse('COMPLETE')).toBe('COMPLETE');
+  });
+});
+
+describe('LethalTrifectaStatus', () => {
+  it('supports POSSIBLE/CONFIRMED and compatibility aliases', () => {
+    expect(LethalTrifectaStatus.POSSIBLE).toBe('POSSIBLE');
+    expect(LethalTrifectaStatus.CONFIRMED).toBe('CONFIRMED');
+    expect(LethalTrifectaStatus.CANDIDATE).toBe('POSSIBLE');
+    expect(LethalTrifectaStatusSchema.parse('POSSIBLE')).toBe('POSSIBLE');
+  });
+});
+
+describe('DataflowClassification', () => {
+  it('supports COMPLETE/PARTIAL/NONE', () => {
+    expect(DataflowClassification.COMPLETE).toBe('COMPLETE');
+    expect(DataflowClassification.PARTIAL).toBe('PARTIAL');
+    expect(DataflowClassification.NONE).toBe('NONE');
+    expect(DataflowClassificationSchema.parse('NONE')).toBe('NONE');
   });
 });
 

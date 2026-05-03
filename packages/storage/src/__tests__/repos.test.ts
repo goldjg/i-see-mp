@@ -128,6 +128,10 @@ describe('ToolsRepo', () => {
       description: 'Reads a file',
       input_schema: JSON.stringify({ type: 'object' }),
       capabilities: JSON.stringify(['READ_LOCAL_FILE']),
+      source_role: JSON.stringify(['DATA_SOURCE']),
+      is_untrusted: 0,
+      is_instruction_capable: 0,
+      content_origin: 'local',
       risk_score: 30,
       created_at: new Date().toISOString(),
     });
@@ -147,6 +151,10 @@ describe('ToolsRepo', () => {
       description: null,
       input_schema: null,
       capabilities: JSON.stringify(['RUN_SHELL']),
+      source_role: JSON.stringify([]),
+      is_untrusted: 0,
+      is_instruction_capable: 0,
+      content_origin: 'local',
       risk_score: 90,
       created_at: new Date().toISOString(),
     });

@@ -18,9 +18,12 @@ import {
   planSafeProfile,
   planDemoConfirmProfile,
   planGithubSafeCanaryProfile,
+  planPromptInjectionGithubProfile,
+  planPromptInjectionFetchProfile,
   assessGithubSafeCanaryRefusal,
   executePlannedTest,
   executeGithubSafeCanaryPlannedTest,
+  executePromptInjectionGithubPlannedTest,
   bumpConfidence,
   bumpSeverity,
   downgradeSeverity,
@@ -47,6 +50,9 @@ export interface TestSummary {
   rejected: number;
   inconclusive: number;
   skipped: number;
+  lethalTrifectaConfirmed: number;
+  lethalTrifectaPossible: number;
+  lethalTrifectaNone: number;
   testRuns: TestRun[];
 }
 
@@ -71,7 +77,14 @@ export function summarizeRunsForCli(testRuns: TestRun[]): {
  */
 export async function runTests(options: TestOptions): Promise<TestSummary> {
   const profile = options.profile ?? 'safe';
-  if (profile !== 'safe' && profile !== 'demo-confirm' && profile !== 'github-safe-canary') {
+  if (
+    profile !== 'safe' &&
+    profile !== 'demo-confirm' &&
+    profile !== 'github-safe-canary' &&
+    profile !== 'prompt-injection-github' &&
+    profile !== 'prompt-injection-fetch' &&
+    profile !== 'prompt-injection-db'
+  ) {
     throw new Error(`Unknown test profile: ${profile}`);
   }
   const refusal = assessGithubSafeCanaryRefusal(
@@ -112,6 +125,10 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
       ? planDemoConfirmProfile(servers, toolsByServer)
       : profile === 'github-safe-canary'
         ? planGithubSafeCanaryProfile(servers, toolsByServer)
+        : profile === 'prompt-injection-github'
+          ? planPromptInjectionGithubProfile(servers, toolsByServer)
+          : profile === 'prompt-injection-fetch'
+            ? planPromptInjectionFetchProfile(servers, toolsByServer)
         : planSafeProfile(servers, toolsByServer);
   if (planned.length === 0) {
     return {
@@ -122,6 +139,9 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
       rejected: 0,
       inconclusive: 0,
       skipped: 0,
+      lethalTrifectaConfirmed: 0,
+      lethalTrifectaPossible: 0,
+      lethalTrifectaNone: 0,
       testRuns: [],
     };
   }
@@ -195,6 +215,13 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
               testRunId: `testrun:ghsafe:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
               config: options.githubSafeCanary!,
             })
+          : profile === 'prompt-injection-github'
+            ? await executePromptInjectionGithubPlannedTest({
+                ctx,
+                planned: p,
+                testRunId: `testrun:promptinj:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
+                config: options.githubSafeCanary!,
+              })
           : await executePlannedTest(ctx, p);
       allTestRuns.push(executed.testRun);
       allEvidence.push(...executed.evidence);
@@ -218,6 +245,7 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
   applyTestResultsToFindings(col.id, allTestRuns, findingsRepo);
 
   const { confirmed, rejected, inconclusive, skipped } = summarizeRunsForCli(allTestRuns);
+  const lethalCounts = summarizeLethalTrifecta(findingsRepo.findByCollection(col.id));
 
   return {
     collectionId: col.id,
@@ -227,8 +255,31 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     rejected,
     inconclusive,
     skipped,
+    lethalTrifectaConfirmed: lethalCounts.confirmed,
+    lethalTrifectaPossible: lethalCounts.possible,
+    lethalTrifectaNone: lethalCounts.none,
     testRuns: allTestRuns,
   };
+}
+
+function summarizeLethalTrifecta(findings: Finding[]): {
+  confirmed: number;
+  possible: number;
+  none: number;
+} {
+  let confirmed = 0;
+  let possible = 0;
+  let none = 0;
+  for (const finding of findings) {
+    if (finding.lethalTrifectaStatus === 'CONFIRMED') {
+      confirmed += 1;
+    } else if (finding.lethalTrifectaStatus === 'POSSIBLE') {
+      possible += 1;
+    } else {
+      none += 1;
+    }
+  }
+  return { confirmed, possible, none };
 }
 
 async function ensureConnection(
@@ -361,6 +412,13 @@ function categoryMatches(category: string, testCaseId: string): boolean {
   ) {
     return true;
   }
+  if (
+    category === RiskCategory.PROMPT_INJECTION &&
+    (testCaseId === 'PROMPT_INJECTION_GITHUB_ISSUE_TO_SINK' ||
+      testCaseId === 'PROMPT_INJECTION_FETCH_TO_SINK')
+  ) {
+    return true;
+  }
   if (category === RiskCategory.SENSITIVE_DATA_EXPOSURE) {
     return (
       testCaseId === 'READ_SECRET_HIGH_TO_SEND_EXTERNAL' ||
@@ -410,6 +468,12 @@ export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
       baseExplanation,
       'Test confirmed this path via canary observation.',
     );
+    if (
+      finding.category === RiskCategory.PROMPT_INJECTION ||
+      finding.lethalTrifectaStatus === 'POSSIBLE'
+    ) {
+      next.lethalTrifectaStatus = 'CONFIRMED';
+    }
   } else if (rejected) {
     next.tested = true;
     next.observed = false;
@@ -429,6 +493,11 @@ export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
       baseExplanation,
       'Test inconclusive; path not proven or disproven.',
     );
+    if (
+      finding.lethalTrifectaStatus === 'POSSIBLE'
+    ) {
+      next.lethalTrifectaStatus = 'POSSIBLE';
+    }
   } else if (skipped) {
     next.tested = false;
     next.observed = false;

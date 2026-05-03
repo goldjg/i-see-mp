@@ -31,11 +31,12 @@ export interface FindingRow {
   trust_transition?: string | null;
   explanation?: string | null;
   evidence?: string | null; // JSON
+  lethal_trifecta_status?: string | null;
 }
 
 const COLUMNS =
-  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, is_cross_server, source_server_id, sink_server_id, crosses_trust_boundary, trust_transition, explanation, evidence';
-const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
+  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, is_cross_server, source_server_id, sink_server_id, crosses_trust_boundary, trust_transition, explanation, evidence, lethal_trifecta_status';
+const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function bind(f: FindingRow): unknown[] {
   return [
@@ -67,6 +68,7 @@ function bind(f: FindingRow): unknown[] {
     f.trust_transition ?? null,
     f.explanation ?? null,
     f.evidence ?? null,
+    f.lethal_trifecta_status ?? null,
   ];
 }
 
@@ -106,6 +108,7 @@ function rowToFinding(r: FindingRow): Finding {
   if (r.trust_transition) finding.trustTransition = r.trust_transition;
   if (r.explanation) finding.explanation = r.explanation;
   if (r.evidence) finding.evidence = JSON.parse(r.evidence) as string[];
+  if (r.lethal_trifecta_status) finding.lethalTrifectaStatus = r.lethal_trifecta_status as Finding['lethalTrifectaStatus'];
   return finding;
 }
 
@@ -140,6 +143,7 @@ export function findingToRow(f: Finding): FindingRow {
     trust_transition: f.trustTransition ?? null,
     explanation: f.explanation ?? null,
     evidence: f.evidence ? JSON.stringify(f.evidence) : null,
+    lethal_trifecta_status: f.lethalTrifectaStatus ?? null,
   };
 }
 

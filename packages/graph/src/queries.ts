@@ -9,6 +9,12 @@ export interface AttackPath {
   description: string;
 }
 
+export interface PromptInjectionCandidateChain {
+  instructionSourceNodeId: string;
+  privateDataNodeId: string;
+  sinkNodeId: string;
+}
+
 function buildAdjacency(edges: GraphEdge[]): Map<string, GraphEdge[]> {
   const adj = new Map<string, GraphEdge[]>();
   for (const edge of edges) {
@@ -115,4 +121,43 @@ export function findAttackPaths(nodes: GraphNode[], edges: GraphEdge[]): AttackP
   }
 
   return paths;
+}
+
+export function findPromptInjectionCandidateChains(
+  nodes: GraphNode[],
+): PromptInjectionCandidateChain[] {
+  const instructionSources = nodes.filter((n) => n.type === NodeType.INSTRUCTION_SOURCE);
+  const privateDataTools = nodes.filter(
+    (n) =>
+      n.type === NodeType.TOOL &&
+      (n.capabilities.includes(Capability.READ_CREDENTIAL_HIGH) ||
+        n.capabilities.includes(Capability.READ_SECRET_HIGH) ||
+        n.capabilities.includes(Capability.READ_SECRET) ||
+        n.capabilities.includes(Capability.READ_LOCAL_FILE) ||
+        n.capabilities.includes(Capability.READ_SENSITIVE_MEDIUM)),
+  );
+  const sinkTools = nodes.filter(
+    (n) =>
+      n.type === NodeType.TOOL &&
+      (n.capabilities.includes(Capability.SEND_EXTERNAL) ||
+        n.capabilities.includes(Capability.SEND_HTTP) ||
+        n.capabilities.includes(Capability.SEND_EMAIL) ||
+        n.capabilities.includes(Capability.MUTATE_REMOTE_STATE) ||
+        n.capabilities.includes(Capability.MUTATE_REPOSITORY) ||
+        n.capabilities.includes(Capability.MUTATE_ISSUE_OR_PR)),
+  );
+
+  const chains: PromptInjectionCandidateChain[] = [];
+  for (const instructionSource of instructionSources) {
+    for (const privateDataTool of privateDataTools) {
+      for (const sinkTool of sinkTools) {
+        chains.push({
+          instructionSourceNodeId: instructionSource.id,
+          privateDataNodeId: privateDataTool.id,
+          sinkNodeId: sinkTool.id,
+        });
+      }
+    }
+  }
+  return chains;
 }

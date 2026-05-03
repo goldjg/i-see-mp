@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildGraph } from '../builder.js';
-import { findAttackPaths } from '../queries.js';
+import { findAttackPaths, findPromptInjectionCandidateChains } from '../queries.js';
 import { NodeType, EdgeType, Capability } from '@iseemp/core';
 
 const now = new Date().toISOString();
@@ -39,6 +39,10 @@ const tool1 = {
   description: null,
   input_schema: null,
   capabilities: JSON.stringify([Capability.RUN_SHELL, Capability.EXECUTE_CODE]),
+  source_role: JSON.stringify([]),
+  is_untrusted: 0,
+  is_instruction_capable: 0,
+  content_origin: 'local',
   risk_score: 90,
   created_at: now,
 };
@@ -51,7 +55,27 @@ const tool2 = {
   description: null,
   input_schema: null,
   capabilities: JSON.stringify([Capability.READ_SECRET]),
+  source_role: JSON.stringify(['DATA_SOURCE']),
+  is_untrusted: 0,
+  is_instruction_capable: 0,
+  content_origin: 'external_saas',
   risk_score: 80,
+  created_at: now,
+};
+
+const tool3 = {
+  id: 'tool3',
+  collection_id: 'col1',
+  server_id: 'srv2',
+  name: 'issue_read',
+  description: null,
+  input_schema: null,
+  capabilities: JSON.stringify([Capability.READ_REMOTE_DATA, Capability.UNTRUSTED_CONTENT_EXPOSURE]),
+  source_role: JSON.stringify(['DATA_SOURCE', 'INSTRUCTION_SOURCE']),
+  is_untrusted: 1,
+  is_instruction_capable: 1,
+  content_origin: 'user_generated',
+  risk_score: 60,
   created_at: now,
 };
 
@@ -100,6 +124,18 @@ describe('buildGraph', () => {
     const { edges } = buildGraph({ collectionId: 'col1', servers: [server2], tools: [tool2], resources: [], prompts: [] });
     expect(edges.some((e) => e.type === EdgeType.CROSSES_BOUNDARY)).toBe(true);
   });
+
+  it('creates instruction-source node and carries_instruction edge', () => {
+    const { nodes, edges } = buildGraph({
+      collectionId: 'col1',
+      servers: [server2],
+      tools: [tool3],
+      resources: [],
+      prompts: [],
+    });
+    expect(nodes.some((n) => n.type === NodeType.INSTRUCTION_SOURCE)).toBe(true);
+    expect(edges.some((e) => e.type === EdgeType.CARRIES_INSTRUCTION)).toBe(true);
+  });
 });
 
 describe('findAttackPaths', () => {
@@ -119,5 +155,32 @@ describe('findAttackPaths', () => {
     const { nodes, edges } = buildGraph({ collectionId: 'col1', servers: [server2], tools: [], resources: [], prompts: [] });
     const paths = findAttackPaths(nodes, edges);
     expect(paths.some((p) => p.description.includes('trust boundary'))).toBe(true);
+  });
+
+  it('finds prompt-injection candidate chains', () => {
+    const sinkTool = {
+      id: 'tool4',
+      collection_id: 'col1',
+      server_id: 'srv2',
+      name: 'send_webhook',
+      description: null,
+      input_schema: null,
+      capabilities: JSON.stringify([Capability.SEND_EXTERNAL, Capability.SEND_HTTP]),
+      source_role: JSON.stringify([]),
+      is_untrusted: 0,
+      is_instruction_capable: 0,
+      content_origin: 'external_saas',
+      risk_score: 65,
+      created_at: now,
+    };
+    const { nodes } = buildGraph({
+      collectionId: 'col1',
+      servers: [server2],
+      tools: [tool2, tool3, sinkTool],
+      resources: [],
+      prompts: [],
+    });
+    const chains = findPromptInjectionCandidateChains(nodes);
+    expect(chains.length).toBeGreaterThan(0);
   });
 });

@@ -28,6 +28,10 @@ function makeTool(id: string, serverId: string, caps: Capability[]) {
     description: null,
     input_schema: null,
     capabilities: JSON.stringify(caps),
+    source_role: JSON.stringify([]),
+    is_untrusted: 0,
+    is_instruction_capable: 0,
+    content_origin: 'local',
     risk_score: 50,
     created_at: now,
   };

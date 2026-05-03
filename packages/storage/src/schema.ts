@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS tools (
   description TEXT,
   input_schema TEXT,
   capabilities TEXT NOT NULL DEFAULT '[]',
+  source_role TEXT NOT NULL DEFAULT '[]',
+  is_untrusted INTEGER NOT NULL DEFAULT 0,
+  is_instruction_capable INTEGER NOT NULL DEFAULT 0,
+  content_origin TEXT NOT NULL DEFAULT 'local',
   risk_score INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
@@ -107,7 +111,8 @@ CREATE TABLE IF NOT EXISTS findings (
   crosses_trust_boundary INTEGER NOT NULL DEFAULT 0,
   trust_transition TEXT,
   explanation TEXT,
-  evidence TEXT
+  evidence TEXT,
+  lethal_trifecta_status TEXT
 );
 
 -- Test-run model (deterministic path testing).
