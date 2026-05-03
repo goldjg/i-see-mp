@@ -35,9 +35,35 @@ validate_compose_path() {
   fi
 }
 
+validate_absolute_path_no_traversal() {
+  local value="$1"
+  local name="$2"
+  if [[ "$value" != /* ]]; then
+    echo "❌ ${name} must be an absolute path: ${value}" >&2
+    exit 1
+  fi
+  if [[ "$value" == *".."* ]]; then
+    echo "❌ ${name} must not contain path traversal segments: ${value}" >&2
+    exit 1
+  fi
+}
+
+validate_tmp_delete_target() {
+  local value="$1"
+  local name="$2"
+  validate_absolute_path_no_traversal "$value" "$name"
+  if [[ "$value" != /tmp/* || "$value" == "/tmp" ]]; then
+    echo "❌ ${name} must be a dedicated /tmp subdirectory for safe cleanup: ${value}" >&2
+    exit 1
+  fi
+}
+
 validate_compose_path "$FIXTURE_DIR" "ISEEMP_FS_FIXTURE_DIR"
 validate_compose_path "$FSMCP_PKG_DIR" "ISEEMP_FS_MCP_PKG_DIR"
 validate_compose_path "$FSMCP_MOUNT_PATH" "ISEEMP_FS_MCP_MOUNT_PATH"
+validate_absolute_path_no_traversal "$FSMCP_MOUNT_PATH" "ISEEMP_FS_MCP_MOUNT_PATH"
+validate_tmp_delete_target "$FIXTURE_DIR" "ISEEMP_FS_FIXTURE_DIR"
+validate_tmp_delete_target "$FSMCP_PKG_DIR" "ISEEMP_FS_MCP_PKG_DIR"
 
 # Resolve a docker compose CLI (v2 plugin preferred, v1 binary as fallback).
 if docker compose version >/dev/null 2>&1; then
@@ -132,9 +158,14 @@ echo "▶ Validating tools/findings expectations through API…"
   -e "ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE=${MAX_FINDINGS_EXCLUSIVE}" \
   "$SERVICE" node - <<'JS'
 const apiPort = process.env.ISEEMP_API_PORT || '7474';
-const maxFindingsExclusive = Number(process.env.ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE ?? '10');
-if (!Number.isFinite(maxFindingsExclusive) || maxFindingsExclusive <= 0) {
-  console.error('❌ Invalid ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE value.');
+const rawMaxFindingsExclusive = process.env.ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE ?? '10';
+if (!/^\d+$/.test(rawMaxFindingsExclusive)) {
+  console.error(`❌ ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE must be a positive integer, got '${rawMaxFindingsExclusive}'.`);
+  process.exit(1);
+}
+const maxFindingsExclusive = Number(rawMaxFindingsExclusive);
+if (maxFindingsExclusive <= 0) {
+  console.error(`❌ ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE must be greater than zero, got '${rawMaxFindingsExclusive}'.`);
   process.exit(1);
 }
 
@@ -194,6 +225,8 @@ const externalBoundaryFindings = findings.filter(
 if (externalBoundaryFindings.length > 0) fail('Unexpected EXTERNAL/SAAS boundary crossing findings.');
 
 const onlyUnverifiedServer = findings.every((finding) => finding.category === 'UNVERIFIED_SERVER');
+// This e2e intentionally treats "only UNVERIFIED_SERVER findings" as a failure signal:
+// generic filesystem servers should still yield capability-driven, explainable outputs.
 if (onlyUnverifiedServer) fail('Only UNVERIFIED_SERVER findings produced; expected richer classification.');
 
 console.log(
