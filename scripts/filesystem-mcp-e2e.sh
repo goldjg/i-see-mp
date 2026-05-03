@@ -22,9 +22,22 @@ FSMCP_PKG_DIR="${ISEEMP_FS_MCP_PKG_DIR:-/tmp/fs-mcp-pkg}"
 FSMCP_MOUNT_PATH="${ISEEMP_FS_MCP_MOUNT_PATH:-/tmp/fs-mcp-pkg}"
 FSMCP_BIN_NAME="mcp-server-filesystem"
 FSMCP_BIN_IN_CONTAINER="${FSMCP_MOUNT_PATH}/node_modules/.bin/${FSMCP_BIN_NAME}"
-MAX_FINDINGS_EXPECTED="${ISEEMP_FS_MAX_FINDINGS_EXPECTED:-10}"
+MAX_FINDINGS_EXCLUSIVE="${ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE:-10}"
 COMPOSE_OVERRIDE="${ISEEMP_FS_COMPOSE_OVERRIDE:-/tmp/compose-fs-e2e-override.yml}"
 CONFIG_PATH_IN_CONTAINER="/data/iseemp.filesystem.config.json"
+
+validate_compose_path() {
+  local value="$1"
+  local name="$2"
+  if [[ ! "$value" =~ ^[a-zA-Z0-9._/:+-]+$ ]]; then
+    echo "❌ ${name} contains unsupported characters for compose mount paths: ${value}" >&2
+    exit 1
+  fi
+}
+
+validate_compose_path "$FIXTURE_DIR" "ISEEMP_FS_FIXTURE_DIR"
+validate_compose_path "$FSMCP_PKG_DIR" "ISEEMP_FS_MCP_PKG_DIR"
+validate_compose_path "$FSMCP_MOUNT_PATH" "ISEEMP_FS_MCP_MOUNT_PATH"
 
 # Resolve a docker compose CLI (v2 plugin preferred, v1 binary as fallback).
 if docker compose version >/dev/null 2>&1; then
@@ -116,12 +129,12 @@ echo "▶ iseemp analyze…"
 echo "▶ Validating tools/findings expectations through API…"
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T \
   -e "ISEEMP_API_PORT=${API_PORT}" \
-  -e "ISEEMP_FS_MAX_FINDINGS_EXPECTED=${MAX_FINDINGS_EXPECTED}" \
+  -e "ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE=${MAX_FINDINGS_EXCLUSIVE}" \
   "$SERVICE" node - <<'JS'
 const apiPort = process.env.ISEEMP_API_PORT || '7474';
-const maxFindingsExpected = Number(process.env.ISEEMP_FS_MAX_FINDINGS_EXPECTED ?? '10');
-if (!Number.isFinite(maxFindingsExpected) || maxFindingsExpected <= 0) {
-  console.error('❌ Invalid ISEEMP_FS_MAX_FINDINGS_EXPECTED value.');
+const maxFindingsExclusive = Number(process.env.ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE ?? '10');
+if (!Number.isFinite(maxFindingsExclusive) || maxFindingsExclusive <= 0) {
+  console.error('❌ Invalid ISEEMP_FS_MAX_FINDINGS_EXCLUSIVE value.');
   process.exit(1);
 }
 
@@ -165,8 +178,8 @@ if (sendCapTools.length > 0) {
 }
 
 if (findings.length === 0) fail('No findings produced.');
-if (findings.length >= maxFindingsExpected) {
-  fail(`Unexpectedly high finding count (${findings.length}); expected fewer than ${maxFindingsExpected}.`);
+if (findings.length >= maxFindingsExclusive) {
+  fail(`Unexpectedly high finding count (${findings.length}); expected fewer than ${maxFindingsExclusive}.`);
 }
 
 const exfilFindings = findings.filter((finding) => finding.category === 'DATA_EXFILTRATION');
@@ -180,8 +193,7 @@ const externalBoundaryFindings = findings.filter(
 );
 if (externalBoundaryFindings.length > 0) fail('Unexpected EXTERNAL/SAAS boundary crossing findings.');
 
-const onlyUnverifiedServer =
-  findings.every((finding) => finding.category === 'UNVERIFIED_SERVER') && findings.length > 0;
+const onlyUnverifiedServer = findings.every((finding) => finding.category === 'UNVERIFIED_SERVER');
 if (onlyUnverifiedServer) fail('Only UNVERIFIED_SERVER findings produced; expected richer classification.');
 
 console.log(
