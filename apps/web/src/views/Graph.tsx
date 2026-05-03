@@ -138,6 +138,22 @@ export function Graph({
             'width': 1,
           },
         },
+        {
+          selector: 'edge[type = "carries_instruction"]',
+          style: {
+            'line-color': '#f97316',
+            'target-arrow-color': '#f97316',
+            'line-style': 'dashed',
+            'width': 2,
+          },
+        },
+        {
+          selector: 'edge[type = "crosses_boundary"]',
+          style: {
+            'line-color': '#a855f7',
+            'target-arrow-color': '#a855f7',
+          },
+        },
         ...(hasTrifectaFocus
           ? [
               {
@@ -253,6 +269,12 @@ export function Graph({
       )}
       <div className="graph-container">
         <div ref={containerRef} className="cytoscape-canvas" />
+        <div className="graph-legend">
+          <div><span className="legend-line legend-dataflow" /> Data exfiltration path</div>
+          <div><span className="legend-line legend-instruction" /> Prompt injection candidate</div>
+          <div><span className="legend-line legend-prompt-confirmed" /> Prompt injection confirmed</div>
+          <div><span className="legend-line legend-trust" /> Trust boundary confirmed</div>
+        </div>
         {selected && (
           <div className="node-detail-panel">
             <h3>{selected.label}</h3>

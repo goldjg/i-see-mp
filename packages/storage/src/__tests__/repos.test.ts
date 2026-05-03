@@ -132,6 +132,7 @@ describe('ToolsRepo', () => {
       is_untrusted: 0,
       is_instruction_capable: 0,
       content_origin: 'local',
+      trust_zone: null,
       risk_score: 30,
       created_at: new Date().toISOString(),
     });
@@ -155,6 +156,7 @@ describe('ToolsRepo', () => {
       is_untrusted: 0,
       is_instruction_capable: 0,
       content_origin: 'local',
+      trust_zone: null,
       risk_score: 90,
       created_at: new Date().toISOString(),
     });
@@ -250,6 +252,12 @@ describe('FindingsRepo', () => {
       sink_server_id: 'srv-b',
       crosses_trust_boundary: 1,
       trust_transition: 'LOCAL → EXTERNAL',
+      sub_category: 'TRUST_BOUNDARY_CONFIRMED',
+      injection_confirmed: 1,
+      trust_boundary_confirmed: 1,
+      baseline_plan: JSON.stringify([
+        { step: 1, toolName: 'issue_read', input: {}, output: {} },
+      ]),
     });
 
     const finding = repo.findById('f-cross');
@@ -258,6 +266,10 @@ describe('FindingsRepo', () => {
     expect(finding?.sinkServerId).toBe('srv-b');
     expect(finding?.crossesTrustBoundary).toBe(true);
     expect(finding?.trustTransition).toBe('LOCAL → EXTERNAL');
+    expect(finding?.subCategory).toBe('TRUST_BOUNDARY_CONFIRMED');
+    expect(finding?.injectionConfirmed).toBe(true);
+    expect(finding?.trustBoundaryConfirmed).toBe(true);
+    expect(finding?.baselinePlan?.length).toBe(1);
   });
 
   it('does not populate cross-server ids when not provided', () => {

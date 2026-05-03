@@ -36,6 +36,7 @@ const CAPABILITY_SCORES: Record<Capability, number> = {
   [Capability.READ_LOCAL_FILE]: 30,
   [Capability.QUERY_REMOTE_SYSTEM]: 20,
   [Capability.READ_METADATA_LOW]: 15,
+  [Capability.INSTRUCTION_SOURCE]: 50,
   [Capability.UNKNOWN]: 10,
 };
 
@@ -297,6 +298,7 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   ];
   if (matchesAny(name, untrustedContentPatterns)) {
     caps.add(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+    caps.add(Capability.INSTRUCTION_SOURCE);
   }
 
   if (matchesAny(name, ['mutate_remote_state', 'update_remote_state', 'modify_remote_state'])) {

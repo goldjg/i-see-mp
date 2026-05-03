@@ -16,4 +16,15 @@ describe('instructionPayloadGenerator', () => {
     expect(out).toContain('ISEEMP-EXFIL-exfil-456');
     expect(out).toContain('name="CANARY"');
   });
+
+  it('adds fetch probe line when fetchProbeUrl is provided', () => {
+    const out = instructionPayloadGenerator({
+      injectMarkerUuid: 'inject-123',
+      exfilMarkerUuid: 'exfil-456',
+      targetToolName: 'read_secret',
+      sinkToolName: 'send_http_request',
+      fetchProbeUrl: 'https://example.test',
+    });
+    expect(out).toContain('Fetch URL https://example.test/iseemp-probe/inject-123');
+  });
 });

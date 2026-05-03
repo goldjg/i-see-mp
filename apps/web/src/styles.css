@@ -47,6 +47,30 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 .cytoscape-canvas { width: 100%; height: 100%; background: #0f172a; cursor: grab; }
 .cytoscape-canvas:active { cursor: grabbing; }
 .node-detail-panel { position: absolute; top: 12px; right: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px; min-width: 200px; max-width: 280px; }
+.graph-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  color: #cbd5e1;
+  display: grid;
+  gap: 4px;
+}
+.legend-line {
+  display: inline-block;
+  width: 18px;
+  height: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.legend-dataflow { background: #3b82f6; }
+.legend-instruction { background: #f97316; border-bottom: 1px dashed #f97316; }
+.legend-prompt-confirmed { background: #dc2626; }
+.legend-trust { background: #a855f7; }
 .node-detail-panel h3 { font-size: 16px; margin-bottom: 8px; color: #f59e0b; }
 .node-detail-panel p { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
 .node-detail-panel button { margin-top: 12px; background: #334155; border: none; color: #e2e8f0; padding: 4px 10px; border-radius: 4px; cursor: pointer; }
@@ -97,10 +121,15 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 .badge-trust-boundary { background: #b91c1c; color: #fff; }
 .badge-cross-server { background: #1d4ed8; color: #dbeafe; }
 .badge-high-signal { background: #f59e0b; color: #111827; }
+.badge-subcategory-prompt-possible { background: #eab308; color: #1f2937; }
+.badge-subcategory-prompt-behavioural { background: #f97316; color: #fff; }
+.badge-subcategory-prompt-confirmed { background: #dc2626; color: #fff; }
+.badge-subcategory-trust-confirmed { background: #7c3aed; color: #fff; }
 .badge-path-tested_confirmed { background: #b91c1c; color: #fff; }
 .badge-path-tested_rejected { background: #14532d; color: #bbf7d0; }
 .badge-path-tested_inconclusive { background: #6b21a8; color: #f3e8ff; }
 .badge-path-static_possible { background: #334155; color: #cbd5e1; }
+.badge-path-trust_boundary_confirmed { background: #7c3aed; color: #fff; }
 
 .findings-view-mode { display: flex; gap: 8px; margin-bottom: 12px; }
 .findings-view-mode button {

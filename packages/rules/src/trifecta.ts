@@ -94,6 +94,9 @@ export interface TrifectaClassification {
   hasUntrustedContentExposure: boolean;
   hasExternalCommunication: boolean;
   lethalTrifectaStatus: (typeof LethalTrifectaStatus)[keyof typeof LethalTrifectaStatus];
+  subCategory?: string;
+  injectionConfirmed: boolean;
+  trustBoundaryConfirmed: boolean;
 }
 
 export function deriveIsCrossServer(findingLike: {
@@ -168,8 +171,12 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
   const hasLethalTrifectaIngredients =
     hasPrivateDataAccess && hasUntrustedContentExposure && hasExternalCommunication;
   const lethalFromFinding = finding.lethalTrifectaStatus as string | undefined;
+  const injectionConfirmed = finding.injectionConfirmed === true;
+  const trustBoundaryConfirmed =
+    finding.trustBoundaryConfirmed === true ||
+    finding.pathStatus === 'trust_boundary_confirmed';
   const lethalTrifectaStatus =
-    lethalFromFinding === 'CONFIRMED' || lethalFromFinding === 'COMPLETE'
+    injectionConfirmed || lethalFromFinding === 'CONFIRMED' || lethalFromFinding === 'COMPLETE'
       ? LethalTrifectaStatus.CONFIRMED
       : hasLethalTrifectaIngredients || lethalFromFinding === 'POSSIBLE' || lethalFromFinding === 'CANDIDATE'
         ? LethalTrifectaStatus.POSSIBLE
@@ -183,7 +190,12 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
   if (Array.from(sourcePool).some((cap) => HIGH_SENSITIVITY_SOURCE_CAPS.includes(cap))) {
     trifectaScore += 2;
   }
-  if (finding.boundaryCrossed === TrustBoundary.EXTERNAL || finding.boundaryCrossed === TrustBoundary.SAAS) {
+  if (
+    finding.boundaryCrossed === TrustBoundary.EXTERNAL ||
+    finding.boundaryCrossed === TrustBoundary.SAAS ||
+    finding.boundaryCrossed === TrustBoundary.CONTROLLED_SAAS ||
+    finding.boundaryCrossed === TrustBoundary.USER_CONTROLLED_SAAS
+  ) {
     trifectaScore += 2;
   }
 
@@ -202,11 +214,17 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     isCrossServer: crossServer,
     crossesTrustBoundary,
     trustTransition,
-    isHighSignal: trifectaStage === TrifectaStage.COMPLETE && crossesTrustBoundary === true,
+    isHighSignal:
+      injectionConfirmed ||
+      trustBoundaryConfirmed ||
+      (trifectaStage === TrifectaStage.COMPLETE && crossesTrustBoundary === true),
     hasPrivateDataAccess,
     hasUntrustedContentExposure,
     hasExternalCommunication,
     lethalTrifectaStatus,
+    subCategory: finding.subCategory,
+    injectionConfirmed,
+    trustBoundaryConfirmed,
   };
 }
 

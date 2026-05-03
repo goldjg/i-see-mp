@@ -105,6 +105,29 @@ describe('TestRunsRepo', () => {
     expect(back?.toolCalls[0]?.toolName).toBe('read_secret');
   });
 
+  it('round-trips prompt-injection run fields', () => {
+    const collections = createCollectionsRepo(db);
+    collections.create('col-T', new Date().toISOString());
+    const repo = createTestRunsRepo(db);
+    const run = makeRun('tr-pi', 'col-T', {
+      baselineToolCalls: [
+        { step: 1, toolName: 'issue_read', input: {}, output: {} },
+      ],
+      injectedToolCalls: [
+        { step: 1, toolName: 'issue_read', input: {}, output: {} },
+        { step: 2, toolName: 'send_http_request', input: {}, output: {} },
+      ],
+      deviationDetected: true,
+      injectionConfirmed: true,
+    });
+    repo.insert(testRunToRow(run));
+    const back = repo.findById('tr-pi');
+    expect(back?.baselineToolCalls?.length).toBe(1);
+    expect(back?.injectedToolCalls?.length).toBe(2);
+    expect(back?.deviationDetected).toBe(true);
+    expect(back?.injectionConfirmed).toBe(true);
+  });
+
   it('deletes test runs and dependent evidence', () => {
     const collections = createCollectionsRepo(db);
     collections.create('col-T', new Date().toISOString());

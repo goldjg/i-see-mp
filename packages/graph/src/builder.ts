@@ -39,10 +39,27 @@ function isNonLocalhost(url: string | null): boolean {
 function inferTrustBoundary(url: string | null): TrustBoundary {
   if (!url) return TrustBoundary.LOCAL;
   if (!isNonLocalhost(url)) return TrustBoundary.LOCAL;
-  if (/github\.com|api\.github|gitlab\.com|atlassian\.|slack\.com|notion\.so/.test(url)) {
+  if (/github\.com|api\.github/.test(url)) {
+    return TrustBoundary.CONTROLLED_SAAS;
+  }
+  if (/gitlab\.com|atlassian\.|slack\.com|notion\.so/.test(url)) {
     return TrustBoundary.SAAS;
   }
   return TrustBoundary.EXTERNAL;
+}
+
+function inferToolTrustBoundary(server: ServerRow, tool: ToolRow): TrustBoundary {
+  const serverBoundary = inferTrustBoundary(server.url);
+  if (serverBoundary !== TrustBoundary.CONTROLLED_SAAS) return serverBoundary;
+  const name = tool.name.toLowerCase();
+  if (
+    /(issue|pull_request|pr_|review|comment|discussion|search_issues|search_pull_requests|search_code)/.test(
+      name,
+    )
+  ) {
+    return TrustBoundary.USER_CONTROLLED_SAAS;
+  }
+  return TrustBoundary.CONTROLLED_SAAS;
 }
 
 export function buildGraph(context: BuildContext): GraphResult {
@@ -86,8 +103,9 @@ export function buildGraph(context: BuildContext): GraphResult {
 
   for (const server of servers) {
     const serverNodeId = `server:${server.id}`;
-    const serverTools = tools.filter((t) => t.server_id === server.id);
-    const allCaps = serverTools.flatMap((t) => parseCaps(t.capabilities));
+      const serverTools = tools.filter((t) => t.server_id === server.id);
+      const serverBoundary = inferTrustBoundary(server.url);
+      const allCaps = serverTools.flatMap((t) => parseCaps(t.capabilities));
     const uniqueCaps = [...new Set(allCaps)];
     const maxRisk = serverTools.length > 0
       ? Math.max(...serverTools.map((t) => t.risk_score))
@@ -99,7 +117,7 @@ export function buildGraph(context: BuildContext): GraphResult {
       label: server.name,
       capabilities: uniqueCaps,
       riskScore: maxRisk,
-      trustBoundary: inferTrustBoundary(server.url),
+      trustBoundary: serverBoundary,
       metadata: {
         transport: server.transport,
         url: server.url ?? undefined,
@@ -116,20 +134,24 @@ export function buildGraph(context: BuildContext): GraphResult {
     });
 
     // Server crosses boundary
-    if (isNonLocalhost(server.url) && hasRemoteServer) {
-      edges.push({
-        id: edgeId(EdgeType.CROSSES_BOUNDARY, serverNodeId, trustBoundaryId),
-        source: serverNodeId,
-        target: trustBoundaryId,
-        type: EdgeType.CROSSES_BOUNDARY,
-      });
-    }
+      if (isNonLocalhost(server.url) && hasRemoteServer) {
+        edges.push({
+          id: edgeId(EdgeType.CROSSES_BOUNDARY, serverNodeId, trustBoundaryId),
+          source: serverNodeId,
+          target: trustBoundaryId,
+          type: EdgeType.CROSSES_BOUNDARY,
+          metadata: {
+            trustTransition: `${TrustBoundary.LOCAL} → ${serverBoundary}`,
+          },
+        });
+      }
 
     // Tool nodes
     for (const tool of serverTools) {
       const toolNodeId = `tool:${tool.id}`;
       const caps = parseCaps(tool.capabilities);
       const sourceRole = parseSourceRole(tool.source_role);
+      const toolBoundary = inferToolTrustBoundary(server, tool);
 
       nodes.push({
         id: toolNodeId,
@@ -138,6 +160,7 @@ export function buildGraph(context: BuildContext): GraphResult {
         serverId: server.id,
         capabilities: caps,
         riskScore: tool.risk_score,
+        trustBoundary: toolBoundary,
         metadata: {
           description: tool.description ?? undefined,
           inputSchema: tool.input_schema ? (JSON.parse(tool.input_schema) as Record<string, unknown>) : undefined,
@@ -145,6 +168,7 @@ export function buildGraph(context: BuildContext): GraphResult {
           isUntrusted: tool.is_untrusted === 1,
           isInstructionCapable: tool.is_instruction_capable === 1,
           contentOrigin: tool.content_origin,
+          trustZone: toolBoundary,
         },
       });
 
@@ -162,6 +186,9 @@ export function buildGraph(context: BuildContext): GraphResult {
           source: toolNodeId,
           target: trustBoundaryId,
           type: EdgeType.CROSSES_BOUNDARY,
+          metadata: {
+            trustTransition: `${TrustBoundary.LOCAL} → ${toolBoundary}`,
+          },
         });
       }
 
@@ -248,7 +275,8 @@ export function buildGraph(context: BuildContext): GraphResult {
 
       if (
         tool.is_instruction_capable === 1 &&
-        caps.includes(Capability.UNTRUSTED_CONTENT_EXPOSURE)
+        (caps.includes(Capability.UNTRUSTED_CONTENT_EXPOSURE) ||
+          caps.includes(Capability.INSTRUCTION_SOURCE))
       ) {
         const instructionSourceNodeId = `instruction_source:${tool.id}`;
         nodes.push({
@@ -256,12 +284,14 @@ export function buildGraph(context: BuildContext): GraphResult {
           type: NodeType.INSTRUCTION_SOURCE,
           label: `Instruction Source: ${tool.name}`,
           serverId: server.id,
-          capabilities: [Capability.UNTRUSTED_CONTENT_EXPOSURE],
+          capabilities: [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.INSTRUCTION_SOURCE],
           riskScore: Math.min(100, Math.max(tool.risk_score, 60)),
+          trustBoundary: toolBoundary,
           metadata: {
             sourceToolId: tool.id,
             contentOrigin: tool.content_origin,
             isUntrusted: tool.is_untrusted === 1,
+            trustZone: toolBoundary,
           },
         });
         edges.push({
@@ -318,6 +348,53 @@ export function buildGraph(context: BuildContext): GraphResult {
         source: serverNodeId,
         target: promptNodeId,
         type: EdgeType.EXPOSES,
+      });
+    }
+  }
+
+  // Emit confirmed sensitive trust-boundary edges for static instruction->sink chains.
+  const sourceTools = tools.filter((t) => {
+    const caps = parseCaps(t.capabilities);
+    return (
+      caps.includes(Capability.UNTRUSTED_CONTENT_EXPOSURE) ||
+      caps.includes(Capability.INSTRUCTION_SOURCE)
+    );
+  });
+  const sinkTools = tools.filter((t) => {
+    const caps = parseCaps(t.capabilities);
+    return (
+      caps.includes(Capability.SEND_EXTERNAL) ||
+      caps.includes(Capability.SEND_HTTP) ||
+      caps.includes(Capability.SEND_EMAIL)
+    );
+  });
+  for (const sourceTool of sourceTools) {
+    for (const sinkTool of sinkTools) {
+      if (sourceTool.server_id === sinkTool.server_id) continue;
+      const sourceServer = servers.find((s) => s.id === sourceTool.server_id);
+      const sinkServer = servers.find((s) => s.id === sinkTool.server_id);
+      if (!sourceServer || !sinkServer) continue;
+      const sourceZone = inferToolTrustBoundary(sourceServer, sourceTool);
+      const sinkZone = inferToolTrustBoundary(sinkServer, sinkTool);
+      const sourceSensitive =
+        sourceZone === TrustBoundary.USER_CONTROLLED_SAAS || sourceZone === TrustBoundary.EXTERNAL;
+      const sinkSensitive = sinkZone === TrustBoundary.LOCAL || sinkZone === TrustBoundary.INTERNAL;
+      if (!sourceSensitive || !sinkSensitive) continue;
+      edges.push({
+        id: edgeId(
+          `${EdgeType.CROSSES_BOUNDARY}:confirmed`,
+          `server:${sourceServer.id}`,
+          `server:${sinkServer.id}`,
+        ),
+        source: `server:${sourceServer.id}`,
+        target: `server:${sinkServer.id}`,
+        type: EdgeType.CROSSES_BOUNDARY,
+        metadata: {
+          trustTransition: `${sourceZone} → ${sinkZone}`,
+          confirmed: true,
+          sourceToolId: sourceTool.id,
+          sinkToolId: sinkTool.id,
+        },
       });
     }
   }

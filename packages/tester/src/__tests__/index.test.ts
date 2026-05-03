@@ -41,12 +41,23 @@ describe('summarizeRunsForCli', () => {
         status: TestStatus.INCONCLUSIVE,
         pathStatus: PathStatus.TESTED_INCONCLUSIVE,
       }),
+      makeRun({
+        id: 'trust-boundary',
+        outcome: TestOutcome.TESTED_CONFIRMED,
+        status: TestStatus.CONFIRMED,
+        pathStatus: PathStatus.TRUST_BOUNDARY_CONFIRMED,
+        deviationDetected: true,
+        injectionConfirmed: true,
+      }),
     ];
 
     const summary = summarizeRunsForCli(runs);
-    expect(summary.confirmed).toBe(1);
+    expect(summary.confirmed).toBe(2);
     expect(summary.rejected).toBe(1);
     expect(summary.inconclusive).toBe(1);
     expect(summary.skipped).toBe(1);
+    expect(summary.injectionConfirmed).toBe(1);
+    expect(summary.trustBoundaryConfirmed).toBe(1);
+    expect(summary.behaviouralDeviation).toBe(1);
   });
 });

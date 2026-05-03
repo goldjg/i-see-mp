@@ -22,6 +22,10 @@ const FINDINGS_NEW_COLUMNS: Array<[string, string]> = [
   ['explanation', 'TEXT'],
   ['evidence', 'TEXT'],
   ['lethal_trifecta_status', 'TEXT'],
+  ['sub_category', 'TEXT'],
+  ['injection_confirmed', 'INTEGER NOT NULL DEFAULT 0'],
+  ['trust_boundary_confirmed', 'INTEGER NOT NULL DEFAULT 0'],
+  ['baseline_plan', 'TEXT'],
 ];
 
 const TOOLS_NEW_COLUMNS: Array<[string, string]> = [
@@ -29,6 +33,7 @@ const TOOLS_NEW_COLUMNS: Array<[string, string]> = [
   ['is_untrusted', 'INTEGER NOT NULL DEFAULT 0'],
   ['is_instruction_capable', 'INTEGER NOT NULL DEFAULT 0'],
   ['content_origin', `TEXT NOT NULL DEFAULT 'local'`],
+  ['trust_zone', 'TEXT'],
 ];
 
 const TEST_RUNS_NEW_COLUMNS: Array<[string, string]> = [
@@ -37,7 +42,13 @@ const TEST_RUNS_NEW_COLUMNS: Array<[string, string]> = [
   ['source_tool_id', 'TEXT'],
   ['sink_tool_id', 'TEXT'],
   ['outcome', 'TEXT'],
+  ['baseline_tool_calls', 'TEXT'],
+  ['injected_tool_calls', 'TEXT'],
+  ['deviation_detected', 'INTEGER NOT NULL DEFAULT 0'],
+  ['injection_confirmed', 'INTEGER NOT NULL DEFAULT 0'],
 ];
+
+const NODES_NEW_COLUMNS: Array<[string, string]> = [['trust_zone', 'TEXT']];
 
 const EVIDENCE_NEW_COLUMNS: Array<[string, string]> = [
   ['candidate_path_id', 'TEXT'],
@@ -71,6 +82,7 @@ function migrate(db: Database.Database): void {
   // Ensure new findings columns exist on legacy databases (idempotent)
   ensureColumns('findings', FINDINGS_NEW_COLUMNS);
   ensureColumns('tools', TOOLS_NEW_COLUMNS);
+  ensureColumns('nodes', NODES_NEW_COLUMNS);
 
   // Legacy test_runs table (reserved/unused in MVP) had a different shape.
   // If the new required columns aren't present, drop and let SCHEMA_SQL recreate it.

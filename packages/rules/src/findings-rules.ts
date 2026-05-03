@@ -2,7 +2,12 @@ import { RiskCategory, Capability, LethalTrifectaStatus, TrustBoundary, Confiden
 import type { GraphNode, GraphEdge, Finding } from '@iseemp/core';
 import type { ServerRow, ToolRow } from '@iseemp/storage';
 import { applyTrifectaAnnotation, sortByTrifecta, deriveIsCrossServer } from './trifecta.js';
-import { deriveCrossesTrustBoundary, deriveTrustTransition } from './trust.js';
+import {
+  deriveCrossesTrustBoundary,
+  deriveTrustTransition,
+  isSensitiveTrustTransition,
+  trustZoneToBoundary,
+} from './trust.js';
 
 interface FindingsContext {
   nodes: GraphNode[];
@@ -46,9 +51,13 @@ function parseSourceRole(sourceRoleJson: string): string[] {
 function isInstructionCapableTool(tool: ToolRow): boolean {
   if (tool.is_instruction_capable === 1) return true;
   const sourceRoles = parseSourceRole(tool.source_role);
-  if (sourceRoles.includes('INSTRUCTION_SOURCE')) return true;
   const caps = parseCaps(tool.capabilities);
-  return caps.includes(Capability.UNTRUSTED_CONTENT_EXPOSURE);
+  const hasSourceRole = sourceRoles.includes('INSTRUCTION_SOURCE');
+  const hasExposureCap =
+    caps.includes(Capability.UNTRUSTED_CONTENT_EXPOSURE) || caps.includes(Capability.INSTRUCTION_SOURCE);
+  const instructionOrigin = new Set(['remote', 'user_generated', 'external_saas', 'db_row']);
+  const hasInstructionOrigin = instructionOrigin.has(tool.content_origin);
+  return hasSourceRole && hasExposureCap && hasInstructionOrigin;
 }
 
 function isNonLocalhost(url: string | null): boolean {
@@ -60,7 +69,10 @@ function isNonLocalhost(url: string | null): boolean {
 export function inferServerTrustBoundary(server: { url: string | null; transport?: string }): TrustBoundary {
   if (!server.url) return TrustBoundary.LOCAL;
   if (!isNonLocalhost(server.url)) return TrustBoundary.LOCAL;
-  if (/github\.com|api\.github|gitlab\.com|atlassian\.|slack\.com|notion\.so/.test(server.url)) {
+  if (/github\.com|api\.github/.test(server.url)) {
+    return TrustBoundary.CONTROLLED_SAAS;
+  }
+  if (/gitlab\.com|atlassian\.|slack\.com|notion\.so/.test(server.url)) {
     return TrustBoundary.SAAS;
   }
   return TrustBoundary.EXTERNAL;
@@ -109,7 +121,10 @@ const PRIVATE_DATA_SOURCE_CAPS: Capability[] = [
   Capability.READ_SENSITIVE_MEDIUM,
 ];
 
-const UNTRUSTED_CONTENT_SOURCE_CAPS: Capability[] = [Capability.UNTRUSTED_CONTENT_EXPOSURE];
+const UNTRUSTED_CONTENT_SOURCE_CAPS: Capability[] = [
+  Capability.UNTRUSTED_CONTENT_EXPOSURE,
+  Capability.INSTRUCTION_SOURCE,
+];
 
 const EXEC_CAPS: Capability[] = [Capability.RUN_SHELL, Capability.EXECUTE_CODE];
 
@@ -748,6 +763,7 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         boundaryCrossed: boundary,
         pathSummary: `INSTRUCTION_SOURCE -> MODEL_CONTEXT -> PRIVATE_DATA -> SEND_EXTERNAL (${boundary})`,
         lethalTrifectaStatus: LethalTrifectaStatus.POSSIBLE,
+        subCategory: 'PROMPT_INJECTION_POSSIBLE',
         candidatePathId:
           instructionTool && sourceTool && sinkTool
             ? makeCandidatePathId({
@@ -805,7 +821,21 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         parseCaps(tool.capabilities).includes(sinkCapRepresentative),
       );
       const sinkBoundary = inferServerTrustBoundary(sinkCandidate.server);
-      const trust = deriveTrustTransition(sourceCandidate.server.id, sinkCandidate.server.id);
+      const trust = deriveTrustTransition(
+        sourceCandidate.server.id,
+        sinkCandidate.server.id,
+        sourceToolRepresentative?.name,
+        sinkToolRepresentative?.name,
+      );
+      const trustBoundary = trustZoneToBoundary(trust.sinkTrust) ?? sinkBoundary;
+      const sensitiveTransition = isSensitiveTrustTransition(trust.sourceTrust, trust.sinkTrust);
+      const crossBoundary = deriveCrossesTrustBoundary(
+        sourceCandidate.server.id,
+        sinkCandidate.server.id,
+        sourceToolRepresentative?.name,
+        sinkToolRepresentative?.name,
+      );
+      const trustBoundaryConfirmed = crossBoundary && sensitiveTransition;
       const isHighSensitivitySource =
         sourceCapRepresentative === Capability.READ_CREDENTIAL_HIGH ||
         sourceCapRepresentative === Capability.READ_SECRET_HIGH ||
@@ -848,11 +878,13 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         tested: false,
         sourceCapabilities: sourceCandidate.sourceCaps,
         sinkCapabilities: sinkCandidate.sinkCaps,
-        boundaryCrossed: sinkBoundary,
+        boundaryCrossed: trustBoundary,
         pathSummary,
         lethalTrifectaStatus: lethalCandidate
           ? LethalTrifectaStatus.POSSIBLE
           : LethalTrifectaStatus.NONE,
+        subCategory: trustBoundaryConfirmed ? 'TRUST_BOUNDARY_CONFIRMED' : undefined,
+        trustBoundaryConfirmed,
         candidatePathId:
           sourceToolRepresentative && sinkToolRepresentative
             ? makeCandidatePathId({
@@ -870,10 +902,7 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         }),
         sourceServerId: sourceCandidate.server.id,
         sinkServerId: sinkCandidate.server.id,
-        crossesTrustBoundary: deriveCrossesTrustBoundary(
-          sourceCandidate.server.id,
-          sinkCandidate.server.id,
-        ),
+        crossesTrustBoundary: crossBoundary,
         trustTransition: trust.transition,
       });
     }

@@ -74,6 +74,7 @@ export const Capability = {
   QUERY_REMOTE_SYSTEM: 'QUERY_REMOTE_SYSTEM',
   QUERY_DATABASE: 'QUERY_DATABASE',
   UNTRUSTED_CONTENT_EXPOSURE: 'UNTRUSTED_CONTENT_EXPOSURE',
+  INSTRUCTION_SOURCE: 'INSTRUCTION_SOURCE',
   // Misc
   CREATE_TICKET: 'CREATE_TICKET',
   MUTATE_IDENTITY: 'MUTATE_IDENTITY',
@@ -99,6 +100,8 @@ export const TrustBoundary = {
   INTERNAL: 'INTERNAL',
   EXTERNAL: 'EXTERNAL',
   SAAS: 'SAAS',
+  USER_CONTROLLED_SAAS: 'USER_CONTROLLED_SAAS',
+  CONTROLLED_SAAS: 'CONTROLLED_SAAS',
   UNKNOWN: 'UNKNOWN',
 } as const;
 export type TrustBoundary = (typeof TrustBoundary)[keyof typeof TrustBoundary];
@@ -115,6 +118,7 @@ export const PathStatus = {
   TESTED_CONFIRMED: 'tested_confirmed',
   TESTED_REJECTED: 'tested_rejected',
   TESTED_INCONCLUSIVE: 'tested_inconclusive',
+  TRUST_BOUNDARY_CONFIRMED: 'trust_boundary_confirmed',
 } as const;
 export type PathStatus = (typeof PathStatus)[keyof typeof PathStatus];
 

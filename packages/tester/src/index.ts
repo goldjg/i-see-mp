@@ -24,6 +24,7 @@ import {
   executePlannedTest,
   executeGithubSafeCanaryPlannedTest,
   executePromptInjectionGithubPlannedTest,
+  executePromptInjectionFetchPlannedTest,
   bumpConfidence,
   bumpSeverity,
   downgradeSeverity,
@@ -50,6 +51,9 @@ export interface TestSummary {
   rejected: number;
   inconclusive: number;
   skipped: number;
+  injectionConfirmed: number;
+  trustBoundaryConfirmed: number;
+  behaviouralDeviation: number;
   lethalTrifectaConfirmed: number;
   lethalTrifectaPossible: number;
   lethalTrifectaNone: number;
@@ -61,12 +65,32 @@ export function summarizeRunsForCli(testRuns: TestRun[]): {
   rejected: number;
   inconclusive: number;
   skipped: number;
+  injectionConfirmed: number;
+  trustBoundaryConfirmed: number;
+  behaviouralDeviation: number;
 } {
-  const confirmed = testRuns.filter((r) => r.pathStatus === PathStatus.TESTED_CONFIRMED).length;
+  const confirmed = testRuns.filter(
+    (r) =>
+      r.pathStatus === PathStatus.TESTED_CONFIRMED ||
+      r.pathStatus === PathStatus.TRUST_BOUNDARY_CONFIRMED,
+  ).length;
   const rejected = testRuns.filter((r) => r.pathStatus === PathStatus.TESTED_REJECTED).length;
   const inconclusive = testRuns.filter((r) => r.pathStatus === PathStatus.TESTED_INCONCLUSIVE).length;
   const skipped = testRuns.filter((r) => r.outcome === TestOutcome.TEST_SKIPPED).length;
-  return { confirmed, rejected, inconclusive, skipped };
+  const injectionConfirmed = testRuns.filter((r) => r.injectionConfirmed === true).length;
+  const trustBoundaryConfirmed = testRuns.filter(
+    (r) => r.pathStatus === PathStatus.TRUST_BOUNDARY_CONFIRMED,
+  ).length;
+  const behaviouralDeviation = testRuns.filter((r) => r.deviationDetected === true).length;
+  return {
+    confirmed,
+    rejected,
+    inconclusive,
+    skipped,
+    injectionConfirmed,
+    trustBoundaryConfirmed,
+    behaviouralDeviation,
+  };
 }
 
 /**
@@ -138,8 +162,11 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
       confirmed: 0,
       rejected: 0,
       inconclusive: 0,
-      skipped: 0,
-      lethalTrifectaConfirmed: 0,
+        skipped: 0,
+        injectionConfirmed: 0,
+        trustBoundaryConfirmed: 0,
+        behaviouralDeviation: 0,
+        lethalTrifectaConfirmed: 0,
       lethalTrifectaPossible: 0,
       lethalTrifectaNone: 0,
       testRuns: [],
@@ -222,6 +249,12 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
                 testRunId: `testrun:promptinj:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
                 config: options.githubSafeCanary!,
               })
+          : profile === 'prompt-injection-fetch'
+            ? await executePromptInjectionFetchPlannedTest(
+                ctx,
+                p,
+                `testrun:promptinjfetch:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
+              )
           : await executePlannedTest(ctx, p);
       allTestRuns.push(executed.testRun);
       allEvidence.push(...executed.evidence);
@@ -244,7 +277,15 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
   // Update findings based on results.
   applyTestResultsToFindings(col.id, allTestRuns, findingsRepo);
 
-  const { confirmed, rejected, inconclusive, skipped } = summarizeRunsForCli(allTestRuns);
+  const {
+    confirmed,
+    rejected,
+    inconclusive,
+    skipped,
+    injectionConfirmed,
+    trustBoundaryConfirmed,
+    behaviouralDeviation,
+  } = summarizeRunsForCli(allTestRuns);
   const lethalCounts = summarizeLethalTrifecta(findingsRepo.findByCollection(col.id));
 
   return {
@@ -255,6 +296,9 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     rejected,
     inconclusive,
     skipped,
+    injectionConfirmed,
+    trustBoundaryConfirmed,
+    behaviouralDeviation,
     lethalTrifectaConfirmed: lethalCounts.confirmed,
     lethalTrifectaPossible: lethalCounts.possible,
     lethalTrifectaNone: lethalCounts.none,
@@ -455,6 +499,8 @@ export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
     ...finding,
     testRunIds: Array.from(new Set(runs.map((r) => r.id))),
     candidatePathId: finding.candidatePathId ?? runs[0]?.candidatePathId,
+    baselinePlan:
+      runs.find((r) => (r.baselineToolCalls?.length ?? 0) > 0)?.baselineToolCalls ?? finding.baselinePlan,
   };
 
   if (confirmed) {
@@ -473,6 +519,12 @@ export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
       finding.lethalTrifectaStatus === 'POSSIBLE'
     ) {
       next.lethalTrifectaStatus = 'CONFIRMED';
+      next.injectionConfirmed = true;
+      next.subCategory = 'PROMPT_INJECTION_CONFIRMED';
+      if (finding.crossesTrustBoundary) {
+        next.pathStatus = PathStatus.TRUST_BOUNDARY_CONFIRMED;
+        next.trustBoundaryConfirmed = true;
+      }
     }
   } else if (rejected) {
     next.tested = true;
@@ -497,6 +549,11 @@ export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
       finding.lethalTrifectaStatus === 'POSSIBLE'
     ) {
       next.lethalTrifectaStatus = 'POSSIBLE';
+    }
+    const hasDeviation = runs.some((r) => r.deviationDetected === true);
+    if (hasDeviation && finding.category === RiskCategory.PROMPT_INJECTION) {
+      next.subCategory = 'PROMPT_INJECTION_BEHAVIOURAL';
+      next.injectionConfirmed = false;
     }
   } else if (skipped) {
     next.tested = false;

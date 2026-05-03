@@ -73,10 +73,11 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
       capabilities: JSON.parse(t.capabilities) as string[],
       sourceRole: JSON.parse(t.source_role) as string[],
       isUntrusted: t.is_untrusted === 1,
-      isInstructionCapable: t.is_instruction_capable === 1,
-      contentOrigin: t.content_origin,
-      riskScore: t.risk_score,
-    }));
+        isInstructionCapable: t.is_instruction_capable === 1,
+        contentOrigin: t.content_origin,
+        trustZone: t.trust_zone ?? undefined,
+        riskScore: t.risk_score,
+      }));
   });
 
   app.get<{ Querystring: { collectionId?: string } }>('/graph', async (req) => {

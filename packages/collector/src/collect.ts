@@ -87,6 +87,7 @@ export async function collect(options: {
         is_untrusted: classification.isUntrusted ? 1 : 0,
         is_instruction_capable: classification.isInstructionCapable ? 1 : 0,
         content_origin: classification.contentOrigin,
+        trust_zone: null,
         risk_score: classification.riskScore,
         created_at: now,
       });

@@ -178,6 +178,10 @@ export const FindingSchema = z.object({
   hasPrivateDataAccess: z.boolean().optional(),
   hasUntrustedContentExposure: z.boolean().optional(),
   hasExternalCommunication: z.boolean().optional(),
+  subCategory: z.string().optional(),
+  injectionConfirmed: z.boolean().optional(),
+  trustBoundaryConfirmed: z.boolean().optional(),
+  baselinePlan: z.array(z.lazy(() => ToolCallSchema)).optional(),
 });
 export type Finding = z.infer<typeof FindingSchema>;
 
@@ -220,6 +224,10 @@ export const TestRunSchema = z.object({
   pathSummary: z.string().optional(),
   plan: z.string(),
   toolCalls: z.array(ToolCallSchema).default([]),
+  baselineToolCalls: z.array(ToolCallSchema).optional(),
+  injectedToolCalls: z.array(ToolCallSchema).optional(),
+  deviationDetected: z.boolean().optional(),
+  injectionConfirmed: z.boolean().optional(),
   canaryExpected: z.string().optional(),
   canaryObserved: z.boolean(),
   outcome: TestOutcomeSchema,

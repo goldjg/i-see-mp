@@ -57,6 +57,10 @@ export function Dashboard() {
 
   const topFindings = [...findings].slice(0, 5);
   const completeCount = findings.filter((f) => f.trifectaComplete).length;
+  const promptInjectionConfirmed = findings.filter(
+    (f) => f.subCategory === 'PROMPT_INJECTION_CONFIRMED',
+  ).length;
+  const trustBoundaryConfirmed = findings.filter((f) => f.trustBoundaryConfirmed === true).length;
   const maxCap = Math.max(...Object.values(capMap), 1);
 
   return (
@@ -68,6 +72,8 @@ export function Dashboard() {
         <div className="stat-card"><div className="stat-value">{collection.resourceCount}</div><div className="stat-label">Resources</div></div>
         <div className="stat-card"><div className="stat-value">{findings.length}</div><div className="stat-label">Findings</div></div>
         <div className="stat-card"><div className="stat-value">{completeCount}</div><div className="stat-label">Exploitable Paths</div></div>
+        <div className="stat-card"><div className="stat-value">{promptInjectionConfirmed}</div><div className="stat-label">Prompt Injection Confirmed</div></div>
+        <div className="stat-card"><div className="stat-value">{trustBoundaryConfirmed}</div><div className="stat-label">Trust Boundary Confirmed</div></div>
       </div>
 
       <h2>Capability Histogram</h2>

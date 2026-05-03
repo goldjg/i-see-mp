@@ -176,6 +176,9 @@ if (command === 'collect') {
       console.log(`  confirmed   : ${summary.confirmed}`);
       console.log(`  rejected    : ${summary.rejected}`);
       console.log(`  inconclusive: ${summary.inconclusive}`);
+      console.log(`  injection-confirmed      : ${summary.injectionConfirmed}`);
+      console.log(`  trust-boundary-confirmed : ${summary.trustBoundaryConfirmed}`);
+      console.log(`  behavioural-deviation    : ${summary.behaviouralDeviation}`);
       if (summary.skipped > 0) {
         console.log(`  skipped     : ${summary.skipped} (server unavailable or missing credentials)`);
       }
@@ -251,6 +254,9 @@ if (command === 'collect') {
         console.log(`  confirmed   : ${summary.confirmed}`);
         console.log(`  rejected    : ${summary.rejected}`);
         console.log(`  inconclusive: ${summary.inconclusive}`);
+        console.log(`  injection-confirmed      : ${summary.injectionConfirmed}`);
+        console.log(`  trust-boundary-confirmed : ${summary.trustBoundaryConfirmed}`);
+        console.log(`  behavioural-deviation    : ${summary.behaviouralDeviation}`);
       }
       process.exit(0);
     } catch (err) {
