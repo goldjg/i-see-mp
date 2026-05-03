@@ -1,14 +1,43 @@
-import React, { useState, Suspense, lazy, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from './api.js';
+import { Dashboard } from './views/Dashboard.js';
+import { Graph } from './views/Graph.js';
+import { Tools } from './views/Tools.js';
+import { Findings } from './views/Findings.js';
 
-const Dashboard = lazy(() => import('./views/Dashboard.js').then((m) => ({ default: m.Dashboard })));
-const Graph = lazy(() => import('./views/Graph.js').then((m) => ({ default: m.Graph })));
-const Tools = lazy(() => import('./views/Tools.js').then((m) => ({ default: m.Tools })));
-const Findings = lazy(() => import('./views/Findings.js').then((m) => ({ default: m.Findings })));
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  override componentDidCatch(error: unknown) {
+    console.error(error);
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return (
+        <div className="empty-state">
+          <h2>UI failed to load</h2>
+          <p>Please refresh the page. If the issue persists, rebuild and restart ISeeMP.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 type View = 'dashboard' | 'graph' | 'tools' | 'findings';
 
-export function App() {
+function AppContent() {
   const [view, setView] = useState<View>('dashboard');
   const [trifectaNodeIds, setTrifectaNodeIds] = useState<Set<string>>(new Set());
   const [completeNodeIds, setCompleteNodeIds] = useState<Set<string>>(new Set());
@@ -81,21 +110,27 @@ export function App() {
         </ul>
       </nav>
       <main className="main-content">
-        <Suspense fallback={<div style={{ padding: '2rem', color: '#888' }}>Loading…</div>}>
-          {view === 'dashboard' && <Dashboard />}
-          {view === 'graph' && (
-            <Graph
-              onSelectNode={() => {}}
-              trifectaNodeIds={trifectaNodeIds}
-              completeNodeIds={completeNodeIds}
-            />
-          )}
-          {view === 'tools' && <Tools />}
-          {view === 'findings' && (
-            <Findings onShowOnGraph={() => switchTo('graph')} />
-          )}
-        </Suspense>
+        {view === 'dashboard' && <Dashboard />}
+        {view === 'graph' && (
+          <Graph
+            onSelectNode={() => {}}
+            trifectaNodeIds={trifectaNodeIds}
+            completeNodeIds={completeNodeIds}
+          />
+        )}
+        {view === 'tools' && <Tools />}
+        {view === 'findings' && (
+          <Findings onShowOnGraph={() => switchTo('graph')} />
+        )}
       </main>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <AppErrorBoundary>
+      <AppContent />
+    </AppErrorBoundary>
   );
 }
