@@ -44,6 +44,7 @@ export type TestCaseId =
   | 'PROMPT_INJECTION_FETCH_TO_SINK';
 
 export type TesterProfile =
+  // Keep this union aligned with PROFILE_REGISTRY in profile-descriptor.ts.
   | 'safe'
   | 'demo-confirm'
   | 'github-safe-canary'

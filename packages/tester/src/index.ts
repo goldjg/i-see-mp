@@ -12,7 +12,7 @@ import {
 } from '@iseemp/storage';
 import type { ServerRow, ToolRow } from '@iseemp/storage';
 import type { Finding, TestRun, Evidence } from '@iseemp/core';
-import { Confidence, PathStatus, RiskCategory, TestOutcome, TestStatus } from '@iseemp/core';
+import { Confidence, PathStatus, RiskCategory, TestOutcome, TestStatus, ValidationMode } from '@iseemp/core';
 import { startMockSink } from './sink.js';
 import {
   planSafeProfile,
@@ -34,6 +34,7 @@ import {
   type PlannedTest,
 } from './runner.js';
 import { connectServer, callTool, type ConnectedServer } from './mcp-runtime.js';
+import { PROFILE_REGISTRY, getProfileDescriptor, type ProfileDescriptor } from './profile-descriptor.js';
 
 // Score 3+ indicates at least one medium-strength behavioral signal from the
 // deviation model (beyond sequence-only noise), so classify as possible.
@@ -51,6 +52,13 @@ export interface TestSummary {
   collectionId: string;
   profile: TesterProfile;
   totalPlanned: number;
+  profilesPlanned: number;
+  profilesRun: number;
+  profilesSkipped: number;
+  profilesPassed: number;
+  profilesFailed: number;
+  skippedReasons: string[];
+  failedReasons: string[];
   confirmed: number;
   rejected: number;
   inconclusive: number;
@@ -65,6 +73,13 @@ export interface TestSummary {
 }
 
 export function summarizeRunsForCli(testRuns: TestRun[]): {
+  profilesPlanned: number;
+  profilesRun: number;
+  profilesSkipped: number;
+  profilesPassed: number;
+  profilesFailed: number;
+  skippedReasons: string[];
+  failedReasons: string[];
   confirmed: number;
   rejected: number;
   inconclusive: number;
@@ -73,6 +88,16 @@ export function summarizeRunsForCli(testRuns: TestRun[]): {
   trustBoundaryConfirmed: number;
   behaviouralDeviation: number;
 } {
+  const profilesPlanned = testRuns.length > 0 ? 1 : 0;
+  const skippedRuns = testRuns.filter((r) => r.outcome === TestOutcome.TEST_SKIPPED);
+  const ranAny = testRuns.some((r) => r.outcome !== TestOutcome.TEST_SKIPPED);
+  const profilesRun = ranAny ? 1 : 0;
+  const profilesSkipped = profilesPlanned - profilesRun;
+  const failedRuns = testRuns.filter(
+    (r) => r.outcome === TestOutcome.TEST_ERROR || r.outcome === TestOutcome.TESTED_REJECTED,
+  );
+  const profilesFailed = profilesRun > 0 && failedRuns.length > 0 ? 1 : 0;
+  const profilesPassed = profilesRun > 0 && profilesFailed === 0 ? 1 : 0;
   const confirmed = testRuns.filter(
     (r) =>
       r.pathStatus === PathStatus.TESTED_CONFIRMED ||
@@ -89,7 +114,20 @@ export function summarizeRunsForCli(testRuns: TestRun[]): {
       r.pathStatus === PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED,
   ).length;
   const behaviouralDeviation = testRuns.filter((r) => r.deviationDetected === true).length;
+  const skippedReasons = Array.from(
+    new Set(skippedRuns.map((r) => r.notes).filter((n): n is string => typeof n === 'string' && n.length > 0)),
+  );
+  const failedReasons = Array.from(
+    new Set(failedRuns.map((r) => r.notes).filter((n): n is string => typeof n === 'string' && n.length > 0)),
+  );
   return {
+    profilesPlanned,
+    profilesRun,
+    profilesSkipped,
+    profilesPassed,
+    profilesFailed,
+    skippedReasons,
+    failedReasons,
     confirmed,
     rejected,
     inconclusive,
@@ -108,14 +146,8 @@ export function summarizeRunsForCli(testRuns: TestRun[]): {
  */
 export async function runTests(options: TestOptions): Promise<TestSummary> {
   const profile = options.profile ?? 'safe';
-  if (
-    profile !== 'safe' &&
-    profile !== 'demo-confirm' &&
-    profile !== 'github-safe-canary' &&
-    profile !== 'prompt-injection-github' &&
-    profile !== 'prompt-injection-fetch' &&
-    profile !== 'prompt-injection-db'
-  ) {
+  const descriptor = PROFILE_REGISTRY.get(profile);
+  if (!descriptor) {
     throw new Error(`Unknown test profile: ${profile}`);
   }
   const refusal = assessGithubSafeCanaryRefusal(
@@ -151,29 +183,35 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     toolsByServer.set(t.server_id, arr);
   }
 
-  const planned =
-    profile === 'demo-confirm'
-      ? planDemoConfirmProfile(servers, toolsByServer)
-      : profile === 'github-safe-canary'
-        ? planGithubSafeCanaryProfile(servers, toolsByServer)
-        : profile === 'prompt-injection-github'
-          ? planPromptInjectionGithubProfile(servers, toolsByServer)
-          : profile === 'prompt-injection-fetch'
-            ? planPromptInjectionFetchProfile(servers, toolsByServer)
-        : planSafeProfile(servers, toolsByServer);
+  const planners: Record<TesterProfile, (srv: ServerRow[], map: Map<string, ToolRow[]>) => PlannedTest[]> = {
+    safe: planSafeProfile,
+    'demo-confirm': planDemoConfirmProfile,
+    'github-safe-canary': planGithubSafeCanaryProfile,
+    'prompt-injection-github': planPromptInjectionGithubProfile,
+    'prompt-injection-fetch': planPromptInjectionFetchProfile,
+    'prompt-injection-db': planSafeProfile,
+  };
+  const planned = planners[profile](servers, toolsByServer);
   if (planned.length === 0) {
     return {
       collectionId: col.id,
       profile,
       totalPlanned: 0,
+      profilesPlanned: 0,
+      profilesRun: 0,
+      profilesSkipped: 0,
+      profilesPassed: 0,
+      profilesFailed: 0,
+      skippedReasons: [],
+      failedReasons: [],
       confirmed: 0,
       rejected: 0,
       inconclusive: 0,
-        skipped: 0,
-        injectionConfirmed: 0,
-        trustBoundaryConfirmed: 0,
-        behaviouralDeviation: 0,
-        lethalTrifectaConfirmed: 0,
+      skipped: 0,
+      injectionConfirmed: 0,
+      trustBoundaryConfirmed: 0,
+      behaviouralDeviation: 0,
+      lethalTrifectaConfirmed: 0,
       lethalTrifectaPossible: 0,
       lethalTrifectaNone: 0,
       testRuns: [],
@@ -282,9 +320,16 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
   evidenceRepo.insertMany(allEvidence.map(evidenceToRow));
 
   // Update findings based on results.
-  applyTestResultsToFindings(col.id, allTestRuns, findingsRepo);
+  applyTestResultsToFindings(col.id, allTestRuns, findingsRepo, descriptor);
 
   const {
+    profilesPlanned,
+    profilesRun,
+    profilesSkipped,
+    profilesPassed,
+    profilesFailed,
+    skippedReasons,
+    failedReasons,
     confirmed,
     rejected,
     inconclusive,
@@ -299,6 +344,13 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     collectionId: col.id,
     profile,
     totalPlanned: planned.length,
+    profilesPlanned,
+    profilesRun,
+    profilesSkipped,
+    profilesPassed,
+    profilesFailed,
+    skippedReasons,
+    failedReasons,
     confirmed,
     rejected,
     inconclusive,
@@ -398,6 +450,7 @@ export function applyTestResultsToFindings(
   collectionId: string,
   testRuns: TestRun[],
   findingsRepo: ReturnType<typeof createFindingsRepo>,
+  profileDescriptor: ProfileDescriptor,
 ): void {
   if (testRuns.length === 0) return;
   const findings = findingsRepo.findByCollection(collectionId);
@@ -406,7 +459,7 @@ export function applyTestResultsToFindings(
   for (const finding of findings) {
     const matched = matchRunsToFinding(finding, testRuns);
     if (matched.length === 0) continue;
-    const newFinding = applyRunsToFinding(finding, matched);
+    const newFinding = applyRunsToFinding(finding, matched, profileDescriptor);
     updated.push(newFinding);
   }
 
@@ -496,7 +549,11 @@ function stripTestExplanation(explanation: string | undefined): string | undefin
   return trimmed || undefined;
 }
 
-export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
+export function applyRunsToFinding(
+  finding: Finding,
+  runs: TestRun[],
+  profileDescriptor?: ProfileDescriptor,
+): Finding {
   const confirmed = runs.find((r) => r.outcome === TestOutcome.TESTED_CONFIRMED);
   const rejected = runs.find((r) => r.outcome === TestOutcome.TESTED_REJECTED);
   const inconclusive = runs.find((r) => r.outcome === TestOutcome.TESTED_INCONCLUSIVE || r.outcome === TestOutcome.TEST_ERROR);
@@ -510,6 +567,16 @@ export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
       runs.find((r) => (r.baselineToolCalls?.length ?? 0) > 0)?.baselineToolCalls ?? finding.baselinePlan,
     trustBoundaryExploitConfirmed: runs.some((r) => r.trustBoundaryExploitConfirmed === true),
   };
+  const resolvedDescriptor =
+    profileDescriptor ??
+    (runs[0]?.profile ? getProfileDescriptor(runs[0].profile) : undefined);
+  const validationMode = resolvedDescriptor?.validationMode;
+  const allowsCoercionConfirmation =
+    validationMode === ValidationMode.COERCION_CANARY ||
+    validationMode === ValidationMode.COMPOSITE;
+  const allowsTrustBoundaryConfirmation =
+    validationMode === ValidationMode.TRUST_BOUNDARY ||
+    validationMode === ValidationMode.COMPOSITE;
 
   if (confirmed) {
     next.tested = true;
@@ -522,10 +589,10 @@ export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
       baseExplanation,
       'Test confirmed this path via canary observation.',
     );
-    if (
+    if (allowsCoercionConfirmation && (
       finding.category === RiskCategory.PROMPT_INJECTION ||
       finding.lethalTrifectaStatus === 'POSSIBLE'
-    ) {
+    )) {
       next.lethalTrifectaStatus = 'CONFIRMED';
       next.injectionConfirmed = true;
       next.subCategory = 'PROMPT_INJECTION_CONFIRMED';
@@ -546,7 +613,13 @@ export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
         next.pathStatus = PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED;
         next.trustBoundaryConfirmed = true;
         next.subCategory = 'TRUST_BOUNDARY_EXPLOIT_CONFIRMED';
-      } else if (finding.crossesTrustBoundary) {
+      } else if (finding.crossesTrustBoundary && allowsTrustBoundaryConfirmation) {
+        next.pathStatus = PathStatus.TRUST_BOUNDARY_CONFIRMED;
+        next.trustBoundaryConfirmed = true;
+      }
+    } else {
+      next.injectionConfirmed = false;
+      if (finding.crossesTrustBoundary && allowsTrustBoundaryConfirmation) {
         next.pathStatus = PathStatus.TRUST_BOUNDARY_CONFIRMED;
         next.trustBoundaryConfirmed = true;
       }
@@ -580,7 +653,7 @@ export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
       (max, run) => Math.max(max, run.deviationScore ?? 0),
       0,
     );
-    if (hasDeviation && finding.category === RiskCategory.PROMPT_INJECTION) {
+    if (allowsCoercionConfirmation && hasDeviation && finding.category === RiskCategory.PROMPT_INJECTION) {
       if (maxDeviationScore >= PROMPT_INJECTION_POSSIBLE_SCORE_THRESHOLD) {
         next.subCategory = 'PROMPT_INJECTION_POSSIBLE';
       }
@@ -599,3 +672,6 @@ function appendExplanation(prev: string | undefined, line: string): string {
   if (!prev) return line;
   return `${prev}\n${line}`;
 }
+
+export * from './profile-descriptor.js';
+export * from './profile-assertions.js';

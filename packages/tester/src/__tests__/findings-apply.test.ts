@@ -3,6 +3,7 @@ import { Confidence, PathStatus, RiskCategory, TestOutcome } from '@iseemp/core'
 import { createMemoryDb, createFindingsRepo, findingToRow, createCollectionsRepo } from '@iseemp/storage';
 import type { Finding, TestRun } from '@iseemp/core';
 import { applyRunsToFinding, applyTestResultsToFindings, matchRunsToFinding } from '../index.js';
+import { SAFE_PROFILE_DESCRIPTOR, PROMPT_INJECTION_GITHUB_DESCRIPTOR } from '../profile-descriptor.js';
 
 function makeFinding(id: string, candidatePathId?: string): Finding {
   return {
@@ -87,8 +88,8 @@ describe('finding updates from deterministic test outcomes', () => {
     const findingsRepo = createFindingsRepo(db);
     findingsRepo.insert(findingToRow(makeFinding('f-5', 'cp-5')));
     const runs = [makeRun(TestOutcome.TESTED_CONFIRMED, 'cp-5')];
-    applyTestResultsToFindings('col-1', runs, findingsRepo);
-    applyTestResultsToFindings('col-1', runs, findingsRepo);
+    applyTestResultsToFindings('col-1', runs, findingsRepo, SAFE_PROFILE_DESCRIPTOR);
+    applyTestResultsToFindings('col-1', runs, findingsRepo, SAFE_PROFILE_DESCRIPTOR);
     const rows = findingsRepo.findByCollection('col-1').filter((f) => f.id === 'f-5');
     expect(rows).toHaveLength(1);
   });
@@ -106,6 +107,38 @@ describe('finding updates from deterministic test outcomes', () => {
     };
     const matched = matchRunsToFinding(finding, [run]);
     expect(matched).toHaveLength(1);
+  });
+
+  it('does not mark prompt injection confirmed for dataflow-only profile', () => {
+    const finding = {
+      ...makeFinding('f-pi-1', 'cp-pi-1'),
+      category: RiskCategory.PROMPT_INJECTION,
+      lethalTrifectaStatus: 'POSSIBLE' as const,
+    };
+    const run = {
+      ...makeRun(TestOutcome.TESTED_CONFIRMED, 'cp-pi-1'),
+      profile: 'safe' as const,
+      testCaseId: 'PROMPT_INJECTION_GITHUB_ISSUE_TO_SINK',
+    };
+    const updated = applyRunsToFinding(finding, [run], SAFE_PROFILE_DESCRIPTOR);
+    expect(updated.injectionConfirmed).toBe(false);
+    expect(updated.lethalTrifectaStatus).toBe('POSSIBLE');
+  });
+
+  it('marks prompt injection confirmed for coercion profile', () => {
+    const finding = {
+      ...makeFinding('f-pi-2', 'cp-pi-2'),
+      category: RiskCategory.PROMPT_INJECTION,
+      lethalTrifectaStatus: 'POSSIBLE' as const,
+    };
+    const run = {
+      ...makeRun(TestOutcome.TESTED_CONFIRMED, 'cp-pi-2'),
+      profile: 'prompt-injection-github' as const,
+      testCaseId: 'PROMPT_INJECTION_GITHUB_ISSUE_TO_SINK',
+    };
+    const updated = applyRunsToFinding(finding, [run], PROMPT_INJECTION_GITHUB_DESCRIPTOR);
+    expect(updated.injectionConfirmed).toBe(true);
+    expect(updated.lethalTrifectaStatus).toBe('CONFIRMED');
   });
 
 });
