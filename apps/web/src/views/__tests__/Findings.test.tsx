@@ -146,6 +146,7 @@ describe('Trifecta explanation and legend UI', () => {
       <FindingBadges
         finding={makeFinding({
           subCategory: 'PROMPT_INJECTION_EXPLOIT_CHAIN',
+          tested: true,
           pathStatus: 'trust_boundary_exploit_confirmed',
         })}
       />,

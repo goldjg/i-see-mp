@@ -35,6 +35,10 @@ import {
 } from './runner.js';
 import { connectServer, callTool, type ConnectedServer } from './mcp-runtime.js';
 
+// Score 3+ indicates at least one medium-strength behavioral signal from the
+// deviation model (beyond sequence-only noise), so classify as possible.
+const PROMPT_INJECTION_POSSIBLE_SCORE_THRESHOLD = 3;
+
 export interface TestOptions {
   collectionId?: string;
   profile?: TesterProfile;
@@ -577,7 +581,7 @@ export function applyRunsToFinding(finding: Finding, runs: TestRun[]): Finding {
       0,
     );
     if (hasDeviation && finding.category === RiskCategory.PROMPT_INJECTION) {
-      if (maxDeviationScore >= 3) {
+      if (maxDeviationScore >= PROMPT_INJECTION_POSSIBLE_SCORE_THRESHOLD) {
         next.subCategory = 'PROMPT_INJECTION_POSSIBLE';
       }
       next.injectionConfirmed = false;

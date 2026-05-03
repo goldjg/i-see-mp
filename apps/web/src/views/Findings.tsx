@@ -141,18 +141,14 @@ export function FindingBadges({ finding }: { finding: Finding }) {
     });
   }
   if (finding.subCategory) {
-    const cls =
-      finding.subCategory === 'PROMPT_INJECTION_CONFIRMED'
-        ? 'badge-subcategory-prompt-confirmed'
-        : finding.subCategory === 'PROMPT_INJECTION_EXPLOIT_CHAIN'
-          ? 'badge-subcategory-prompt-confirmed'
-          : finding.subCategory === 'PROMPT_INJECTION_BEHAVIOURAL'
-            ? 'badge-subcategory-prompt-behavioural'
-            : finding.subCategory === 'TRUST_BOUNDARY_EXPLOIT_CONFIRMED'
-              ? 'badge-subcategory-trust-confirmed'
-          : finding.subCategory === 'TRUST_BOUNDARY_CONFIRMED'
-            ? 'badge-subcategory-trust-confirmed'
-            : 'badge-subcategory-prompt-possible';
+    const SUBCATEGORY_BADGE_CLASS: Record<string, string> = {
+      PROMPT_INJECTION_CONFIRMED: 'badge-subcategory-prompt-confirmed',
+      PROMPT_INJECTION_EXPLOIT_CHAIN: 'badge-subcategory-prompt-confirmed',
+      PROMPT_INJECTION_BEHAVIOURAL: 'badge-subcategory-prompt-behavioural',
+      TRUST_BOUNDARY_CONFIRMED: 'badge-subcategory-trust-confirmed',
+      TRUST_BOUNDARY_EXPLOIT_CONFIRMED: 'badge-subcategory-trust-confirmed',
+    };
+    const cls = SUBCATEGORY_BADGE_CLASS[finding.subCategory] ?? 'badge-subcategory-prompt-possible';
     badges.push({
       label: finding.subCategory,
       cls,

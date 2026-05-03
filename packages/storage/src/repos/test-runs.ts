@@ -33,8 +33,36 @@ export interface TestRunRow {
   notes: string | null;
 }
 
-const COLUMNS =
-  'id, collection_id, profile, test_case_id, test_case_name, finding_id, candidate_path_id, server_id, source_tool_id, sink_tool_id, outcome, path_summary, plan, tool_calls, baseline_tool_calls, injected_tool_calls, deviation_detected, deviation_score, injection_confirmed, injection_chain, trust_boundary_exploit_confirmed, canary_expected, canary_observed, status, path_status, started_at, completed_at, notes';
+const COLUMNS = [
+  'id',
+  'collection_id',
+  'profile',
+  'test_case_id',
+  'test_case_name',
+  'finding_id',
+  'candidate_path_id',
+  'server_id',
+  'source_tool_id',
+  'sink_tool_id',
+  'outcome',
+  'path_summary',
+  'plan',
+  'tool_calls',
+  'baseline_tool_calls',
+  'injected_tool_calls',
+  'deviation_detected',
+  'deviation_score',
+  'injection_confirmed',
+  'injection_chain',
+  'trust_boundary_exploit_confirmed',
+  'canary_expected',
+  'canary_observed',
+  'status',
+  'path_status',
+  'started_at',
+  'completed_at',
+  'notes',
+].join(', ');
 const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function rowToTestRun(r: TestRunRow): TestRun {
