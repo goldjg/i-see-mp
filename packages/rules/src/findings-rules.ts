@@ -90,6 +90,16 @@ const MUTATE_REMOTE_CAPS: Capability[] = [
   Capability.MUTATE_REPOSITORY,
 ];
 
+const CROSS_SERVER_SOURCE_CAPS_PRIORITY: Capability[] = [
+  Capability.READ_CREDENTIAL_HIGH,
+  Capability.READ_SECRET_HIGH,
+  Capability.READ_SECRET,
+  Capability.READ_LOCAL_FILE,
+  Capability.READ_SENSITIVE_MEDIUM,
+];
+
+const CROSS_SERVER_SINK_CAPS_PRIORITY: Capability[] = [Capability.SEND_EXTERNAL, Capability.SEND_HTTP];
+
 function hasAny(caps: Capability[], wanted: Capability[]): boolean {
   return wanted.some((w) => caps.includes(w));
 }
@@ -198,8 +208,13 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
     }
 
     const serverId = extractServerId(finding) ?? '';
+    const crossServerKey =
+      finding.isCrossServer === true
+        ? `${finding.sourceServerId ?? 'unknown-source'}->${finding.sinkServerId ?? 'unknown-sink'}`
+        : undefined;
+    const dedupeServerKey = crossServerKey ?? serverId;
     const toolIdsKey = extractToolIds(finding).sort().join(',');
-    const key = `${finding.collectionId}|${finding.category}|${serverId}|${toolIdsKey}`;
+    const key = `${finding.collectionId}|${finding.category}|${dedupeServerKey}|${toolIdsKey}`;
     const existing = dedupedByCompoundKey.get(key);
     if (!existing) {
       dedupedByCompoundKey.set(key, finding);
@@ -224,6 +239,7 @@ function makeCandidatePathId(parts: {
   sourceToolId?: string;
   sinkToolId?: string;
   serverId: string;
+  sinkServerId?: string;
   pathSummary: string;
 }): string {
   const cleanedPath = parts.pathSummary.replace(/\s+/g, ' ').trim();
@@ -232,6 +248,7 @@ function makeCandidatePathId(parts: {
     parts.sourceToolId ?? 'none',
     parts.sinkToolId ?? 'none',
     parts.serverId,
+    parts.sinkServerId ?? parts.serverId,
     cleanedPath,
   ].join('|');
 }
@@ -641,6 +658,97 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         sinkCapabilities: EXTERNAL_SINK_CAPS.filter((c) => serverCapsArr.includes(c)),
         boundaryCrossed: boundary,
         pathSummary: `READ_LOCAL_FILE -> MODEL_CONTEXT -> SEND_EXTERNAL (${boundary})`,
+      });
+    }
+  }
+
+  const crossServerSources = servers
+    .map((server) => {
+      const serverTools = toolsByServer.get(server.id) ?? [];
+      const sourceTools = serverTools.filter((tool) =>
+        hasAny(parseCaps(tool.capabilities), CROSS_SERVER_SOURCE_CAPS_PRIORITY),
+      );
+      if (sourceTools.length === 0) return null;
+      const sourceCaps = CROSS_SERVER_SOURCE_CAPS_PRIORITY.filter((cap) =>
+        sourceTools.some((tool) => parseCaps(tool.capabilities).includes(cap)),
+      );
+      if (sourceCaps.length === 0) return null;
+      return { server, sourceTools, sourceCaps };
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+
+  const crossServerSinks = servers
+    .map((server) => {
+      const serverTools = toolsByServer.get(server.id) ?? [];
+      const sinkTools = serverTools.filter((tool) =>
+        hasAny(parseCaps(tool.capabilities), CROSS_SERVER_SINK_CAPS_PRIORITY),
+      );
+      if (sinkTools.length === 0) return null;
+      const sinkCaps = CROSS_SERVER_SINK_CAPS_PRIORITY.filter((cap) =>
+        sinkTools.some((tool) => parseCaps(tool.capabilities).includes(cap)),
+      );
+      if (sinkCaps.length === 0) return null;
+      return { server, sinkTools, sinkCaps };
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+
+  for (const sourceCandidate of crossServerSources) {
+    for (const sinkCandidate of crossServerSinks) {
+      if (sourceCandidate.server.id === sinkCandidate.server.id) continue;
+
+      const sourceCapRepresentative = sourceCandidate.sourceCaps[0]!;
+      const sinkCapRepresentative = sinkCandidate.sinkCaps[0]!;
+      const sourceToolRepresentative = sourceCandidate.sourceTools.find((tool) =>
+        parseCaps(tool.capabilities).includes(sourceCapRepresentative),
+      );
+      const sinkToolRepresentative = sinkCandidate.sinkTools.find((tool) =>
+        parseCaps(tool.capabilities).includes(sinkCapRepresentative),
+      );
+      const sinkBoundary = inferServerTrustBoundary(sinkCandidate.server);
+      const isHighSensitivitySource =
+        sourceCapRepresentative === Capability.READ_CREDENTIAL_HIGH ||
+        sourceCapRepresentative === Capability.READ_SECRET_HIGH ||
+        sourceCapRepresentative === Capability.READ_SECRET;
+
+      const pathSummary = `${sourceCapRepresentative} -> MODEL_CONTEXT -> ${sinkCapRepresentative} (cross-server: ${sourceCandidate.server.name} → ${sinkCandidate.server.name})`;
+      findings.push({
+        id: `finding:${collectionId}:chain:cross_server:${sourceCandidate.server.id}:${sinkCandidate.server.id}`,
+        collectionId,
+        category: RiskCategory.DATA_EXFILTRATION,
+        severity: isHighSensitivitySource ? 'high' : 'medium',
+        title: `Cross-server path candidate: ${sourceCandidate.server.name} → ${sinkCandidate.server.name}`,
+        description: `Source capability on "${sourceCandidate.server.name}" and external-send capability on "${sinkCandidate.server.name}" form a deterministic cross-server candidate path through MODEL_CONTEXT. This is not a confirmed execution chain.`,
+        affectedNodeIds: [
+          `server:${sourceCandidate.server.id}`,
+          `server:${sinkCandidate.server.id}`,
+          ...sourceCandidate.sourceTools.map((tool) => `tool:${tool.id}`),
+          ...sinkCandidate.sinkTools.map((tool) => `tool:${tool.id}`),
+        ],
+        remediationHint:
+          'Keep source-reading and external-send tools isolated across trust boundaries and require deterministic validation before treating this as exploitable.',
+        createdAt: now,
+        confidence: Confidence.LOW,
+        staticPossible: true,
+        observed: false,
+        tested: false,
+        sourceCapabilities: sourceCandidate.sourceCaps,
+        sinkCapabilities: sinkCandidate.sinkCaps,
+        boundaryCrossed: sinkBoundary,
+        pathSummary,
+        candidatePathId:
+          sourceToolRepresentative && sinkToolRepresentative
+            ? makeCandidatePathId({
+                category: RiskCategory.DATA_EXFILTRATION,
+                sourceToolId: sourceToolRepresentative.id,
+                sinkToolId: sinkToolRepresentative.id,
+                serverId: sourceCandidate.server.id,
+                sinkServerId: sinkCandidate.server.id,
+                pathSummary,
+              })
+            : undefined,
+        isCrossServer: true,
+        sourceServerId: sourceCandidate.server.id,
+        sinkServerId: sinkCandidate.server.id,
       });
     }
   }

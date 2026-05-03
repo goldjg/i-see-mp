@@ -64,6 +64,9 @@ export interface Finding {
   pathStatus?: 'static_possible' | 'tested_confirmed' | 'tested_rejected' | 'tested_inconclusive';
   testRunIds?: string[];
   candidatePathId?: string;
+  isCrossServer?: boolean;
+  sourceServerId?: string;
+  sinkServerId?: string;
   trifectaStage?: 'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY';
   trifectaScore?: number;
   trifectaComplete?: boolean;

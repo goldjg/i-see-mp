@@ -32,6 +32,17 @@ describe('classifyFindingTrifecta', () => {
     expect(out.trifectaScore).toBeGreaterThanOrEqual(9);
   });
 
+  it('caps cross-server source + sink findings at PARTIAL', () => {
+    const f = makeFinding({
+      sourceCapabilities: [Capability.READ_SECRET_HIGH],
+      sinkCapabilities: [Capability.SEND_EXTERNAL],
+      isCrossServer: true,
+    });
+    const out = classifyFindingTrifecta(f);
+    expect(out.trifectaStage).toBe('PARTIAL');
+    expect(out.trifectaComplete).toBe(false);
+  });
+
   it('classifies PARTIAL for source-only finding', () => {
     const f = makeFinding({
       sourceCapabilities: [Capability.READ_SECRET_HIGH],
