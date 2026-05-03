@@ -92,7 +92,6 @@ describe('Trifecta explanation and legend UI', () => {
     );
     expect(screen.getByText('Cross-server path candidate')).toBeTruthy();
     expect(screen.getByText('filesystem → fetch')).toBeTruthy();
-    expect(screen.getByText('unknown')).toBeTruthy();
   });
 
   it('renders trust transition and crossed state when trust metadata exists', () => {

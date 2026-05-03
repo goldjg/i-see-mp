@@ -252,9 +252,26 @@ describe('applyTrifectaAnalysis ordering', () => {
       }),
     ];
     const sorted = applyTrifectaAnalysis(findings);
+    expect(sorted[0]?.trifectaStage).toBe('PARTIAL');
     expect(sorted[0]?.crossesTrustBoundary).toBe(true);
     expect(sorted[0]?.trustTransition).toBe('LOCAL → EXTERNAL');
     expect(sorted[0]?.isHighSignal).toBe(false);
+  });
+
+  it('sets isHighSignal when COMPLETE finding is trust-boundary crossing', () => {
+    const findings = [
+      makeFinding({
+        id: 'f-high-signal',
+        sourceCapabilities: [Capability.READ_SECRET_HIGH],
+        sinkCapabilities: [Capability.SEND_EXTERNAL],
+        sourceServerId: 'filesystem',
+        sinkServerId: 'filesystem',
+        crossesTrustBoundary: true,
+      }),
+    ];
+    const sorted = applyTrifectaAnalysis(findings);
+    expect(sorted[0]?.trifectaStage).toBe('COMPLETE');
+    expect(sorted[0]?.isHighSignal).toBe(true);
   });
 });
 
