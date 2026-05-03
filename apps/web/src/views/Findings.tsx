@@ -12,7 +12,27 @@ const SEVERITY_COLOR: Record<string, string> = {
 
 const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low', 'info'];
 
-function FindingBadges({ finding }: { finding: Finding }) {
+const TRIFECTA_LABEL: Record<'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY', string> = {
+  COMPLETE: 'Complete',
+  PARTIAL: 'Partial',
+  CAPABILITY_ONLY: 'Capability only',
+};
+
+const TRIFECTA_EXPLANATION: Record<'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY', string> = {
+  COMPLETE:
+    'Read capability, model context, and a send/mutation sink are all present — this finding represents a potentially exploitable end-to-end path.',
+  PARTIAL:
+    'Two elements of the path are present, but the full end-to-end chain is not proven.',
+  CAPABILITY_ONLY:
+    'This is a standalone exposed capability and is not currently part of a complete or partial exploit chain.',
+};
+
+function renderCapabilityList(list: string[] | undefined): string {
+  if (!list || list.length === 0) return 'not present';
+  return list.join(', ');
+}
+
+export function FindingBadges({ finding }: { finding: Finding }) {
   const badges: Array<{ label: string; cls: string; title: string }> = [];
 
   // Static / Tested / Observed badges. Always show "Static" if staticPossible is set.
@@ -62,19 +82,22 @@ function FindingBadges({ finding }: { finding: Finding }) {
     badges.push({
       label: 'TRIFECTA_COMPLETE',
       cls: 'badge-trifecta-complete',
-      title: 'Source + Transform + Sink all present. Full exploit chain possible.',
+      title:
+        'Source + model context + sink all present. This path has a read capability, passes through the model, and reaches an external send or mutation — a potentially complete exploit chain.',
     });
   } else if (finding.trifectaStage === 'PARTIAL') {
     badges.push({
       label: 'TRIFECTA_PARTIAL',
       cls: 'badge-trifecta-partial',
-      title: 'Source or sink capability present. Partial exploit chain signal.',
+      title:
+        'Source or sink present but not both. Two elements of the exploit chain are detected; the full end-to-end path is not proven.',
     });
   } else if (finding.trifectaStage === 'CAPABILITY_ONLY') {
     badges.push({
       label: 'CAPABILITY_ONLY',
       cls: 'badge-trifecta-capability',
-      title: 'Individual capability present. No complete or partial chain detected.',
+      title:
+        'Single capability present. Not part of a detected complete or partial chain.',
     });
   }
 
@@ -87,6 +110,64 @@ function FindingBadges({ finding }: { finding: Finding }) {
         </span>
       ))}
     </span>
+  );
+}
+
+export function TrifectaExplanation({ finding }: { finding: Finding }) {
+  if (
+    finding.trifectaStage !== 'COMPLETE' &&
+    finding.trifectaStage !== 'PARTIAL' &&
+    finding.trifectaStage !== 'CAPABILITY_ONLY'
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="trifecta-explanation">
+      <div className="trifecta-row">
+        <span className="trifecta-label">Classification</span>
+        <span className="trifecta-value">{TRIFECTA_LABEL[finding.trifectaStage]}</span>
+      </div>
+      <div className="trifecta-row">
+        <span className="trifecta-label">Source</span>
+        <span className="trifecta-value">{renderCapabilityList(finding.sourceCapabilities)}</span>
+      </div>
+      <div className="trifecta-row">
+        <span className="trifecta-label">Transform</span>
+        <span className="trifecta-value">MODEL_CONTEXT (implicit)</span>
+      </div>
+      <div className="trifecta-row">
+        <span className="trifecta-label">Sink</span>
+        <span className="trifecta-value">{renderCapabilityList(finding.sinkCapabilities)}</span>
+      </div>
+      <p className="trifecta-sentence">{TRIFECTA_EXPLANATION[finding.trifectaStage]}</p>
+    </div>
+  );
+}
+
+export function TrifectaLegend() {
+  return (
+    <details className="trifecta-legend">
+      <summary>ℹ️ Trifecta classification guide</summary>
+      <div className="legend-row">
+        <span className="finding-badge badge-trifecta-complete legend-badge">TRIFECTA_COMPLETE</span>
+        <span className="legend-text">
+          Source + model context + sink all present, indicating a potentially complete exploit chain.
+        </span>
+      </div>
+      <div className="legend-row">
+        <span className="finding-badge badge-trifecta-partial legend-badge">TRIFECTA_PARTIAL</span>
+        <span className="legend-text">
+          Source or sink present but not both, so the full end-to-end path is not proven.
+        </span>
+      </div>
+      <div className="legend-row">
+        <span className="finding-badge badge-trifecta-capability legend-badge">CAPABILITY_ONLY</span>
+        <span className="legend-text">
+          Standalone capability exposure without a detected complete or partial chain.
+        </span>
+      </div>
+    </details>
   );
 }
 
@@ -254,6 +335,7 @@ export function Findings({ onShowOnGraph }: { onShowOnGraph?: (nodeIds: string[]
             {f.explanation && (
               <p className="explanation"><strong>Explanation:</strong> {f.explanation}</p>
             )}
+            <TrifectaExplanation finding={f} />
             {f.remediationHint && (
               <p className="remediation"><strong>Remediation:</strong> {f.remediationHint}</p>
             )}
@@ -295,6 +377,7 @@ export function Findings({ onShowOnGraph }: { onShowOnGraph?: (nodeIds: string[]
           All Findings (by Severity)
         </button>
       </div>
+      <TrifectaLegend />
       {viewMode === 'trifecta' &&
         trifectaGroups.map((group) => {
           if (group.items.length === 0) return null;

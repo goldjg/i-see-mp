@@ -68,6 +68,8 @@ export interface Finding {
   trifectaScore?: number;
   trifectaComplete?: boolean;
   pathSummary?: string;
+  sourceCapabilities?: string[];
+  sinkCapabilities?: string[];
   explanation?: string;
 }
 

@@ -26,7 +26,17 @@ const NODE_SHAPES: Record<string, string> = {
   external_system: 'rectangle',
 };
 
-export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => void }) {
+type TrifectaFilter = 'all' | 'trifecta' | 'complete_only';
+
+export function Graph({
+  onSelectNode,
+  trifectaNodeIds,
+  completeNodeIds,
+}: {
+  onSelectNode?: (nodeId: string) => void;
+  trifectaNodeIds?: Set<string>;
+  completeNodeIds?: Set<string>;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
@@ -34,6 +44,7 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [filterType, setFilterType] = useState<string>('');
   const [filterCap, setFilterCap] = useState<string>('');
+  const [trifectaFilter, setTrifectaFilter] = useState<TrifectaFilter>('all');
 
   useEffect(() => {
     async function load() {
@@ -62,6 +73,13 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
     const filteredEdges = edges.filter(
       (e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target),
     );
+    const activeNodeIds =
+      trifectaFilter === 'trifecta'
+        ? (trifectaNodeIds ?? new Set<string>())
+        : trifectaFilter === 'complete_only'
+          ? (completeNodeIds ?? new Set<string>())
+          : new Set<string>();
+    const hasTrifectaFocus = trifectaFilter !== 'all' && activeNodeIds.size > 0;
 
     const cy = cytoscape({
       container: containerRef.current,
@@ -72,10 +90,21 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
             label: n.label,
             type: n.type,
             riskScore: n.riskScore,
+            trifectaActive: hasTrifectaFocus ? (activeNodeIds.has(n.id) ? 1 : 0) : 1,
           },
         })),
         ...filteredEdges.map((e) => ({
-          data: { id: e.id, source: e.source, target: e.target, type: e.type },
+          data: {
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            type: e.type,
+            trifectaActive: hasTrifectaFocus && (activeNodeIds.has(e.source) || activeNodeIds.has(e.target))
+              ? 1
+              : hasTrifectaFocus
+                ? 0
+                : 1,
+          },
         })),
       ],
       style: [
@@ -109,11 +138,35 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
             'width': 1,
           },
         },
+        ...(hasTrifectaFocus
+          ? [
+              {
+                selector: 'node[trifectaActive = 0]',
+                style: {
+                  opacity: 0.15,
+                },
+              },
+              {
+                selector: 'edge[trifectaActive = 0]',
+                style: {
+                  opacity: 0.08,
+                },
+              },
+              {
+                selector: 'node[trifectaActive = 1]',
+                style: {
+                  'border-width': 2,
+                  'border-color': '#f59e0b',
+                },
+              },
+            ]
+          : []),
         {
           selector: 'node:selected',
           style: {
             'border-width': 3,
             'border-color': '#f59e0b',
+            opacity: 1,
           },
         },
       ],
@@ -148,7 +201,7 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
       cy.destroy();
       cyRef.current = null;
     };
-  }, [nodes, edges, filterType, filterCap, onSelectNode]);
+  }, [nodes, edges, filterType, filterCap, trifectaFilter, trifectaNodeIds, completeNodeIds, onSelectNode]);
 
   const allTypes = [...new Set(nodes.map((n) => n.type))];
   const allCaps = [...new Set(nodes.flatMap((n) => n.capabilities))];
@@ -179,11 +232,25 @@ export function Graph({ onSelectNode }: { onSelectNode?: (nodeId: string) => voi
           <option value="">All capabilities</option>
           {allCaps.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <button onClick={() => { setFilterType(''); setFilterCap(''); }}>Reset filters</button>
+        <select
+          className="graph-trifecta-filter"
+          value={trifectaFilter}
+          onChange={(e) => setTrifectaFilter(e.target.value as TrifectaFilter)}
+        >
+          <option value="all">All nodes</option>
+          <option value="trifecta">Trifecta paths (complete + partial)</option>
+          <option value="complete_only">Complete paths only</option>
+        </select>
+        <button onClick={() => { setFilterType(''); setFilterCap(''); setTrifectaFilter('all'); }}>Reset filters</button>
         <button onClick={() => zoomBy(1.2)}>Zoom in</button>
         <button onClick={() => zoomBy(1 / 1.2)}>Zoom out</button>
         <button onClick={resetView}>Reset view</button>
       </div>
+      {trifectaFilter !== 'all' &&
+        ((trifectaFilter === 'trifecta' && (trifectaNodeIds?.size ?? 0) === 0) ||
+          (trifectaFilter === 'complete_only' && (completeNodeIds?.size ?? 0) === 0)) && (
+          <p className="graph-trifecta-empty">No trifecta findings — filter has no effect.</p>
+      )}
       <div className="graph-container">
         <div ref={containerRef} className="cytoscape-canvas" />
         {selected && (

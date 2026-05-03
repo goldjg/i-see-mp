@@ -41,6 +41,8 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 .graph-view { display: flex; flex-direction: column; height: calc(100vh - 64px); }
 .graph-filters { display: flex; gap: 12px; padding-bottom: 12px; flex-wrap: wrap; }
 .graph-filters select, .graph-filters button { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+.graph-trifecta-filter { min-width: 250px; }
+.graph-trifecta-empty { margin: 0 0 10px; color: #94a3b8; font-size: 12px; }
 .graph-container { flex: 1; position: relative; border: 1px solid #334155; border-radius: 8px; overflow: hidden; }
 .cytoscape-canvas { width: 100%; height: 100%; background: #0f172a; cursor: grab; }
 .cytoscape-canvas:active { cursor: grabbing; }
@@ -129,3 +131,56 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 .evidence-empty, .evidence-loading { color: #64748b; font-size: 12px; padding: 4px 0; }
 .evidence-notes { color: #fcd34d; font-size: 12px; }
 .explanation { color: #cbd5e1; }
+
+.trifecta-explanation {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #0f172a;
+}
+.trifecta-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.trifecta-label {
+  color: #94a3b8;
+  font-weight: 600;
+}
+.trifecta-value {
+  color: #cbd5e1;
+}
+.trifecta-sentence {
+  margin-top: 8px;
+  margin-bottom: 0 !important;
+  color: #e2e8f0;
+}
+
+.trifecta-legend {
+  margin-bottom: 12px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #0f172a;
+}
+.trifecta-legend summary {
+  cursor: pointer;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+}
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.legend-badge {
+  flex-shrink: 0;
+}
+.legend-text {
+  color: #94a3b8;
+  font-size: 12px;
+}
