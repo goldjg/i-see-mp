@@ -95,6 +95,9 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     Array.from(sinkPool).every((cap) => cap === Capability.RUN_SHELL || cap === Capability.EXECUTE_CODE);
   if (hasSource && hasSink && !inferredExecutionSinkOnly) trifectaStage = TrifectaStage.COMPLETE;
   else if (hasSource || hasSink) trifectaStage = TrifectaStage.PARTIAL;
+  if (finding.isCrossServer === true && trifectaStage === TrifectaStage.COMPLETE) {
+    trifectaStage = TrifectaStage.PARTIAL;
+  }
 
   let trifectaScore = 0;
   if (hasSource) trifectaScore += 3;

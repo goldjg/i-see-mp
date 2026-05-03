@@ -294,16 +294,30 @@ if (fetchUnexpectedLocalRead.length > 0) {
 const complete = findings.filter((finding) => finding.trifectaComplete === true).length;
 const partial = findings.filter((finding) => finding.trifectaStage === 'PARTIAL').length;
 const capabilityOnly = findings.filter((finding) => finding.trifectaStage === 'CAPABILITY_ONLY').length;
+const crossServerFindings = findings.filter((finding) => finding.isCrossServer === true);
+const crossServerPartial = crossServerFindings.filter((finding) => finding.trifectaStage === 'PARTIAL');
+const crossServerComplete = crossServerFindings.filter((finding) => finding.trifectaComplete === true);
 
 console.log(
   `✅ Filesystem+Fetch MCP e2e summary. Servers: ${servers.length}. Tools: ${tools.length}. Findings: ${findings.length}. Trifecta COMPLETE=${complete}, PARTIAL=${partial}, CAPABILITY_ONLY=${capabilityOnly}.`,
 );
 
-if (complete > 0) {
-  console.log('ℹ️ Cross-server trifecta was synthesized by current rules (accepted).');
-} else {
-  console.log('ℹ️ Cross-server trifecta not yet synthesized — both sides classified correctly.');
+if (crossServerFindings.length === 0) {
+  fail('Expected at least one cross-server candidate finding, got none.');
 }
+
+if (crossServerComplete.length > 0) {
+  fail(`Cross-server findings must not be TRIFECTA_COMPLETE; found ${crossServerComplete.length}.`);
+}
+
+if (crossServerPartial.length === 0) {
+  fail('Expected at least one cross-server TRIFECTA_PARTIAL finding.');
+}
+
+const crossServerPairs = Array.from(
+  new Set(crossServerPartial.map((finding) => `${finding.sourceServerId ?? 'unknown'}->${finding.sinkServerId ?? 'unknown'}`)),
+);
+console.log(`✅ Cross-server partial found: ${crossServerPartial.length}. Pairs: ${crossServerPairs.join(', ')}.`);
 JS
 
 echo "ℹ️  Cleanup command:"

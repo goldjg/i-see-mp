@@ -128,6 +128,18 @@ export function TrifectaExplanation({ finding }: { finding: Finding }) {
         <span className="trifecta-label">Classification</span>
         <span className="trifecta-value">{TRIFECTA_LABEL[finding.trifectaStage]}</span>
       </div>
+      {finding.isCrossServer && (
+        <>
+          <div className="trifecta-row">
+            <span className="trifecta-label">Path type</span>
+            <span className="trifecta-value">Cross-server path candidate</span>
+          </div>
+          <div className="trifecta-row">
+            <span className="trifecta-label">Servers</span>
+            <span className="trifecta-value">{`${finding.sourceServerId ?? 'unknown'} → ${finding.sinkServerId ?? 'unknown'}`}</span>
+          </div>
+        </>
+      )}
       <div className="trifecta-row">
         <span className="trifecta-label">Source</span>
         <span className="trifecta-value">{renderCapabilityList(finding.sourceCapabilities)}</span>

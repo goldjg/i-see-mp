@@ -79,6 +79,21 @@ describe('Trifecta explanation and legend UI', () => {
     expect(notPresent.length).toBe(2);
   });
 
+  it('renders cross-server path label and server pair when cross-server metadata exists', () => {
+    render(
+      <TrifectaExplanation
+        finding={makeFinding({
+          trifectaStage: 'PARTIAL',
+          isCrossServer: true,
+          sourceServerId: 'filesystem',
+          sinkServerId: 'fetch',
+        })}
+      />,
+    );
+    expect(screen.getByText('Cross-server path candidate')).toBeTruthy();
+    expect(screen.getByText('filesystem → fetch')).toBeTruthy();
+  });
+
   it('renders COMPLETE badge tooltip text', () => {
     render(<FindingBadges finding={makeFinding({ trifectaStage: 'COMPLETE' })} />);
     const badge = screen.getByText('TRIFECTA_COMPLETE');
@@ -104,4 +119,3 @@ describe('Trifecta explanation and legend UI', () => {
     expect(screen.getByText('CAPABILITY_ONLY')).toBeTruthy();
   });
 });
-

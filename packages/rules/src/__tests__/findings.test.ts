@@ -256,6 +256,98 @@ describe('runFindingsRules — DATA_EXFILTRATION (paths)', () => {
   });
 });
 
+describe('runFindingsRules — cross-server paths', () => {
+  it('emits cross-server candidate when source and sink are on different servers', () => {
+    const sourceServer = makeServer('srv-source');
+    const sinkServer = makeServer('srv-sink', 'https://api.example.com/mcp');
+    const sourceTool = makeTool('t-source', sourceServer.id, [Capability.READ_LOCAL_FILE]);
+    const sinkTool = makeTool('t-sink', sinkServer.id, [Capability.SEND_HTTP]);
+
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [sourceServer, sinkServer],
+      tools: [sourceTool, sinkTool],
+      collectionId: 'col1',
+    });
+    const crossServer = findings.find((f) => f.isCrossServer === true);
+    expect(crossServer).toBeDefined();
+    expect(crossServer?.category).toBe(RiskCategory.DATA_EXFILTRATION);
+    expect(crossServer?.sourceServerId).toBe(sourceServer.id);
+    expect(crossServer?.sinkServerId).toBe(sinkServer.id);
+    expect(crossServer?.sourceCapabilities).toContain(Capability.READ_LOCAL_FILE);
+    expect(crossServer?.sinkCapabilities).toContain(Capability.SEND_HTTP);
+    expect(crossServer?.candidatePathId).toContain(`${sourceServer.id}|${sinkServer.id}|`);
+  });
+
+  it('keeps cross-server findings PARTIAL (not COMPLETE)', () => {
+    const sourceServer = makeServer('srv-source');
+    const sinkServer = makeServer('srv-sink');
+    const sourceTool = makeTool('t-source', sourceServer.id, [Capability.READ_LOCAL_FILE]);
+    const sinkTool = makeTool('t-sink', sinkServer.id, [Capability.SEND_EXTERNAL]);
+
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [sourceServer, sinkServer],
+      tools: [sourceTool, sinkTool],
+      collectionId: 'col1',
+    });
+    const crossServer = findings.find((f) => f.isCrossServer === true);
+    expect(crossServer).toBeDefined();
+    expect(crossServer?.trifectaStage).toBe('PARTIAL');
+    expect(crossServer?.trifectaComplete).toBe(false);
+  });
+
+  it('does not emit cross-server finding when source and sink are on one server', () => {
+    const server = makeServer('srv1');
+    const sourceTool = makeTool('t-source', server.id, [Capability.READ_LOCAL_FILE]);
+    const sinkTool = makeTool('t-sink', server.id, [Capability.SEND_HTTP]);
+
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [sourceTool, sinkTool],
+      collectionId: 'col1',
+    });
+    expect(findings.some((f) => f.isCrossServer === true)).toBe(false);
+  });
+
+  it('does not emit cross-server finding when no sink server exists', () => {
+    const sourceServerA = makeServer('srv-a');
+    const sourceServerB = makeServer('srv-b');
+    const sourceToolA = makeTool('t-a', sourceServerA.id, [Capability.READ_LOCAL_FILE]);
+    const sourceToolB = makeTool('t-b', sourceServerB.id, [Capability.READ_SENSITIVE_MEDIUM]);
+
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [sourceServerA, sourceServerB],
+      tools: [sourceToolA, sourceToolB],
+      collectionId: 'col1',
+    });
+    expect(findings.some((f) => f.isCrossServer === true)).toBe(false);
+  });
+
+  it('elevates cross-server severity for credential/secret source', () => {
+    const sourceServer = makeServer('srv-source');
+    const sinkServer = makeServer('srv-sink');
+    const sourceTool = makeTool('t-source', sourceServer.id, [Capability.READ_CREDENTIAL_HIGH]);
+    const sinkTool = makeTool('t-sink', sinkServer.id, [Capability.SEND_EXTERNAL]);
+
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [sourceServer, sinkServer],
+      tools: [sourceTool, sinkTool],
+      collectionId: 'col1',
+    });
+    const crossServer = findings.find((f) => f.isCrossServer === true);
+    expect(crossServer?.severity).toBe('high');
+  });
+});
+
 describe('runFindingsRules — Finding schema enrichment', () => {
   it('includes confidence, staticPossible/observed/tested flags on findings', () => {
     const server = makeServer('srv1');
