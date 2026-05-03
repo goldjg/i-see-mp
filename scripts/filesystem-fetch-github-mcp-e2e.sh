@@ -368,8 +368,8 @@ if (fetchUnexpectedLocalRead.length > 0) {
 const complete = findings.filter((finding) => finding.trifectaComplete === true).length;
 const partial = findings.filter((finding) => finding.trifectaStage === 'PARTIAL').length;
 const capabilityOnly = findings.filter((finding) => finding.trifectaStage === 'CAPABILITY_ONLY').length;
-const lethalComplete = findings.filter((finding) => finding.lethalTrifectaStatus === 'COMPLETE');
-const lethalCandidate = findings.filter((finding) => finding.lethalTrifectaStatus === 'CANDIDATE');
+const lethalCompleteFindings = findings.filter((finding) => finding.lethalTrifectaStatus === 'COMPLETE');
+const lethalCandidateFindings = findings.filter((finding) => finding.lethalTrifectaStatus === 'CANDIDATE');
 const crossServerFindings = findings.filter((finding) => finding.isCrossServer === true);
 const crossServerPartial = crossServerFindings.filter((finding) => finding.trifectaStage === 'PARTIAL');
 const crossServerComplete = crossServerFindings.filter((finding) => finding.trifectaComplete === true);
@@ -390,8 +390,8 @@ if (crossServerComplete.length > 0) {
   console.warn(`⚠️ Cross-server findings marked TRIFECTA_COMPLETE: ${crossServerComplete.length}.`);
 }
 
-if (lethalComplete.length > 0) {
-  fail(`Unexpected lethalTrifectaStatus=COMPLETE findings: ${lethalComplete.length}.`);
+if (lethalCompleteFindings.length > 0) {
+  fail(`Unexpected lethalTrifectaStatus=COMPLETE findings: ${lethalCompleteFindings.length}.`);
 }
 
 const githubHasUntrustedContent = githubTools.some((tool) => hasCap(tool, 'UNTRUSTED_CONTENT_EXPOSURE'));
@@ -400,7 +400,7 @@ const fetchHasExternalComm = fetchTools.some(
   (tool) => hasCap(tool, 'SEND_EXTERNAL') || hasCap(tool, 'SEND_HTTP') || hasCap(tool, 'SEND_EMAIL'),
 );
 if (!githubHasUntrustedContent) {
-  const invalidCandidates = lethalCandidate.filter(
+  const invalidCandidates = lethalCandidateFindings.filter(
     (finding) =>
       !(
         fetchHasUntrustedContent &&
