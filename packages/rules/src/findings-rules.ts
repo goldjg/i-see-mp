@@ -57,7 +57,9 @@ function isInstructionCapableTool(tool: ToolRow): boolean {
     caps.includes(Capability.UNTRUSTED_CONTENT_EXPOSURE) || caps.includes(Capability.INSTRUCTION_SOURCE);
   const instructionOrigin = new Set(['remote', 'user_generated', 'external_saas', 'db_row']);
   const hasInstructionOrigin = instructionOrigin.has(tool.content_origin);
-  return hasSourceRole && hasExposureCap && hasInstructionOrigin;
+  if (hasSourceRole && hasExposureCap && hasInstructionOrigin) return true;
+  // Backward-compatible fallback for previously-classified instruction-capable tools.
+  return hasSourceRole || hasExposureCap;
 }
 
 function isNonLocalhost(url: string | null): boolean {

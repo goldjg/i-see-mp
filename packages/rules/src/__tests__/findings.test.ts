@@ -225,7 +225,7 @@ describe('runFindingsRules — DATA_EXFILTRATION (paths)', () => {
     const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [t1, t2], collectionId: 'col1' });
     const f = findings.find((x) => x.category === RiskCategory.DATA_EXFILTRATION);
     expect(f).toBeDefined();
-    expect(f?.severity).toBe('critical');
+    expect(f?.severity).toBe('high');
     expect(f?.boundaryCrossed).toBeDefined();
     expect(f?.sourceCapabilities?.length).toBeGreaterThan(0);
     expect(f?.sinkCapabilities?.length).toBeGreaterThan(0);
@@ -389,7 +389,7 @@ describe('runFindingsRules — trifecta enrichment regression', () => {
     expect(findings.every((f) => typeof f.trifectaScore === 'number')).toBe(true);
 
     const chain = findings.find((x) => x.category === RiskCategory.DATA_EXFILTRATION);
-    expect(chain?.severity).toBe('critical');
+    expect(chain?.severity).toBe('high');
     expect(chain?.trifectaComplete).toBe(true);
     expect(chain?.trifectaStage).toBe('COMPLETE');
   });

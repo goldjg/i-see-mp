@@ -28,7 +28,7 @@ function normalizeServerKey(serverId: string): string {
   if (lower in SERVER_TRUST_MAP) return lower;
   const parts = lower.split(':');
   const tail = parts[parts.length - 1] ?? lower;
-  return tail;
+  return tail in SERVER_TRUST_MAP ? tail : lower;
 }
 
 const GITHUB_USER_CONTROLLED_TOOL_RE =
@@ -87,7 +87,7 @@ export function deriveCrossesTrustBoundary(
     sourceTrust === TrustZone.USER_CONTROLLED_SAAS || sourceTrust === TrustZone.EXTERNAL;
   const attackerReachableSink =
     sinkTrust === TrustZone.USER_CONTROLLED_SAAS || sinkTrust === TrustZone.EXTERNAL;
-  return attackerControlledSource || attackerReachableSink;
+  return attackerControlledSource || attackerReachableSink || isSensitiveTrustTransition(sourceTrust, sinkTrust);
 }
 
 export function isSensitiveTrustTransition(sourceTrust?: TrustZone, sinkTrust?: TrustZone): boolean {

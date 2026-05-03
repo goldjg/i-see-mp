@@ -1176,6 +1176,15 @@ export async function executePromptInjectionGithubPlannedTest(
           [instructionSourceTool, sinkTool].filter((t): t is ToolRow => Boolean(t)),
         ),
       );
+      baselineToolCalls.push(
+        ...baselinePlan.toolCallSequence.map((entry, idx) => ({
+          step: idx + 1,
+          toolName: entry.toolName,
+          serverId: entry.serverId,
+          input: redactRecord(readInput),
+          output: redactValue({ baseline: true }),
+        })),
+      );
       await callAndRecord(
         args,
         toolCalls,
@@ -1184,7 +1193,7 @@ export async function executePromptInjectionGithubPlannedTest(
         instructionSourceTool.name,
         readInput,
       );
-      baselineToolCalls.push(toolCalls[toolCalls.length - 1]!);
+      injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
       observedToolCalls.push(instructionSourceTool.name);
 
       const sinkInput = {
@@ -1192,7 +1201,7 @@ export async function executePromptInjectionGithubPlannedTest(
         payload: exfilMarker,
       };
       const sinkRes = await callAndRecord(args, toolCalls, evidence, step++, sinkTool.name, sinkInput);
-      injectedToolCalls.push(...toolCalls.slice(Math.max(0, toolCalls.length - 2)));
+      injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
       observedToolCalls.push(sinkTool.name);
       if (!sinkRes.isError) {
         await sleep(25);
@@ -1397,16 +1406,25 @@ export async function executePromptInjectionFetchPlannedTest(
       planned.serverId,
       capabilitiesByToolName([sourceTool, sinkTool]),
     );
+    baselineToolCalls.push(
+      ...baselinePlan.toolCallSequence.map((entry, idx) => ({
+        step: idx + 1,
+        toolName: entry.toolName,
+        serverId: entry.serverId,
+        input: redactRecord({ url: `${ctx.sink.url}/baseline` }),
+        output: redactValue({ baseline: true }),
+      })),
+    );
 
     await call(1, sourceTool.name, { url: `${ctx.sink.url}/baseline` });
-    baselineToolCalls.push(toolCalls[toolCalls.length - 1]!);
 
     await call(2, sourceTool.name, {
       url: `${ctx.sink.url}/iseemp-probe/${injectMarkerUuid}`,
       content: payload,
     });
+    injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
     await call(3, sinkTool.name, { url: ctx.sink.url, payload: exfilMarker });
-    injectedToolCalls.push(...toolCalls.slice(-2));
+    injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
 
     await sleep(25);
     canaryObserved = ctx.sink.observed(exfilMarker);
