@@ -104,10 +104,6 @@ function hasAny(caps: Capability[], wanted: Capability[]): boolean {
   return wanted.some((w) => caps.includes(w));
 }
 
-function parseToolCaps(tool: ToolRow): Capability[] {
-  return parseCaps(tool.capabilities);
-}
-
 const SEVERITY_RANK: Record<Finding['severity'], number> = {
   info: 0,
   low: 1,
@@ -670,11 +666,11 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
     .map((server) => {
       const serverTools = toolsByServer.get(server.id) ?? [];
       const sourceTools = serverTools.filter((tool) =>
-        hasAny(parseToolCaps(tool), CROSS_SERVER_SOURCE_CAPS_PRIORITY),
+        hasAny(parseCaps(tool.capabilities), CROSS_SERVER_SOURCE_CAPS_PRIORITY),
       );
       if (sourceTools.length === 0) return null;
       const sourceCaps = CROSS_SERVER_SOURCE_CAPS_PRIORITY.filter((cap) =>
-        sourceTools.some((tool) => parseToolCaps(tool).includes(cap)),
+        sourceTools.some((tool) => parseCaps(tool.capabilities).includes(cap)),
       );
       if (sourceCaps.length === 0) return null;
       return { server, sourceTools, sourceCaps };
@@ -684,10 +680,12 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
   const crossServerSinks = servers
     .map((server) => {
       const serverTools = toolsByServer.get(server.id) ?? [];
-      const sinkTools = serverTools.filter((tool) => hasAny(parseToolCaps(tool), CROSS_SERVER_SINK_CAPS_PRIORITY));
+      const sinkTools = serverTools.filter((tool) =>
+        hasAny(parseCaps(tool.capabilities), CROSS_SERVER_SINK_CAPS_PRIORITY),
+      );
       if (sinkTools.length === 0) return null;
       const sinkCaps = CROSS_SERVER_SINK_CAPS_PRIORITY.filter((cap) =>
-        sinkTools.some((tool) => parseToolCaps(tool).includes(cap)),
+        sinkTools.some((tool) => parseCaps(tool.capabilities).includes(cap)),
       );
       if (sinkCaps.length === 0) return null;
       return { server, sinkTools, sinkCaps };
@@ -698,15 +696,13 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
     for (const sinkCandidate of crossServerSinks) {
       if (sourceCandidate.server.id === sinkCandidate.server.id) continue;
 
-      const sourceCapRepresentative = sourceCandidate.sourceCaps[0];
-      const sinkCapRepresentative = sinkCandidate.sinkCaps[0];
-      if (!sourceCapRepresentative || !sinkCapRepresentative) continue;
-
+      const sourceCapRepresentative = sourceCandidate.sourceCaps[0]!;
+      const sinkCapRepresentative = sinkCandidate.sinkCaps[0]!;
       const sourceToolRepresentative = sourceCandidate.sourceTools.find((tool) =>
-        parseToolCaps(tool).includes(sourceCapRepresentative),
+        parseCaps(tool.capabilities).includes(sourceCapRepresentative),
       );
       const sinkToolRepresentative = sinkCandidate.sinkTools.find((tool) =>
-        parseToolCaps(tool).includes(sinkCapRepresentative),
+        parseCaps(tool.capabilities).includes(sinkCapRepresentative),
       );
       const sinkBoundary = inferServerTrustBoundary(sinkCandidate.server);
       const isHighSensitivitySource =
