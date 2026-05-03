@@ -126,3 +126,10 @@ export const RiskCategory = {
   DANGEROUS_TOOL_CHAIN: 'DANGEROUS_TOOL_CHAIN',
 } as const;
 export type RiskCategory = (typeof RiskCategory)[keyof typeof RiskCategory];
+
+export const TrifectaStage = {
+  COMPLETE: 'COMPLETE',
+  PARTIAL: 'PARTIAL',
+  CAPABILITY_ONLY: 'CAPABILITY_ONLY',
+} as const;
+export type TrifectaStage = (typeof TrifectaStage)[keyof typeof TrifectaStage];

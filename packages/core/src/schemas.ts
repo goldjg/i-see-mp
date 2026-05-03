@@ -10,6 +10,7 @@ import {
   TestProfile,
   TestStatus,
   TestOutcome,
+  TrifectaStage,
 } from './types.js';
 
 export const NodeTypeSchema = z.enum(
@@ -51,6 +52,10 @@ export const TestStatusSchema = z.enum(
 export const TestOutcomeSchema = z.enum(
   Object.values(TestOutcome) as [string, ...string[]],
 ) as z.ZodEnum<[TestOutcome, ...TestOutcome[]]>;
+
+export const TrifectaStageSchema = z.enum(
+  Object.values(TrifectaStage) as [string, ...string[]],
+) as z.ZodEnum<[TrifectaStage, ...TrifectaStage[]]>;
 
 export const McpToolSchema = z.object({
   name: z.string(),
@@ -139,6 +144,9 @@ export const FindingSchema = z.object({
   explanation: z.string().optional(),
   evidence: z.array(z.string()).optional(),
   candidatePathId: z.string().optional(),
+  trifectaStage: TrifectaStageSchema.optional(),
+  trifectaScore: z.number().optional(),
+  trifectaComplete: z.boolean().optional(),
 });
 export type Finding = z.infer<typeof FindingSchema>;
 

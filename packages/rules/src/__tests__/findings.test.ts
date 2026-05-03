@@ -269,6 +269,33 @@ describe('runFindingsRules — Finding schema enrichment', () => {
   });
 });
 
+describe('runFindingsRules — trifecta enrichment regression', () => {
+  it('keeps expected category counts and enriches trifecta fields', () => {
+    const server = makeServer('srv1', 'https://api.github.com/mcp');
+    const t1 = makeTool('t1', 'srv1', [Capability.READ_SECRET_HIGH]);
+    const t2 = makeTool('t2', 'srv1', [Capability.SEND_EXTERNAL, Capability.SEND_HTTP]);
+    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [t1, t2], collectionId: 'col1' });
+
+    const byCategory = findings.reduce<Record<string, number>>((acc, f) => {
+      acc[f.category] = (acc[f.category] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    expect(byCategory[RiskCategory.UNVERIFIED_SERVER]).toBe(1);
+    expect(byCategory[RiskCategory.TRUST_BOUNDARY_CROSSING]).toBe(1);
+    expect(byCategory[RiskCategory.SENSITIVE_DATA_EXPOSURE]).toBe(1);
+    expect(byCategory[RiskCategory.DATA_EXFILTRATION]).toBe(1);
+
+    expect(findings.every((f) => typeof f.trifectaStage === 'string')).toBe(true);
+    expect(findings.every((f) => typeof f.trifectaScore === 'number')).toBe(true);
+
+    const chain = findings.find((x) => x.category === RiskCategory.DATA_EXFILTRATION);
+    expect(chain?.severity).toBe('critical');
+    expect(chain?.trifectaComplete).toBe(true);
+    expect(chain?.trifectaStage).toBe('COMPLETE');
+  });
+});
+
 describe('deduplicateFindings', () => {
   it('suppresses remote_query finding when higher-signal mutation finding exists on same server/tool', () => {
     const server = makeServer('srv1', 'https://api.github.com/mcp');

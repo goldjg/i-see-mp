@@ -58,6 +58,25 @@ function FindingBadges({ finding }: { finding: Finding }) {
       title: `Confidence is ${finding.confidence}.`,
     });
   }
+  if (finding.trifectaStage === 'COMPLETE') {
+    badges.push({
+      label: 'TRIFECTA_COMPLETE',
+      cls: 'badge-trifecta-complete',
+      title: 'Source + Transform + Sink all present. Full exploit chain possible.',
+    });
+  } else if (finding.trifectaStage === 'PARTIAL') {
+    badges.push({
+      label: 'TRIFECTA_PARTIAL',
+      cls: 'badge-trifecta-partial',
+      title: 'Source or sink capability present. Partial exploit chain signal.',
+    });
+  } else if (finding.trifectaStage === 'CAPABILITY_ONLY') {
+    badges.push({
+      label: 'CAPABILITY_ONLY',
+      cls: 'badge-trifecta-capability',
+      title: 'Individual capability present. No complete or partial chain detected.',
+    });
+  }
 
   if (badges.length === 0) return null;
   return (
@@ -166,6 +185,7 @@ function EvidenceSummary({ findingId }: { findingId: string }) {
 export function Findings({ onShowOnGraph }: { onShowOnGraph?: (nodeIds: string[]) => void }) {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'trifecta' | 'severity'>('trifecta');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -190,62 +210,112 @@ export function Findings({ onShowOnGraph }: { onShowOnGraph?: (nodeIds: string[]
     acc[sev] = findings.filter((f) => f.severity === sev);
     return acc;
   }, {});
+  const trifectaGroups: Array<{ key: 'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY'; label: string; items: Finding[] }> = [
+    {
+      key: 'COMPLETE',
+      label: 'TRIFECTA_COMPLETE',
+      items: findings.filter((f) => f.trifectaStage === 'COMPLETE'),
+    },
+    {
+      key: 'PARTIAL',
+      label: 'TRIFECTA_PARTIAL',
+      items: findings.filter((f) => f.trifectaStage === 'PARTIAL'),
+    },
+    {
+      key: 'CAPABILITY_ONLY',
+      label: 'CAPABILITY_ONLY',
+      items: findings.filter((f) => f.trifectaStage === 'CAPABILITY_ONLY'),
+    },
+  ];
+
+  function renderFindingCard(f: Finding) {
+    return (
+      <div key={f.id} className="finding-card-full">
+        <div className="finding-header" onClick={() => setExpanded((s) => {
+          const n = new Set(s);
+          if (n.has(f.id)) {
+            n.delete(f.id);
+          } else {
+            n.add(f.id);
+          }
+          return n;
+        })}>
+          <span className="severity-dot" style={{ background: SEVERITY_COLOR[f.severity] }} />
+          <span className="finding-title">{f.title}</span>
+          <FindingBadges finding={f} />
+          <span className="finding-category">{f.category}</span>
+        </div>
+        {expanded.has(f.id) && (
+          <div className="finding-body">
+            <p>{f.description}</p>
+            {f.pathSummary && (
+              <p><strong>Path:</strong> <code>{f.pathSummary}</code></p>
+            )}
+            {f.explanation && (
+              <p className="explanation"><strong>Explanation:</strong> {f.explanation}</p>
+            )}
+            {f.remediationHint && (
+              <p className="remediation"><strong>Remediation:</strong> {f.remediationHint}</p>
+            )}
+            {f.affectedNodeIds.length > 0 && (
+              <p><strong>Affected nodes:</strong> {f.affectedNodeIds.join(', ')}</p>
+            )}
+            {(f.tested || (f.testRunIds && f.testRunIds.length > 0)) && (
+              <EvidenceSummary findingId={f.id} />
+            )}
+            {onShowOnGraph && (
+              <button
+                className="show-on-graph-btn"
+                onClick={() => onShowOnGraph(f.affectedNodeIds)}
+              >
+                Show on graph →
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="findings-view">
       <h1>Findings ({findings.length})</h1>
       {findings.length === 0 && <p className="empty-state">No findings — looks clean! Run <code>iseemp analyze</code> if you haven't already.</p>}
-      {SEVERITY_ORDER.map((sev) => {
-        const group = grouped[sev] ?? [];
-        if (group.length === 0) return null;
-        return (
-          <div key={sev} className="findings-group">
-            <h2 style={{ color: SEVERITY_COLOR[sev] }}>{sev.toUpperCase()} ({group.length})</h2>
-            {group.map((f) => (
-              <div key={f.id} className="finding-card-full">
-                <div className="finding-header" onClick={() => setExpanded((s) => {
-                  const n = new Set(s);
-                  n.has(f.id) ? n.delete(f.id) : n.add(f.id);
-                  return n;
-                })}>
-                  <span className="severity-dot" style={{ background: SEVERITY_COLOR[f.severity] }} />
-                  <span className="finding-title">{f.title}</span>
-                  <FindingBadges finding={f} />
-                  <span className="finding-category">{f.category}</span>
-                </div>
-                {expanded.has(f.id) && (
-                  <div className="finding-body">
-                    <p>{f.description}</p>
-                    {f.pathSummary && (
-                      <p><strong>Path:</strong> <code>{f.pathSummary}</code></p>
-                    )}
-                    {f.explanation && (
-                      <p className="explanation"><strong>Explanation:</strong> {f.explanation}</p>
-                    )}
-                    {f.remediationHint && (
-                      <p className="remediation"><strong>Remediation:</strong> {f.remediationHint}</p>
-                    )}
-                    {f.affectedNodeIds.length > 0 && (
-                      <p><strong>Affected nodes:</strong> {f.affectedNodeIds.join(', ')}</p>
-                    )}
-                    {(f.tested || (f.testRunIds && f.testRunIds.length > 0)) && (
-                      <EvidenceSummary findingId={f.id} />
-                    )}
-                    {onShowOnGraph && (
-                      <button
-                        className="show-on-graph-btn"
-                        onClick={() => onShowOnGraph(f.affectedNodeIds)}
-                      >
-                        Show on graph →
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        );
-      })}
+      <div className="findings-view-mode">
+        <button
+          className={viewMode === 'trifecta' ? 'active' : ''}
+          onClick={() => setViewMode('trifecta')}
+        >
+          Focused (Exploitable Paths)
+        </button>
+        <button
+          className={viewMode === 'severity' ? 'active' : ''}
+          onClick={() => setViewMode('severity')}
+        >
+          All Findings (by Severity)
+        </button>
+      </div>
+      {viewMode === 'trifecta' &&
+        trifectaGroups.map((group) => {
+          if (group.items.length === 0) return null;
+          return (
+            <div key={group.key} className="findings-group">
+              <h2>{group.label} ({group.items.length})</h2>
+              {group.items.map((f) => renderFindingCard(f))}
+            </div>
+          );
+        })}
+      {viewMode === 'severity' &&
+        SEVERITY_ORDER.map((sev) => {
+          const group = grouped[sev] ?? [];
+          if (group.length === 0) return null;
+          return (
+            <div key={sev} className="findings-group">
+              <h2 style={{ color: SEVERITY_COLOR[sev] }}>{sev.toUpperCase()} ({group.length})</h2>
+              {group.map((f) => renderFindingCard(f))}
+            </div>
+          );
+        })}
     </div>
   );
 }

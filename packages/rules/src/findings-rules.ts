@@ -1,6 +1,7 @@
 import { RiskCategory, Capability, TrustBoundary, Confidence } from '@iseemp/core';
 import type { GraphNode, GraphEdge, Finding } from '@iseemp/core';
 import type { ServerRow, ToolRow } from '@iseemp/storage';
+import { applyTrifectaAnnotation, sortByTrifecta } from './trifecta.js';
 
 interface FindingsContext {
   nodes: GraphNode[];
@@ -130,7 +131,11 @@ function findingHasServer(finding: Finding, serverId: string): boolean {
 }
 
 function findingIsProtected(finding: Finding): boolean {
-  return finding.tested === true || typeof finding.candidatePathId === 'string';
+  return (
+    finding.tested === true ||
+    typeof finding.candidatePathId === 'string' ||
+    finding.trifectaComplete === true
+  );
 }
 
 function isRemoteQueryFinding(finding: Finding): boolean {
@@ -640,5 +645,7 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
     }
   }
 
-  return deduplicateFindings(findings);
+  const annotated = applyTrifectaAnnotation(findings);
+  const deduped = deduplicateFindings(annotated);
+  return sortByTrifecta(deduped);
 }

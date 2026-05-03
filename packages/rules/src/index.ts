@@ -6,3 +6,5 @@ export {
   isKnownVerifiedServer,
   KNOWN_VERIFIED_SERVER_PATTERNS,
 } from './findings-rules.js';
+export { applyTrifectaAnalysis, applyTrifectaAnnotation, sortByTrifecta, classifyFindingTrifecta } from './trifecta.js';
+export type { TrifectaClassification } from './trifecta.js';

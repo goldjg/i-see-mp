@@ -87,10 +87,28 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 .badge-tested-inconclusive { background: #6b21a8; color: #f3e8ff; }
 .badge-observed { background: #ca8a04; color: #fff; }
 .badge-confidence { background: #1e3a8a; color: #dbeafe; text-transform: lowercase; }
+.badge-trifecta-complete { background: #dc2626; color: #fff; }
+.badge-trifecta-partial { background: #ea580c; color: #fff; }
+.badge-trifecta-capability { background: #6b7280; color: #fff; }
 .badge-path-tested_confirmed { background: #b91c1c; color: #fff; }
 .badge-path-tested_rejected { background: #14532d; color: #bbf7d0; }
 .badge-path-tested_inconclusive { background: #6b21a8; color: #f3e8ff; }
 .badge-path-static_possible { background: #334155; color: #cbd5e1; }
+
+.findings-view-mode { display: flex; gap: 8px; margin-bottom: 12px; }
+.findings-view-mode button {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.findings-view-mode button.active {
+  border-color: #f59e0b;
+  color: #f8fafc;
+}
 
 .finding-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; }
 .finding-category { font-size: 11px; color: #64748b; }

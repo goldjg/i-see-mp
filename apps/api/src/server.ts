@@ -13,6 +13,7 @@ import {
   createEvidenceRepo,
 } from '@iseemp/storage';
 import { buildGraph } from '@iseemp/graph';
+import { applyTrifectaAnalysis } from '@iseemp/rules';
 
 export function buildServer(options: { dbPath?: string; staticDir?: string } = {}) {
   const app = Fastify({ logger: false });
@@ -107,7 +108,7 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
       ? collections.findById(collectionId)
       : collections.latest();
     if (!col) return [];
-    return findings.findByCollection(col.id);
+    return applyTrifectaAnalysis(findings.findByCollection(col.id));
   });
 
   app.get<{ Querystring: { collectionId?: string; findingId?: string } }>(
