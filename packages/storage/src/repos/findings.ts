@@ -24,13 +24,16 @@ export interface FindingRow {
   source_capabilities?: string | null; // JSON
   sink_capabilities?: string | null; // JSON
   boundary_crossed?: string | null;
+  is_cross_server?: number | null;
+  source_server_id?: string | null;
+  sink_server_id?: string | null;
   explanation?: string | null;
   evidence?: string | null; // JSON
 }
 
 const COLUMNS =
-  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, explanation, evidence';
-const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
+  'id, collection_id, category, severity, title, description, affected_node_ids, affected_edge_ids, remediation_hint, created_at, confidence, static_possible, observed, tested, path_status, test_run_ids, candidate_path_id, path_summary, source_capabilities, sink_capabilities, boundary_crossed, is_cross_server, source_server_id, sink_server_id, explanation, evidence';
+const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function bind(f: FindingRow): unknown[] {
   return [
@@ -55,6 +58,9 @@ function bind(f: FindingRow): unknown[] {
     f.source_capabilities ?? null,
     f.sink_capabilities ?? null,
     f.boundary_crossed ?? null,
+    f.is_cross_server ?? null,
+    f.source_server_id ?? null,
+    f.sink_server_id ?? null,
     f.explanation ?? null,
     f.evidence ?? null,
   ];
@@ -87,6 +93,10 @@ function rowToFinding(r: FindingRow): Finding {
   if (r.sink_capabilities)
     finding.sinkCapabilities = JSON.parse(r.sink_capabilities) as Capability[];
   if (r.boundary_crossed) finding.boundaryCrossed = r.boundary_crossed as TrustBoundary;
+  if (r.is_cross_server !== null && r.is_cross_server !== undefined)
+    finding.isCrossServer = r.is_cross_server === 1;
+  if (r.source_server_id) finding.sourceServerId = r.source_server_id;
+  if (r.sink_server_id) finding.sinkServerId = r.sink_server_id;
   if (r.explanation) finding.explanation = r.explanation;
   if (r.evidence) finding.evidence = JSON.parse(r.evidence) as string[];
   return finding;
@@ -115,6 +125,9 @@ export function findingToRow(f: Finding): FindingRow {
     source_capabilities: f.sourceCapabilities ? JSON.stringify(f.sourceCapabilities) : null,
     sink_capabilities: f.sinkCapabilities ? JSON.stringify(f.sinkCapabilities) : null,
     boundary_crossed: f.boundaryCrossed ?? null,
+    is_cross_server: f.isCrossServer === undefined ? null : f.isCrossServer ? 1 : 0,
+    source_server_id: f.sourceServerId ?? null,
+    sink_server_id: f.sinkServerId ?? null,
     explanation: f.explanation ?? null,
     evidence: f.evidence ? JSON.stringify(f.evidence) : null,
   };

@@ -224,4 +224,48 @@ describe('FindingsRepo', () => {
     expect(findings[0]?.severity).toBe('critical');
     expect(findings[1]?.severity).toBe('medium');
   });
+
+  it('round-trips cross-server fields when present', () => {
+    const repo = createFindingsRepo(db);
+    repo.insert({
+      id: 'f-cross',
+      collection_id: 'col1',
+      category: 'DATA_EXFILTRATION',
+      severity: 'high',
+      title: 'Cross server',
+      description: 'Cross-server path',
+      affected_node_ids: '[]',
+      remediation_hint: null,
+      created_at: new Date().toISOString(),
+      is_cross_server: 1,
+      source_server_id: 'srv-a',
+      sink_server_id: 'srv-b',
+    });
+
+    const finding = repo.findById('f-cross');
+    expect(finding?.isCrossServer).toBe(true);
+    expect(finding?.sourceServerId).toBe('srv-a');
+    expect(finding?.sinkServerId).toBe('srv-b');
+  });
+
+  it('does not populate cross-server ids when not provided', () => {
+    const repo = createFindingsRepo(db);
+    repo.insert({
+      id: 'f-same',
+      collection_id: 'col1',
+      category: 'UNVERIFIED_SERVER',
+      severity: 'low',
+      title: 'Same server',
+      description: 'No cross-server ids',
+      affected_node_ids: '[]',
+      remediation_hint: null,
+      created_at: new Date().toISOString(),
+      is_cross_server: 0,
+    });
+
+    const finding = repo.findById('f-same');
+    expect(finding?.isCrossServer).toBe(false);
+    expect(finding?.sourceServerId).toBeUndefined();
+    expect(finding?.sinkServerId).toBeUndefined();
+  });
 });

@@ -1,7 +1,7 @@
 import { RiskCategory, Capability, TrustBoundary, Confidence } from '@iseemp/core';
 import type { GraphNode, GraphEdge, Finding } from '@iseemp/core';
 import type { ServerRow, ToolRow } from '@iseemp/storage';
-import { applyTrifectaAnnotation, sortByTrifecta } from './trifecta.js';
+import { applyTrifectaAnnotation, sortByTrifecta, deriveIsCrossServer } from './trifecta.js';
 
 interface FindingsContext {
   nodes: GraphNode[];
@@ -746,7 +746,10 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
                 pathSummary,
               })
             : undefined,
-        isCrossServer: true,
+        isCrossServer: deriveIsCrossServer({
+          sourceServerId: sourceCandidate.server.id,
+          sinkServerId: sinkCandidate.server.id,
+        }),
         sourceServerId: sourceCandidate.server.id,
         sinkServerId: sinkCandidate.server.id,
       });

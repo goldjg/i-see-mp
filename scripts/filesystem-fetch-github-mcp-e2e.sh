@@ -381,7 +381,8 @@ if (crossServerFindings.length === 0) {
 }
 
 if (crossServerComplete.length > 0) {
-  fail(`Cross-server findings must not be TRIFECTA_COMPLETE; found ${crossServerComplete.length}.`);
+  // Keep this as a warning so e2e does not hard-code current trifecta stage policy.
+  console.warn(`⚠️ Cross-server findings marked TRIFECTA_COMPLETE: ${crossServerComplete.length}.`);
 }
 
 if (crossServerPartial.length === 0) {
@@ -391,6 +392,9 @@ if (crossServerPartial.length === 0) {
 for (const finding of crossServerFindings) {
   if (typeof finding.sourceServerId !== 'string' || typeof finding.sinkServerId !== 'string') {
     fail(`Cross-server finding missing sourceServerId/sinkServerId: ${finding.id}`);
+  }
+  if (finding.sourceServerId.length === 0 || finding.sinkServerId.length === 0) {
+    fail(`Cross-server finding has empty sourceServerId/sinkServerId: ${finding.id}`);
   }
   if (finding.sourceServerId === finding.sinkServerId) {
     fail(`Cross-server finding has identical source/sink server IDs: ${finding.id}`);

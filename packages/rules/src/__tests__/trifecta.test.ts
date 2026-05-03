@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Capability, RiskCategory, TrustBoundary } from '@iseemp/core';
 import type { Finding } from '@iseemp/core';
-import { classifyFindingTrifecta, applyTrifectaAnalysis } from '../trifecta.js';
+import { classifyFindingTrifecta, applyTrifectaAnalysis, deriveIsCrossServer } from '../trifecta.js';
 import { deduplicateFindings } from '../findings-rules.js';
 
 const now = new Date().toISOString();
@@ -32,15 +32,16 @@ describe('classifyFindingTrifecta', () => {
     expect(out.trifectaScore).toBeGreaterThanOrEqual(9);
   });
 
-  it('caps cross-server source + sink findings at PARTIAL', () => {
+  it('does not treat isCrossServer flag alone as cross-server without server ids', () => {
     const f = makeFinding({
       sourceCapabilities: [Capability.READ_SECRET_HIGH],
       sinkCapabilities: [Capability.SEND_EXTERNAL],
       isCrossServer: true,
     });
     const out = classifyFindingTrifecta(f);
-    expect(out.trifectaStage).toBe('PARTIAL');
-    expect(out.trifectaComplete).toBe(false);
+    expect(out.trifectaStage).toBe('COMPLETE');
+    expect(out.trifectaComplete).toBe(true);
+    expect(out.isCrossServer).toBe(false);
   });
 
   it('caps cross-server source + sink findings at PARTIAL from differing server ids', () => {
@@ -132,6 +133,28 @@ describe('classifyFindingTrifecta', () => {
     const out = classifyFindingTrifecta(f);
     expect(out.trifectaStage).toBe('PARTIAL');
     expect(out.trifectaComplete).toBe(false);
+  });
+});
+
+describe('deriveIsCrossServer', () => {
+  it('returns true when source/sink IDs are present and differ', () => {
+    expect(deriveIsCrossServer({ sourceServerId: 'srv-a', sinkServerId: 'srv-b' })).toBe(true);
+  });
+
+  it('returns false when source/sink IDs are identical', () => {
+    expect(deriveIsCrossServer({ sourceServerId: 'srv-a', sinkServerId: 'srv-a' })).toBe(false);
+  });
+
+  it('returns false when source ID is missing', () => {
+    expect(deriveIsCrossServer({ sinkServerId: 'srv-b' })).toBe(false);
+  });
+
+  it('returns false when sink ID is missing', () => {
+    expect(deriveIsCrossServer({ sourceServerId: 'srv-a' })).toBe(false);
+  });
+
+  it('returns false when both IDs are missing', () => {
+    expect(deriveIsCrossServer({})).toBe(false);
   });
 });
 

@@ -101,6 +101,9 @@ CREATE TABLE IF NOT EXISTS findings (
   source_capabilities TEXT,
   sink_capabilities TEXT,
   boundary_crossed TEXT,
+  is_cross_server INTEGER,
+  source_server_id TEXT,
+  sink_server_id TEXT,
   explanation TEXT,
   evidence TEXT
 );
