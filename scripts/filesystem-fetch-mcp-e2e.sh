@@ -4,6 +4,18 @@
 #   - filesystem MCP (local source/mutation capabilities)
 #   - fetch MCP (network interaction capabilities)
 #
+# Semantic contract (filesystem-fetch profile):
+#   - Proves canonical LOCAL read → EXTERNAL send cross-server composition.
+#   - Servers: at least 2 (filesystem, fetch).
+#   - Tools: at least 1 per server.
+#   - Capability families: filesystem READ_LOCAL_FILE; fetch SEND_HTTP/READ_REMOTE_DATA.
+#   - Structural trifecta: cross-server findings must remain PARTIAL (not COMPLETE).
+#   - Trust transitions: must include LOCAL → EXTERNAL.
+#   - Trust-boundary crossing: expected for filesystem → fetch.
+#   - Lethal trifecta: POSSIBLE may appear; CONFIRMED must not.
+#   - Prompt injection: no confirmed injection findings.
+#   - Canary gating: not applicable.
+#
 # The goal is classification sanity, not exploit confirmation. This script passes
 # if both servers are discovered/classified correctly and analysis does not crash.
 
@@ -236,6 +248,87 @@ function fail(message) {
   process.exit(1);
 }
 
+/*
+Semantic contract enforced by this block:
+- servers: at least filesystem + fetch
+- tools: at least 1 per server; filesystem must read local data, fetch must have network capability
+- structural trifecta: cross-server findings present and PARTIAL (not COMPLETE)
+- trust: must include LOCAL → EXTERNAL transition
+- lethal/injection: CONFIRMED lethal and confirmed injection are forbidden
+- note: /findings payload is enriched via applyTrifectaAnalysis in the API.
+*/
+function assertHasServer(servers, name) {
+  const server = servers.find((candidate) => candidate.name === name);
+  if (!server) fail(`Server '${name}' not detected.`);
+  return server;
+}
+
+function assertHasCapability(tools, serverId, capability) {
+  const match = tools.some(
+    (tool) =>
+      tool.serverId === serverId &&
+      Array.isArray(tool.capabilities) &&
+      tool.capabilities.includes(capability),
+  );
+  if (!match) fail(`Expected capability '${capability}' on server '${serverId}'.`);
+}
+
+function assertHasTrustTransition(findings, from, to) {
+  const expected = `${from} → ${to}`;
+  const finding = findings.find((candidate) => candidate.trustTransition === expected);
+  if (!finding) fail(`Expected trust transition '${expected}'.`);
+  return finding;
+}
+
+function assertAcceptableTrustTransitions(finding, allowedTransitions) {
+  if (!finding) fail('Expected finding for trust-transition assertion.');
+  if (!allowedTransitions.includes(finding.trustTransition)) {
+    fail(
+      `Expected trust transition in [${allowedTransitions.join(', ')}], got ${finding.trustTransition ?? 'undefined'}.`,
+    );
+  }
+}
+
+function assertLethalTrifectaCounts(findings, opts) {
+  const confirmed = findings.filter((finding) => finding.lethalTrifectaStatus === 'CONFIRMED').length;
+  const possible = findings.filter((finding) => finding.lethalTrifectaStatus === 'POSSIBLE').length;
+  if (typeof opts.confirmedMax === 'number' && confirmed > opts.confirmedMax) {
+    fail(`Unexpected lethalTrifectaStatus=CONFIRMED findings: ${confirmed} (max ${opts.confirmedMax}).`);
+  }
+  if (typeof opts.possibleMax === 'number' && possible > opts.possibleMax) {
+    fail(`Unexpected lethalTrifectaStatus=POSSIBLE findings: ${possible} (max ${opts.possibleMax}).`);
+  }
+}
+
+function assertNoConfirmedInjection(findings) {
+  const confirmed = findings.filter((finding) => finding.injectionConfirmed === true);
+  if (confirmed.length > 0) fail(`Unexpected injectionConfirmed=true finding(s): ${confirmed.length}.`);
+}
+
+function assertCrossServerSourceSinkIntegrity(crossServerFindings) {
+  for (const finding of crossServerFindings) {
+    if (typeof finding.sourceServerId !== 'string' || typeof finding.sinkServerId !== 'string') {
+      fail(`Cross-server finding missing sourceServerId/sinkServerId: ${finding.id}`);
+    }
+    if (finding.sourceServerId.length === 0 || finding.sinkServerId.length === 0) {
+      fail(`Cross-server finding has empty sourceServerId/sinkServerId: ${finding.id}`);
+    }
+    if (finding.sourceServerId === finding.sinkServerId) {
+      fail(`Cross-server finding has identical source/sink server IDs: ${finding.id}`);
+    }
+  }
+}
+
+function assertHasFindingBadge(findings, serverId, field, value) {
+  const match = findings.some(
+    (finding) =>
+      (finding.sourceServerId === serverId || finding.sinkServerId === serverId) && finding[field] === value,
+  );
+  if (!match) {
+    fail(`Expected finding badge ${field}=${value} for server '${serverId}'.`);
+  }
+}
+
 async function getJson(path) {
   const res = await fetch(`http://127.0.0.1:${apiPort}${path}`);
   if (!res.ok) fail(`API ${path} returned HTTP ${res.status}`);
@@ -247,14 +340,14 @@ const [servers, tools, findings] = await Promise.all([
   getJson('/tools'),
   getJson('/findings'),
 ]);
+// /findings includes applyTrifectaAnalysis output (trifecta/trust/lethal fields) from the API.
+// This profile is the canonical cross-server exfil path sanity check: LOCAL read → EXTERNAL send.
 
 if (servers.length < 2) fail(`Expected at least 2 servers, got ${servers.length}.`);
 if (tools.length === 0) fail('Zero tools detected.');
 
-const filesystemServer = servers.find((server) => server.name === 'filesystem');
-const fetchServer = servers.find((server) => server.name === 'fetch');
-if (!filesystemServer) fail('Filesystem server not detected.');
-if (!fetchServer) fail('Fetch server not detected.');
+const filesystemServer = assertHasServer(servers, 'filesystem');
+const fetchServer = assertHasServer(servers, 'fetch');
 
 const filesystemTools = tools.filter((tool) => tool.serverId === filesystemServer.id);
 const fetchTools = tools.filter((tool) => tool.serverId === fetchServer.id);
@@ -263,8 +356,7 @@ if (fetchTools.length === 0) fail('No tools discovered for fetch server.');
 
 const hasCap = (tool, cap) => Array.isArray(tool.capabilities) && tool.capabilities.includes(cap);
 
-const hasFilesystemLocalRead = filesystemTools.some((tool) => hasCap(tool, 'READ_LOCAL_FILE'));
-if (!hasFilesystemLocalRead) fail('Filesystem server has no READ_LOCAL_FILE-classified tools.');
+assertHasCapability(tools, filesystemServer.id, 'READ_LOCAL_FILE');
 
 const hasFetchNetwork = fetchTools.some(
   (tool) => hasCap(tool, 'SEND_HTTP') || hasCap(tool, 'READ_REMOTE_DATA'),
@@ -315,17 +407,10 @@ if (crossServerPartial.length === 0) {
   fail('Expected at least one cross-server TRIFECTA_PARTIAL finding.');
 }
 
-for (const finding of crossServerFindings) {
-  if (typeof finding.sourceServerId !== 'string' || typeof finding.sinkServerId !== 'string') {
-    fail(`Cross-server finding missing sourceServerId/sinkServerId: ${finding.id}`);
-  }
-  if (finding.sourceServerId.length === 0 || finding.sinkServerId.length === 0) {
-    fail(`Cross-server finding has empty sourceServerId/sinkServerId: ${finding.id}`);
-  }
-  if (finding.sourceServerId === finding.sinkServerId) {
-    fail(`Cross-server finding has identical source/sink server IDs: ${finding.id}`);
-  }
-}
+assertCrossServerSourceSinkIntegrity(crossServerFindings);
+assertHasTrustTransition(crossServerPartial, 'LOCAL', 'EXTERNAL');
+assertLethalTrifectaCounts(findings, { confirmedMax: 0 });
+assertNoConfirmedInjection(findings);
 
 const crossServerPairs = Array.from(
   new Set(crossServerPartial.map((finding) => `${finding.sourceServerId ?? 'unknown'}->${finding.sinkServerId ?? 'unknown'}`)),

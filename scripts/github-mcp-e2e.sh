@@ -2,6 +2,17 @@
 #
 # End-to-end driver for the github-safe-canary profile against the GitHub MCP server.
 #
+# Semantic contract (github-safe-canary profile):
+#   - Proves GitHub profile canary behavior with official github MCP sidecar integration.
+#   - Servers: at least 1 github server.
+#   - Tools: at least 1 github tool.
+#   - Capability families: GitHub remote read/mutation families, validated by canary profile.
+#   - Structural trifecta / trust transitions / trust-boundary / lethal / injection: validated by
+#     `iseemp test --profile github-safe-canary` rather than inline script assertions.
+#   - Trust semantics note: GitHub tools classify as CONTROLLED_SAAS by default and
+#     USER_CONTROLLED_SAAS for issue/PR/discussion/search-style user-content tools.
+#   - Canary gating: required (GITHUB_PERSONAL_ACCESS_TOKEN, ISEEMP_TEST_REPO_OWNER, ISEEMP_TEST_REPO_NAME).
+#
 # Usage:
 #   GITHUB_PERSONAL_ACCESS_TOKEN=ghp_xxx \
 #   ISEEMP_TEST_REPO_OWNER=octo-org \
