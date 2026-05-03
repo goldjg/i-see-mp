@@ -19,6 +19,6 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
     },
-    include: ['packages/*/src/**/*.test.ts', 'apps/*/src/**/*.test.ts'],
+    include: ['packages/*/src/**/*.test.ts', 'apps/*/src/**/*.test.ts', 'apps/*/src/**/*.test.tsx'],
   },
 });
