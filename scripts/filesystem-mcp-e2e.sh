@@ -200,6 +200,7 @@ const sendCapTools = tools.filter((tool) =>
 if (sendCapTools.length > 0) {
   fail(`Unexpected external-send capability on tools: ${sendCapTools.map((tool) => tool.name).join(', ')}`);
 }
+// Finding count is intentionally unconstrained for filesystem-only source scenarios.
 
 const exfilFindings = findings.filter((finding) => finding.category === 'DATA_EXFILTRATION');
 if (exfilFindings.length > 0) fail('Unexpected DATA_EXFILTRATION finding(s).');
