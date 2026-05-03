@@ -84,6 +84,47 @@ describe('API routes', () => {
     vi.restoreAllMocks();
   });
 
+  it('GET /findings returns trifecta-annotated findings', async () => {
+    const db = createMemoryDb();
+    vi.spyOn(storage, 'getDb').mockReturnValue(db);
+
+    const now = new Date().toISOString();
+    const colRepo = createCollectionsRepo(db);
+    const findingsRepo = createFindingsRepo(db);
+    colRepo.create('col1', now);
+    colRepo.complete('col1', { serverCount: 1, toolCount: 2, resourceCount: 0, promptCount: 0 });
+    findingsRepo.insert({
+      id: 'f-annotated',
+      collection_id: 'col1',
+      category: 'DATA_EXFILTRATION',
+      severity: 'critical',
+      title: 'chain',
+      description: 'chain',
+      affected_node_ids: '[]',
+      remediation_hint: null,
+      created_at: now,
+      source_capabilities: JSON.stringify([Capability.READ_SECRET_HIGH]),
+      sink_capabilities: JSON.stringify([Capability.SEND_EXTERNAL]),
+      boundary_crossed: 'SAAS',
+    });
+
+    const app = buildServer();
+    const res = await app.inject({ method: 'GET', url: '/findings' });
+    expect(res.statusCode).toBe(200);
+    const out = JSON.parse(res.body) as Array<{
+      id: string;
+      trifectaStage?: string;
+      trifectaScore?: number;
+      trifectaComplete?: boolean;
+    }>;
+    expect(out).toHaveLength(1);
+    expect(out[0]?.id).toBe('f-annotated');
+    expect(out[0]?.trifectaStage).toBe('COMPLETE');
+    expect(out[0]?.trifectaScore).toBe(11);
+    expect(out[0]?.trifectaComplete).toBe(true);
+    vi.restoreAllMocks();
+  });
+
   it('GET /graph returns nodes and edges', async () => {
     const db = createMemoryDb();
     vi.spyOn(storage, 'getDb').mockReturnValue(db);
