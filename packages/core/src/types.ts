@@ -55,6 +55,7 @@ export const Capability = {
   // Query
   QUERY_REMOTE_SYSTEM: 'QUERY_REMOTE_SYSTEM',
   QUERY_DATABASE: 'QUERY_DATABASE',
+  UNTRUSTED_CONTENT_EXPOSURE: 'UNTRUSTED_CONTENT_EXPOSURE',
   // Misc
   CREATE_TICKET: 'CREATE_TICKET',
   MUTATE_IDENTITY: 'MUTATE_IDENTITY',
@@ -63,6 +64,13 @@ export const Capability = {
   UNKNOWN: 'UNKNOWN',
 } as const;
 export type Capability = (typeof Capability)[keyof typeof Capability];
+
+export const LethalTrifectaStatus = {
+  NONE: 'NONE',
+  CANDIDATE: 'CANDIDATE',
+  COMPLETE: 'COMPLETE',
+} as const;
+export type LethalTrifectaStatus = (typeof LethalTrifectaStatus)[keyof typeof LethalTrifectaStatus];
 
 export const TrustBoundary = {
   LOCAL: 'LOCAL',

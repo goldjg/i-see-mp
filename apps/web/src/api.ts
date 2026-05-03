@@ -73,6 +73,10 @@ export interface Finding {
   trifectaStage?: 'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY';
   trifectaScore?: number;
   trifectaComplete?: boolean;
+  lethalTrifectaStatus?: 'NONE' | 'CANDIDATE' | 'COMPLETE';
+  hasPrivateDataAccess?: boolean;
+  hasUntrustedContentExposure?: boolean;
+  hasExternalCommunication?: boolean;
   pathSummary?: string;
   sourceCapabilities?: string[];
   sinkCapabilities?: string[];

@@ -368,6 +368,8 @@ if (fetchUnexpectedLocalRead.length > 0) {
 const complete = findings.filter((finding) => finding.trifectaComplete === true).length;
 const partial = findings.filter((finding) => finding.trifectaStage === 'PARTIAL').length;
 const capabilityOnly = findings.filter((finding) => finding.trifectaStage === 'CAPABILITY_ONLY').length;
+const lethalCompleteFindings = findings.filter((finding) => finding.lethalTrifectaStatus === 'COMPLETE');
+const lethalCandidateFindings = findings.filter((finding) => finding.lethalTrifectaStatus === 'CANDIDATE');
 const crossServerFindings = findings.filter((finding) => finding.isCrossServer === true);
 const crossServerPartial = crossServerFindings.filter((finding) => finding.trifectaStage === 'PARTIAL');
 const crossServerComplete = crossServerFindings.filter((finding) => finding.trifectaComplete === true);
@@ -386,6 +388,33 @@ if (crossServerFindings.length === 0) {
 if (crossServerComplete.length > 0) {
   // Keep this as a warning so e2e does not hard-code current trifecta stage policy.
   console.warn(`⚠️ Cross-server findings marked TRIFECTA_COMPLETE: ${crossServerComplete.length}.`);
+}
+
+if (lethalCompleteFindings.length > 0) {
+  fail(`Unexpected lethalTrifectaStatus=COMPLETE findings: ${lethalCompleteFindings.length}.`);
+}
+
+const githubHasUntrustedContent = githubTools.some((tool) => hasCap(tool, 'UNTRUSTED_CONTENT_EXPOSURE'));
+const fetchHasUntrustedContent = fetchTools.some((tool) => hasCap(tool, 'UNTRUSTED_CONTENT_EXPOSURE'));
+const fetchHasExternalComm = fetchTools.some(
+  (tool) => hasCap(tool, 'SEND_EXTERNAL') || hasCap(tool, 'SEND_HTTP') || hasCap(tool, 'SEND_EMAIL'),
+);
+if (!githubHasUntrustedContent) {
+  const invalidCandidates = lethalCandidateFindings.filter(
+    (finding) =>
+      !(
+        fetchHasUntrustedContent &&
+        hasFilesystemLocalRead &&
+        fetchHasExternalComm &&
+        finding.sourceServerId === filesystemServer.id &&
+        finding.sinkServerId === fetchServer.id
+      ),
+  );
+  if (invalidCandidates.length > 0) {
+    fail(
+      `Unexpected lethalTrifectaStatus=CANDIDATE findings without untrusted GitHub tools in scope: ${invalidCandidates.length}.`,
+    );
+  }
 }
 
 if (crossServerPartial.length === 0) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Capability, RiskCategory, TrustBoundary } from '@iseemp/core';
+import { Capability, LethalTrifectaStatus, RiskCategory, TrustBoundary } from '@iseemp/core';
 import type { Finding } from '@iseemp/core';
 import { classifyFindingTrifecta, applyTrifectaAnalysis, deriveIsCrossServer } from '../trifecta.js';
 import { deduplicateFindings } from '../findings-rules.js';
@@ -30,6 +30,7 @@ describe('classifyFindingTrifecta', () => {
     expect(out.trifectaStage).toBe('COMPLETE');
     expect(out.trifectaComplete).toBe(true);
     expect(out.trifectaScore).toBeGreaterThanOrEqual(9);
+    expect(out.lethalTrifectaStatus).toBe(LethalTrifectaStatus.NONE);
   });
 
   it('does not treat isCrossServer flag alone as cross-server without server ids', () => {
@@ -77,6 +78,8 @@ describe('classifyFindingTrifecta', () => {
     const out = classifyFindingTrifecta(f);
     expect(out.trifectaStage).toBe('PARTIAL');
     expect(out.trifectaComplete).toBe(false);
+    expect(out.hasExternalCommunication).toBe(false);
+    expect(out.lethalTrifectaStatus).toBe(LethalTrifectaStatus.NONE);
   });
 
   it('classifies PARTIAL for sink-only finding', () => {
@@ -87,6 +90,35 @@ describe('classifyFindingTrifecta', () => {
     const out = classifyFindingTrifecta(f);
     expect(out.trifectaStage).toBe('PARTIAL');
     expect(out.trifectaComplete).toBe(false);
+    expect(out.hasPrivateDataAccess).toBe(false);
+    expect(out.hasExternalCommunication).toBe(true);
+    expect(out.hasUntrustedContentExposure).toBe(false);
+    expect(out.lethalTrifectaStatus).toBe(LethalTrifectaStatus.NONE);
+  });
+
+  it('classifies lethal trifecta as CANDIDATE when private data + untrusted content + external sink are present', () => {
+    const f = makeFinding({
+      sourceCapabilities: [Capability.READ_SECRET_HIGH, Capability.UNTRUSTED_CONTENT_EXPOSURE],
+      sinkCapabilities: [Capability.SEND_EXTERNAL],
+    });
+    const out = classifyFindingTrifecta(f);
+    expect(out.trifectaStage).toBe('COMPLETE');
+    expect(out.hasPrivateDataAccess).toBe(true);
+    expect(out.hasUntrustedContentExposure).toBe(true);
+    expect(out.hasExternalCommunication).toBe(true);
+    expect(out.lethalTrifectaStatus).toBe(LethalTrifectaStatus.CANDIDATE);
+  });
+
+  it('keeps lethal trifecta NONE for untrusted-content-only finding', () => {
+    const f = makeFinding({
+      sourceCapabilities: [Capability.UNTRUSTED_CONTENT_EXPOSURE],
+      sinkCapabilities: [],
+    });
+    const out = classifyFindingTrifecta(f);
+    expect(out.hasPrivateDataAccess).toBe(false);
+    expect(out.hasUntrustedContentExposure).toBe(true);
+    expect(out.hasExternalCommunication).toBe(false);
+    expect(out.lethalTrifectaStatus).toBe(LethalTrifectaStatus.NONE);
   });
 
   it('classifies CAPABILITY_ONLY when no source/sink capabilities exist', () => {

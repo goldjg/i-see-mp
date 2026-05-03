@@ -92,6 +92,8 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 .badge-trifecta-complete { background: #dc2626; color: #fff; }
 .badge-trifecta-partial { background: #ea580c; color: #fff; }
 .badge-trifecta-capability { background: #6b7280; color: #fff; }
+.badge-lethal-trifecta-candidate { background: #7c3aed; color: #f5f3ff; }
+.badge-lethal-trifecta-complete { background: #991b1b; color: #fff; }
 .badge-trust-boundary { background: #b91c1c; color: #fff; }
 .badge-cross-server { background: #1d4ed8; color: #dbeafe; }
 .badge-high-signal { background: #f59e0b; color: #111827; }
