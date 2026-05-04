@@ -45,6 +45,7 @@ function AppContent() {
   const [isNavOpen, setIsNavOpen] = useState<boolean>(false);
   const [trifectaNodeIds, setTrifectaNodeIds] = useState<Set<string>>(new Set());
   const [completeNodeIds, setCompleteNodeIds] = useState<Set<string>>(new Set());
+  const [activePathNodeIds, setActivePathNodeIds] = useState<string[]>([]);
   const [logsFilters, setLogsFilters] = useState<{
     collectionId?: string;
     findingId?: string;
@@ -166,6 +167,15 @@ function AppContent() {
     switchTo('logs');
   }
 
+  function showOnGraph(nodeIds: string[]) {
+    setActivePathNodeIds(nodeIds);
+    switchTo('graph');
+  }
+
+  function clearPath() {
+    setActivePathNodeIds([]);
+  }
+
   return (
     <div className="app-shell">
       <header className="mobile-header">
@@ -213,11 +223,13 @@ function AppContent() {
             onSelectNode={() => {}}
             trifectaNodeIds={trifectaNodeIds}
             completeNodeIds={completeNodeIds}
+            activePathNodeIds={activePathNodeIds}
+            onClearPath={clearPath}
           />
         )}
         {view === 'tools' && <Tools />}
         {view === 'findings' && (
-          <Findings onShowOnGraph={() => switchTo('graph')} onShowLogs={showLogs} />
+          <Findings onShowOnGraph={showOnGraph} onShowLogs={showLogs} />
         )}
         {view === 'logs' && <Logs initialFilters={logsFilters} />}
       </main>

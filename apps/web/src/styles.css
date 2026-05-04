@@ -114,6 +114,7 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 .remediation { color: #86efac !important; }
 .show-on-graph-btn { background: #3b82f6; border: none; color: #fff; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
 .show-logs-btn { background: #334155; border: none; color: #e2e8f0; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 8px; }
+.graph-path-clear-btn { background: #0ea5e9; border: none; color: #fff; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
 
 .loading, .empty-state { color: #64748b; padding: 32px; text-align: center; }
 .empty-state code { background: #1e293b; padding: 2px 6px; border-radius: 3px; color: #94a3b8; }
