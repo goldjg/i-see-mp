@@ -37,6 +37,10 @@ FIXTURE_DIR="${ISEEMP_FS_FIXTURE_DIR:-/tmp/fs-fixture}"
 FSMCP_PKG_DIR="${ISEEMP_FS_MCP_PKG_DIR:-/tmp/fs-mcp-pkg}"
 FSMCP_MOUNT_PATH="${ISEEMP_FS_MCP_MOUNT_PATH:-/tmp/fs-mcp-pkg}"
 FSMCP_BIN_NAME="mcp-server-filesystem"
+FSMCP_NPM_PACKAGE="@modelcontextprotocol/server-filesystem"
+FSMCP_NPM_VERSION="${ISEEMP_FS_MCP_NPM_VERSION:-2026.1.14}"
+FSMCP_GLOB_OVERRIDE_VERSION="${ISEEMP_FS_MCP_GLOB_OVERRIDE_VERSION:-13.0.0}"
+NPM_INSTALL_NODE_IMAGE="${ISEEMP_NPM_INSTALL_NODE_IMAGE:-node:20-bookworm-slim}"
 FSMCP_BIN_IN_CONTAINER="${FSMCP_MOUNT_PATH}/node_modules/.bin/${FSMCP_BIN_NAME}"
 COMPOSE_OVERRIDE="${ISEEMP_FS_COMPOSE_OVERRIDE:-/tmp/compose-fs-e2e-override.yml}"
 CONFIG_PATH_IN_CONTAINER="/data/iseemp.filesystem.config.json"
@@ -73,6 +77,17 @@ validate_tmp_delete_target() {
   fi
 }
 
+npm_install_prefix_in_node_image() {
+  local prefix="$1"
+  shift
+  docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    --volume "${prefix}:/work" \
+    --workdir /work \
+    "$NPM_INSTALL_NODE_IMAGE" \
+    npm install --no-audit --no-fund "$@"
+}
+
 validate_compose_path "$FIXTURE_DIR" "ISEEMP_FS_FIXTURE_DIR"
 validate_compose_path "$FSMCP_PKG_DIR" "ISEEMP_FS_MCP_PKG_DIR"
 validate_compose_path "$FSMCP_MOUNT_PATH" "ISEEMP_FS_MCP_MOUNT_PATH"
@@ -93,10 +108,22 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-echo "▶ Installing filesystem MCP package into ${FSMCP_PKG_DIR}…"
+echo "▶ Installing filesystem MCP package (${FSMCP_NPM_PACKAGE}@${FSMCP_NPM_VERSION}) into ${FSMCP_PKG_DIR}…"
 rm -rf "$FSMCP_PKG_DIR"
 mkdir -p "$FSMCP_PKG_DIR"
-npm install --no-audit --no-fund --prefix "$FSMCP_PKG_DIR" @modelcontextprotocol/server-filesystem
+cat > "${FSMCP_PKG_DIR}/package.json" <<JSON
+{
+  "name": "iseemp-filesystem-mcp-runtime",
+  "private": true,
+  "dependencies": {
+    "${FSMCP_NPM_PACKAGE}": "${FSMCP_NPM_VERSION}"
+  },
+  "overrides": {
+    "glob": "${FSMCP_GLOB_OVERRIDE_VERSION}"
+  }
+}
+JSON
+npm_install_prefix_in_node_image "$FSMCP_PKG_DIR"
 FSMCP_BIN="${FSMCP_PKG_DIR}/node_modules/.bin/${FSMCP_BIN_NAME}"
 if [[ ! -x "$FSMCP_BIN" ]]; then
   echo "❌ Filesystem MCP binary not found at ${FSMCP_BIN}." >&2
