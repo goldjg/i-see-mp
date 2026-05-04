@@ -309,16 +309,6 @@ function assertCrossServerSourceSinkIntegrity(crossServerFindings) {
   }
 }
 
-function assertHasFindingBadge(findings, serverId, field, value) {
-  const match = findings.some(
-    (finding) =>
-      (finding.sourceServerId === serverId || finding.sinkServerId === serverId) && finding[field] === value,
-  );
-  if (!match) {
-    fail(`Expected finding badge ${field}=${value} for server '${serverId}'.`);
-  }
-}
-
 async function getJson(path) {
   const res = await fetch(`http://127.0.0.1:${apiPort}${path}`);
   if (!res.ok) fail(`API ${path} returned HTTP ${res.status}`);

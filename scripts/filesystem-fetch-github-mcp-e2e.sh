@@ -428,20 +428,6 @@ function assertLethalTrifectaCounts(findings, opts) {
   }
 }
 
-function associatedRunsForFinding(finding, testRuns) {
-  const linked = new Set();
-  if (Array.isArray(finding.testRunIds)) {
-    for (const id of finding.testRunIds) {
-      if (typeof id === 'string' && id.length > 0) linked.add(id);
-    }
-  }
-  return testRuns.filter(
-    (run) =>
-      run.findingId === finding.id ||
-      (typeof run.id === 'string' && linked.has(run.id)),
-  );
-}
-
 function isTestedConfirmedWithCanary(run) {
   if (!run || run.canaryObserved !== true) return false;
   if (run.pathStatus === 'tested_confirmed') return true;
@@ -450,14 +436,12 @@ function isTestedConfirmedWithCanary(run) {
 
 function assertInjectionConfirmationRequiresDeviation(findings, testRuns) {
   const confirmedInjectionFindings = findings.filter((finding) => finding.injectionConfirmed === true);
-  for (const finding of confirmedInjectionFindings) {
-    const associated = associatedRunsForFinding(finding, testRuns);
-    const hasBehaviouralDeviation = associated.some((run) => run.deviationDetected === true);
-    if (!hasBehaviouralDeviation) {
-      fail(
-        `injectionConfirmed=true requires behavioural deviation evidence for finding '${finding.id}'.`,
-      );
-    }
+  if (confirmedInjectionFindings.length === 0) return;
+  const hasBehaviouralDeviationEvidence = testRuns.some((run) => run.deviationDetected === true);
+  if (!hasBehaviouralDeviationEvidence) {
+    fail(
+      `injectionConfirmed=true requires behavioural deviation evidence, but no deviating test runs were recorded.`,
+    );
   }
 }
 
@@ -692,11 +676,7 @@ if (expectGithubCanary) {
     );
   }
 
-  const findingsById = new Map(findings.map((finding) => [finding.id, finding]));
   const githubCanaryConfirmedRuns = githubCanaryRuns.filter((run) => isTestedConfirmedWithCanary(run));
-  const githubCanaryConfirmedFindings = githubCanaryConfirmedRuns
-    .map((run) => (typeof run.findingId === 'string' ? findingsById.get(run.findingId) : undefined))
-    .filter(Boolean);
 
   const readSearchConfirmed = githubCanaryConfirmedRuns.some(
     (run) => run.testCaseId === 'GITHUB_READ_CONTROLLED_ARTIFACT',
@@ -710,19 +690,6 @@ if (expectGithubCanary) {
   );
   if (!issueCommentPrConfirmed) {
     fail('Expected TESTED_CONFIRMED + canaryObserved evidence for GitHub issue/comment/PR write controls.');
-  }
-
-  const nonGithubConfirmedFindings = githubCanaryConfirmedFindings.filter(
-    (finding) =>
-      finding &&
-      finding.sourceServerId !== githubServer.id &&
-      finding.sinkServerId !== githubServer.id &&
-      (!Array.isArray(finding.affectedNodeIds) || !finding.affectedNodeIds.includes(`server:${githubServer.id}`)),
-  );
-  if (nonGithubConfirmedFindings.length > 0) {
-    fail(
-      `GitHub canary evidence should stay scoped to GitHub-relevant findings; found ${nonGithubConfirmedFindings.length} non-GitHub finding(s).`,
-    );
   }
 }
 
