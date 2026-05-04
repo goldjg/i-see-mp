@@ -1,6 +1,6 @@
 import { Capability, PathStatus, ValidationMode, type EvidenceType, type TestProfile } from '@iseemp/core';
 import type { TesterProfile } from './runner.js';
-import { KNOWN_SERVER_PAIR_TRUST } from './trust-expectations.js';
+import { getKnownPairTrust } from './trust-expectations.js';
 
 export interface ExpectedFindingDescriptor {
   category: string;
@@ -86,7 +86,7 @@ export const FILESYSTEM_FETCH_PROFILE: ProfileDescriptor = {
   destructive: false,
   requiresCredentials: false,
   safeForE2E: true,
-  expectedTrustTransitions: KNOWN_SERVER_PAIR_TRUST['filesystem→fetch'].map((transition) => ({
+  expectedTrustTransitions: getKnownPairTrust('filesystem→fetch').map((transition) => ({
     sourceTrustClass: transition.sourceTrustClass,
     sinkTrustClass: transition.sinkTrustClass,
     crossesBoundary: transition.expectedTrustBoundaryCrossed,
@@ -111,8 +111,8 @@ export const FILESYSTEM_FETCH_GITHUB_PROFILE: ProfileDescriptor = {
   requiresCredentials: false,
   safeForE2E: true,
   expectedTrustTransitions: [
-    ...KNOWN_SERVER_PAIR_TRUST['filesystem→fetch'],
-    ...KNOWN_SERVER_PAIR_TRUST['filesystem→github'],
+    ...getKnownPairTrust('filesystem→fetch'),
+    ...getKnownPairTrust('filesystem→github'),
   ].map((transition) => ({
     sourceTrustClass: transition.sourceTrustClass,
     sinkTrustClass: transition.sinkTrustClass,

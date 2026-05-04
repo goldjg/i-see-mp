@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PathStatus, RiskCategory, type Finding } from '@iseemp/core';
 import {
   TRUST_ZONE,
-  KNOWN_SERVER_PAIR_TRUST,
+  getKnownPairTrust,
   derivesExpectedTrustBoundaryCrossing,
   assertTrustBoundaryForPair,
   assertCrossServerAndTrustBoundaryIndependent,
@@ -79,7 +79,7 @@ describe('trust expectations', () => {
   });
 
   it('known server pair trust marks filesystem→fetch as boundary crossing', () => {
-    expect(KNOWN_SERVER_PAIR_TRUST['filesystem→fetch'][0].expectedTrustBoundaryCrossed).toBe(true);
+    expect(getKnownPairTrust('filesystem→fetch')[0]!.expectedTrustBoundaryCrossed).toBe(true);
   });
 
   it('LOCAL→CONTROLLED_SAAS is not a trust-boundary crossing', () => {

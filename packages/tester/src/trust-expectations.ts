@@ -69,6 +69,14 @@ export const KNOWN_SERVER_PAIR_TRUST: Record<PairTrustKey, PairTrustExpectation[
   'github→fetch': [makeExpectation(TRUST_ZONE.CONTROLLED_SAAS, TRUST_ZONE.EXTERNAL)],
 };
 
+export function getKnownPairTrust(key: PairTrustKey): PairTrustExpectation[] {
+  const value = KNOWN_SERVER_PAIR_TRUST[key];
+  if (!Array.isArray(value) || value.length === 0) {
+    fail(`No known trust expectation for pair '${key}'.`);
+  }
+  return value;
+}
+
 function parseTrustTransition(transition?: string): { sourceTrustClass?: TrustZone; sinkTrustClass?: TrustZone } {
   if (!transition) return {};
   const [sourceTrustClass, sinkTrustClass] = transition.split('→').map((part) => part.trim()) as [
@@ -85,10 +93,7 @@ function resolveExpectedBoundaryForPair(
   sinkName: string,
 ): { expected: boolean; transition: string } {
   const key = `${sourceName}→${sinkName}` as PairTrustKey;
-  const candidates = KNOWN_SERVER_PAIR_TRUST[key];
-  if (!Array.isArray(candidates) || candidates.length === 0) {
-    fail(`No known trust expectation for pair '${key}'.`);
-  }
+  const candidates = getKnownPairTrust(key);
   const parsed = parseTrustTransition(finding.trustTransition);
   if (parsed.sourceTrustClass && parsed.sinkTrustClass) {
     const match = candidates.find(
@@ -104,9 +109,10 @@ function resolveExpectedBoundaryForPair(
   }
   const unique = Array.from(new Set(candidates.map((candidate) => candidate.expectedTrustBoundaryCrossed)));
   if (unique.length === 1) {
+    const first = candidates[0]!;
     return {
-      expected: unique[0],
-      transition: `${candidates[0].sourceTrustClass} → ${candidates[0].sinkTrustClass}`,
+      expected: unique[0]!,
+      transition: `${first.sourceTrustClass} → ${first.sinkTrustClass}`,
     };
   }
   fail(
