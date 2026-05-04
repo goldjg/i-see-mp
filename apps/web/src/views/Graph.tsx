@@ -43,6 +43,7 @@ export function Graph({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
+  const lastFitPathKeyRef = useRef<string>('');
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [selected, setSelected] = useState<GraphNode | null>(null);
@@ -269,26 +270,35 @@ export function Graph({
       wheelSensitivity: 0.2,
     });
 
-    cy.on('tap', 'node', (evt) => {
+    const onNodeTap = (evt: cytoscape.EventObject) => {
       const nodeId = evt.target.id() as string;
       const node = nodes.find((n) => n.id === nodeId) ?? null;
       setSelected(node);
       onSelectNode?.(nodeId);
-    });
-    cy.on('tap', (evt) => {
+    };
+    const onCanvasTap = (evt: cytoscape.EventObject) => {
       if (evt.target === cy) {
         onClearPath?.();
       }
-    });
+    };
+    cy.on('tap', 'node', onNodeTap);
+    cy.on('tap', onCanvasTap);
 
     cyRef.current = cy;
-    if (isPathActive) {
+    const activePathKey = [...pathNodeSet].sort().join('|');
+    if (isPathActive && activePathKey !== lastFitPathKeyRef.current) {
       const pathNodes = cy.nodes('[pathActive = 1]');
       if (pathNodes.length > 0) {
         cy.fit(pathNodes, 70);
       }
+      lastFitPathKeyRef.current = activePathKey;
+    }
+    if (!isPathActive) {
+      lastFitPathKeyRef.current = '';
     }
     return () => {
+      cy.off('tap', 'node', onNodeTap);
+      cy.off('tap', onCanvasTap);
       cy.destroy();
       cyRef.current = null;
     };

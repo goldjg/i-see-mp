@@ -13,6 +13,7 @@ vi.mock('cytoscape', () => ({
     latestFitMock = vi.fn();
     return {
       on: vi.fn(),
+      off: vi.fn(),
       destroy: vi.fn(),
       zoom: vi.fn(() => 1),
       minZoom: vi.fn(() => 0.2),
@@ -42,7 +43,7 @@ vi.mock('../../api.js', () => ({
 describe('Graph trifecta filter controls', () => {
   beforeEach(() => {
     latestConfig = null;
-    latestFitMock = vi.fn();
+    latestFitMock.mockReset();
   });
 
   it('renders trifecta filter options', () => {
