@@ -38,7 +38,7 @@ class AppErrorBoundary extends React.Component<
 }
 
 type View = 'dashboard' | 'graph' | 'tools' | 'findings' | 'logs';
-const MOBILE_BREAKPOINT = 768;
+const COLLAPSIBLE_NAV_MEDIA_QUERY = '(max-width: 768px)';
 
 function AppContent() {
   const [view, setView] = useState<View>('dashboard');
@@ -94,35 +94,24 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    let resizeFrame: number | null = null;
+    const mediaQueryList = window.matchMedia(COLLAPSIBLE_NAV_MEDIA_QUERY);
 
     function syncNavStateToViewport() {
-      const shouldBeOpen = window.innerWidth > MOBILE_BREAKPOINT;
+      const shouldBeOpen = !mediaQueryList.matches;
       setIsNavOpen((current) => (current === shouldBeOpen ? current : shouldBeOpen));
     }
 
-    function onResize() {
-      if (resizeFrame !== null) return;
-      resizeFrame = window.requestAnimationFrame(() => {
-        resizeFrame = null;
-        syncNavStateToViewport();
-      });
-    }
-
     syncNavStateToViewport();
-    window.addEventListener('resize', onResize);
+    mediaQueryList.addEventListener('change', syncNavStateToViewport);
     return () => {
-      if (resizeFrame !== null) {
-        window.cancelAnimationFrame(resizeFrame);
-      }
-      window.removeEventListener('resize', onResize);
+      mediaQueryList.removeEventListener('change', syncNavStateToViewport);
     };
   }, []);
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
       if (!isNavOpen || event.key !== 'Escape') return;
-      if (window.innerWidth <= MOBILE_BREAKPOINT) {
+      if (isCollapsibleNavActive()) {
         setIsNavOpen(false);
       }
     }
@@ -134,7 +123,7 @@ function AppContent() {
   }, [isNavOpen]);
 
   useEffect(() => {
-    if (!isNavOpen || window.innerWidth > MOBILE_BREAKPOINT) {
+    if (!isNavOpen || !isCollapsibleNavActive()) {
       return;
     }
 
@@ -148,7 +137,7 @@ function AppContent() {
 
   function switchTo(v: View) {
     setView(v);
-    if (window.innerWidth <= MOBILE_BREAKPOINT) {
+    if (isCollapsibleNavActive()) {
       setIsNavOpen(false);
     }
   }
@@ -224,3 +213,6 @@ export function App() {
     </AppErrorBoundary>
   );
 }
+  function isCollapsibleNavActive(): boolean {
+    return window.matchMedia(COLLAPSIBLE_NAV_MEDIA_QUERY).matches;
+  }
