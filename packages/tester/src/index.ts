@@ -191,9 +191,10 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     'prompt-injection-fetch': planPromptInjectionFetchProfile,
     'prompt-injection-db': planSafeProfile,
   };
+  const applicableServerPatterns = descriptor.applicableServers.map((pattern) => new RegExp(pattern, 'i'));
   const serverMatchesApplicability = (serverName: string): boolean => {
-    if (descriptor.applicableServers.length === 0) return true;
-    return descriptor.applicableServers.some((pattern) => new RegExp(pattern, 'i').test(serverName));
+    if (applicableServerPatterns.length === 0) return true;
+    return applicableServerPatterns.some((pattern) => pattern.test(serverName));
   };
   const applicableServerIds = new Set(
     servers

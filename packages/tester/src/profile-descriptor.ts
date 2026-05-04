@@ -2,6 +2,8 @@ import { Capability, PathStatus, ValidationMode, type EvidenceType, type TestPro
 import type { TesterProfile } from './runner.js';
 import { getKnownPairTrust } from './trust-expectations.js';
 
+const SAFE_NON_GITHUB_SERVER_PATTERN = '^(?!.*github).*$';
+
 export interface ExpectedFindingDescriptor {
   category: string;
   requiredStatus?: PathStatus;
@@ -186,7 +188,7 @@ export const SAFE_PROFILE_DESCRIPTOR: ProfileDescriptor = {
   profileType: 'safe',
   // Safe deterministic checks should not execute against GitHub-oriented servers;
   // those are covered by github-safe-canary / prompt-injection-github profiles.
-  applicableServers: ['^(?!.*github).*$'],
+  applicableServers: [SAFE_NON_GITHUB_SERVER_PATTERN],
   requiredCapabilities: [],
   validationMode: ValidationMode.DATAFLOW_CANARY,
   expectedFindings: [],

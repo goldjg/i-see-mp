@@ -77,7 +77,10 @@ export const KNOWN_SERVER_PAIR_TRUST: Record<PairTrustKey, PairTrustExpectation[
     makeExpectation(TRUST_ZONE.LOCAL, TRUST_ZONE.CONTROLLED_SAAS),
     makeExpectation(TRUST_ZONE.LOCAL, TRUST_ZONE.USER_CONTROLLED_SAAS),
   ],
-  'github→fetch': [makeExpectation(TRUST_ZONE.CONTROLLED_SAAS, TRUST_ZONE.EXTERNAL)],
+  'github→fetch': [
+    makeExpectation(TRUST_ZONE.CONTROLLED_SAAS, TRUST_ZONE.EXTERNAL),
+    makeExpectation(TRUST_ZONE.USER_CONTROLLED_SAAS, TRUST_ZONE.EXTERNAL),
+  ],
 };
 
 export function getKnownPairTrust(key: PairTrustKey): PairTrustExpectation[] {

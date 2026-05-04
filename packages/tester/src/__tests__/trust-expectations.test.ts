@@ -78,6 +78,17 @@ describe('trust expectations', () => {
     ).toBe(true);
   });
 
+  it('github→fetch allows user-controlled source transition variant', () => {
+    expect(
+      getKnownPairTrust('github→fetch').some(
+        (entry) =>
+          entry.sourceTrustClass === TRUST_ZONE.USER_CONTROLLED_SAAS &&
+          entry.sinkTrustClass === TRUST_ZONE.EXTERNAL &&
+          entry.expectedTrustBoundaryCrossed === true,
+      ),
+    ).toBe(true);
+  });
+
   it('known server pair trust marks filesystem→fetch as boundary crossing', () => {
     expect(getKnownPairTrust('filesystem→fetch')[0]!.expectedTrustBoundaryCrossed).toBe(true);
   });
