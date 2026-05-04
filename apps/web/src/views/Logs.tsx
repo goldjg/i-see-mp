@@ -168,47 +168,49 @@ export function Logs({ initialFilters }: { initialFilters?: LogsViewFilters }) {
         <p className="empty-state">No log entries match the current filters.</p>
       ) : (
         <>
-          <table className="logs-table">
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Level</th>
-                <th>Phase</th>
-                <th>Event</th>
-                <th>Message</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => {
-                const detailsText = formatDetails(item.detailsJson);
-                return (
-                  <tr key={item.id}>
-                    <td>{item.timestamp}</td>
-                    <td>
-                      <span className={`log-level-${item.level}`}>{item.level}</span>
-                    </td>
-                    <td>{item.phase}</td>
-                    <td>{item.eventType}</td>
-                    <td>{item.message}</td>
-                    <td className="log-details">
-                      {detailsText ? (
-                        <details>
-                          <summary>
-                            view
-                            {item.redacted && <span className="log-redacted-label">redacted</span>}
-                          </summary>
-                          <pre>{detailsText}</pre>
-                        </details>
-                      ) : (
-                        <span className="log-redacted-label">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="logs-table-scroll">
+            <table className="logs-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Level</th>
+                  <th>Phase</th>
+                  <th>Event</th>
+                  <th>Message</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => {
+                  const detailsText = formatDetails(item.detailsJson);
+                  return (
+                    <tr key={item.id}>
+                      <td>{item.timestamp}</td>
+                      <td>
+                        <span className={`log-level-${item.level}`}>{item.level}</span>
+                      </td>
+                      <td>{item.phase}</td>
+                      <td>{item.eventType}</td>
+                      <td>{item.message}</td>
+                      <td className="log-details">
+                        {detailsText ? (
+                          <details>
+                            <summary>
+                              view
+                              {item.redacted && <span className="log-redacted-label">redacted</span>}
+                            </summary>
+                            <pre>{detailsText}</pre>
+                          </details>
+                        ) : (
+                          <span className="log-redacted-label">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           {hasMore && (
             <button className="logs-load-more" onClick={() => void loadMore()} disabled={loadingMore}>
               {loadingMore ? 'Loading…' : 'Load more'}

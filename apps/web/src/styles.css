@@ -256,7 +256,12 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
   border-radius: 4px;
   font-family: monospace;
 }
-.logs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.logs-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.logs-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12px; }
 .logs-table th {
   text-align: left;
   padding: 8px 10px;
