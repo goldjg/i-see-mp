@@ -99,7 +99,11 @@ export function Tools() {
                 className="tool-row"
                 onClick={() => setExpanded((s) => {
                   const n = new Set(s);
-                  n.has(tool.id) ? n.delete(tool.id) : n.add(tool.id);
+                  if (n.has(tool.id)) {
+                    n.delete(tool.id);
+                  } else {
+                    n.add(tool.id);
+                  }
                   return n;
                 })}
               >
