@@ -380,7 +380,12 @@ export function planSafeProfile(
   servers: ServerRow[],
   toolsByServer: Map<string, ToolRow[]>,
 ): PlannedTest[] {
-  return planProfileCases(SAFE_PROFILE_CASES, servers, toolsByServer);
+  const planned = planProfileCases(SAFE_PROFILE_CASES, servers, toolsByServer);
+  return planned.filter((test) => {
+    const server = servers.find((candidate) => candidate.id === test.serverId);
+    if (!server) return true;
+    return !isGithubLikeServer(server, toolsByServer.get(test.serverId) ?? []);
+  });
 }
 
 export function planDemoConfirmProfile(

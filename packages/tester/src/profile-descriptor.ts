@@ -184,7 +184,9 @@ export const PROMPT_INJECTION_FETCH_DESCRIPTOR: ProfileDescriptor = {
 export const SAFE_PROFILE_DESCRIPTOR: ProfileDescriptor = {
   profileId: 'safe',
   profileType: 'safe',
-  applicableServers: [],
+  // Safe deterministic checks should not execute against GitHub-oriented servers;
+  // those are covered by github-safe-canary / prompt-injection-github profiles.
+  applicableServers: ['^(?!.*github).*$'],
   requiredCapabilities: [],
   validationMode: ValidationMode.DATAFLOW_CANARY,
   expectedFindings: [],

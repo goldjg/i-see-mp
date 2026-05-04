@@ -191,7 +191,16 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     'prompt-injection-fetch': planPromptInjectionFetchProfile,
     'prompt-injection-db': planSafeProfile,
   };
-  const planned = planners[profile](servers, toolsByServer);
+  const serverMatchesApplicability = (serverName: string): boolean => {
+    if (descriptor.applicableServers.length === 0) return true;
+    return descriptor.applicableServers.some((pattern) => new RegExp(pattern, 'i').test(serverName));
+  };
+  const applicableServerIds = new Set(
+    servers
+      .filter((server) => serverMatchesApplicability(server.name))
+      .map((server) => server.id),
+  );
+  const planned = planners[profile](servers, toolsByServer).filter((test) => applicableServerIds.has(test.serverId));
   if (planned.length === 0) {
     return {
       collectionId: col.id,

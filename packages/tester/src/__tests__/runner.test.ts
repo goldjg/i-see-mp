@@ -81,6 +81,37 @@ describe('planSafeProfile', () => {
     const planned = planSafeProfile([server()], new Map([['srv1', tools]]));
     expect(planned.map((p) => p.caseDef.id)).toEqual([]);
   });
+
+  it('excludes github-like servers to avoid owner/org-gated tool requirements', () => {
+    const filesystemServer: ServerRow = {
+      ...server(),
+      id: 'srv-fs',
+      name: 'filesystem',
+      command: 'node',
+    };
+    const githubServer: ServerRow = {
+      ...server(),
+      id: 'srv-gh',
+      name: 'github',
+      command: 'docker',
+      args: '--owner required --org required',
+    };
+    const matchingTools = [
+      tool('t-secret', 'read_secret', [Capability.READ_SECRET_HIGH]),
+      tool('t-meta', 'read_team_metadata', [Capability.READ_SENSITIVE_MEDIUM]),
+      tool('t-send', 'send_webhook', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
+      tool('t-mut', 'mutate_remote_state', [Capability.MUTATE_REMOTE_STATE]),
+    ];
+    const planned = planSafeProfile(
+      [filesystemServer, githubServer],
+      new Map([
+        ['srv-fs', matchingTools.map((t) => ({ ...t, server_id: 'srv-fs' }))],
+        ['srv-gh', matchingTools.map((t) => ({ ...t, server_id: 'srv-gh' }))],
+      ]),
+    );
+    expect(planned).toHaveLength(3);
+    expect(planned.every((test) => test.serverId === 'srv-fs')).toBe(true);
+  });
 });
 
 describe('planDemoConfirmProfile', () => {
