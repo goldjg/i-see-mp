@@ -51,6 +51,12 @@ function AppContent() {
     testRunId?: string;
   }>({});
 
+  function isCollapsibleNavActive(): boolean {
+    return getComputedStyle(document.documentElement)
+      .getPropertyValue(COLLAPSIBLE_NAV_ACTIVE_VAR)
+      .trim() === '1';
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -226,8 +232,3 @@ export function App() {
     </AppErrorBoundary>
   );
 }
-  function isCollapsibleNavActive(): boolean {
-    return getComputedStyle(document.documentElement)
-      .getPropertyValue(COLLAPSIBLE_NAV_ACTIVE_VAR)
-      .trim() === '1';
-  }
