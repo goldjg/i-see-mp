@@ -4,6 +4,7 @@ import { Dashboard } from './views/Dashboard.js';
 import { Graph } from './views/Graph.js';
 import { Tools } from './views/Tools.js';
 import { Findings } from './views/Findings.js';
+import { Logs } from './views/Logs.js';
 import logoUrl from './assets/logo.png';
 
 class AppErrorBoundary extends React.Component<
@@ -36,14 +37,25 @@ class AppErrorBoundary extends React.Component<
   }
 }
 
-type View = 'dashboard' | 'graph' | 'tools' | 'findings';
-const MOBILE_BREAKPOINT = 768;
+type View = 'dashboard' | 'graph' | 'tools' | 'findings' | 'logs';
+const COLLAPSIBLE_NAV_ACTIVE_VAR = '--sidebar-collapsible-active';
 
 function AppContent() {
   const [view, setView] = useState<View>('dashboard');
   const [isNavOpen, setIsNavOpen] = useState<boolean>(false);
   const [trifectaNodeIds, setTrifectaNodeIds] = useState<Set<string>>(new Set());
   const [completeNodeIds, setCompleteNodeIds] = useState<Set<string>>(new Set());
+  const [logsFilters, setLogsFilters] = useState<{
+    collectionId?: string;
+    findingId?: string;
+    testRunId?: string;
+  }>({});
+
+  function isCollapsibleNavActive(): boolean {
+    return getComputedStyle(document.documentElement)
+      .getPropertyValue(COLLAPSIBLE_NAV_ACTIVE_VAR)
+      .trim() === '1';
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -91,7 +103,7 @@ function AppContent() {
     let resizeFrame: number | null = null;
 
     function syncNavStateToViewport() {
-      const shouldBeOpen = window.innerWidth > MOBILE_BREAKPOINT;
+      const shouldBeOpen = !isCollapsibleNavActive();
       setIsNavOpen((current) => (current === shouldBeOpen ? current : shouldBeOpen));
     }
 
@@ -105,18 +117,20 @@ function AppContent() {
 
     syncNavStateToViewport();
     window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
     return () => {
       if (resizeFrame !== null) {
         window.cancelAnimationFrame(resizeFrame);
       }
       window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
     };
   }, []);
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
       if (!isNavOpen || event.key !== 'Escape') return;
-      if (window.innerWidth <= MOBILE_BREAKPOINT) {
+      if (isCollapsibleNavActive()) {
         setIsNavOpen(false);
       }
     }
@@ -128,7 +142,7 @@ function AppContent() {
   }, [isNavOpen]);
 
   useEffect(() => {
-    if (!isNavOpen || window.innerWidth > MOBILE_BREAKPOINT) {
+    if (!isNavOpen || !isCollapsibleNavActive()) {
       return;
     }
 
@@ -142,9 +156,14 @@ function AppContent() {
 
   function switchTo(v: View) {
     setView(v);
-    if (window.innerWidth <= MOBILE_BREAKPOINT) {
+    if (isCollapsibleNavActive()) {
       setIsNavOpen(false);
     }
+  }
+
+  function showLogs(filters: { collectionId?: string; findingId?: string; testRunId?: string }) {
+    setLogsFilters(filters);
+    switchTo('logs');
   }
 
   return (
@@ -173,13 +192,14 @@ function AppContent() {
           <img src={logoUrl} alt="ISeeMP logo" className="logo-img" />
         </div>
         <ul>
-          {(['dashboard', 'graph', 'tools', 'findings'] as View[]).map((v) => (
+          {(['dashboard', 'graph', 'tools', 'findings', 'logs'] as View[]).map((v) => (
             <li key={v} className={view === v ? 'active' : ''}>
               <button onClick={() => switchTo(v)}>
                 {v === 'dashboard' && '📊 '}
                 {v === 'graph' && '🕸️ '}
                 {v === 'tools' && '🔧 '}
                 {v === 'findings' && '🚨 '}
+                {v === 'logs' && '🪵 '}
                 {v.charAt(0).toUpperCase() + v.slice(1)}
               </button>
             </li>
@@ -197,8 +217,9 @@ function AppContent() {
         )}
         {view === 'tools' && <Tools />}
         {view === 'findings' && (
-          <Findings onShowOnGraph={() => switchTo('graph')} />
+          <Findings onShowOnGraph={() => switchTo('graph')} onShowLogs={showLogs} />
         )}
+        {view === 'logs' && <Logs initialFilters={logsFilters} />}
       </main>
     </div>
   );

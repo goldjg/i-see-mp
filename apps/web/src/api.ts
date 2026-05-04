@@ -169,6 +169,29 @@ export interface TestRunDetail extends TestRun {
   evidence: EvidenceRecord[];
 }
 
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  level: 'info' | 'warn' | 'error';
+  phase: 'collect' | 'analyze' | 'test' | 'serve' | 'demo';
+  collectionId: string | null;
+  serverId: string | null;
+  toolId: string | null;
+  findingId: string | null;
+  testRunId: string | null;
+  eventType: string;
+  message: string;
+  detailsJson: string | null;
+  redacted: boolean;
+}
+
+export interface LogsResponse {
+  items: LogEntry[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
 const BASE = '';
 
 async function get<T>(path: string): Promise<T> {
@@ -199,4 +222,30 @@ export const api = {
   testRun: (id: string) => get<TestRunDetail>(`/test-runs/${encodeURIComponent(id)}`),
   evidence: (testRunId: string) =>
     get<EvidenceRecord[]>(`/evidence/${encodeURIComponent(testRunId)}`),
+  logs: (params?: {
+    collectionId?: string;
+    findingId?: string;
+    testRunId?: string;
+    serverId?: string;
+    toolId?: string;
+    phase?: 'collect' | 'analyze' | 'test' | 'serve' | 'demo';
+    level?: 'info' | 'warn' | 'error';
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.collectionId) q.set('collectionId', params.collectionId);
+    if (params?.findingId) q.set('findingId', params.findingId);
+    if (params?.testRunId) q.set('testRunId', params.testRunId);
+    if (params?.serverId) q.set('serverId', params.serverId);
+    if (params?.toolId) q.set('toolId', params.toolId);
+    if (params?.phase) q.set('phase', params.phase);
+    if (params?.level) q.set('level', params.level);
+    if (params?.q) q.set('q', params.q);
+    if (typeof params?.limit === 'number') q.set('limit', String(params.limit));
+    if (typeof params?.offset === 'number') q.set('offset', String(params.offset));
+    const qs = q.toString();
+    return get<LogsResponse>(`/logs${qs ? `?${qs}` : ''}`);
+  },
 };

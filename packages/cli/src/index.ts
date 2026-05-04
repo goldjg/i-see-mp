@@ -9,6 +9,7 @@ import { join, dirname } from 'node:path';
 import { writeFile, access } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { getDb, log } from '@iseemp/storage';
 
 const { values: args, positionals } = parseArgs({
   allowPositionals: true,
@@ -84,6 +85,7 @@ const DEMO_CONFIG_PATH = 'iseemp.demo.config.json';
 const DEMO_SERVER_ENTRY = 'examples/demo-mcp-server/dist/index.js';
 
 if (command === 'collect') {
+  const db = getDb(dbPath);
   try {
     console.log('🔍 Discovering MCP servers…');
     const collectionId = await collect({
@@ -95,10 +97,17 @@ if (command === 'collect') {
     console.log('Run `iseemp analyze` to build the attack graph and find risks.');
     process.exit(0);
   } catch (err) {
+    log(db, {
+      level: 'error',
+      phase: 'collect',
+      eventType: 'collect.error',
+      message: err instanceof Error ? err.message : String(err),
+    });
     console.error('❌ Collection failed:', err instanceof Error ? err.message : err);
     process.exit(1);
   }
 } else if (command === 'analyze') {
+  const db = getDb(dbPath);
   try {
     console.log('🧠 Analyzing graph and running findings rules…');
     const findings = await analyze({
@@ -118,10 +127,18 @@ if (command === 'collect') {
     }
     process.exit(0);
   } catch (err) {
+    log(db, {
+      level: 'error',
+      phase: 'analyze',
+      eventType: 'analyze.error',
+      message: err instanceof Error ? err.message : String(err),
+      collectionId: (args.collection as string | undefined) ?? undefined,
+    });
     console.error('❌ Analysis failed:', err instanceof Error ? err.message : err);
     process.exit(1);
   }
 } else if (command === 'test') {
+  const db = getDb(dbPath);
   const profile = (args.profile as string | undefined) ?? 'safe';
   if (!PROFILE_REGISTRY.has(profile as never)) {
     const supported = Array.from(PROFILE_REGISTRY.keys()).join(', ');
@@ -192,6 +209,14 @@ if (command === 'collect') {
     }
     process.exit(0);
   } catch (err) {
+    log(db, {
+      level: 'error',
+      phase: 'test',
+      eventType: 'test.error',
+      message: err instanceof Error ? err.message : String(err),
+      collectionId: (args.collection as string | undefined) ?? undefined,
+      details: { profile },
+    });
     console.error('❌ Tests failed:', err instanceof Error ? err.message : err);
     process.exit(1);
   }
@@ -268,6 +293,7 @@ if (command === 'collect') {
     process.exit(1);
   }
 } else if (command === 'serve') {
+  const db = getDb(dbPath);
   const port = parseInt(args.port as string, 10);
   // Static dir: apps/web/dist relative to this file
   const __dir = dirname(fileURLToPath(import.meta.url));
@@ -281,6 +307,13 @@ if (command === 'collect') {
 
   try {
     await app.listen({ port, host: '0.0.0.0' });
+    log(db, {
+      level: 'info',
+      phase: 'serve',
+      eventType: 'serve.start',
+      message: `Server started on port ${port}`,
+      details: { port },
+    });
     console.log(`\n🚀 ISeeMP is running at http://localhost:${port}`);
     console.log('   API:    http://localhost:' + port + '/health');
     if (existsSync(staticDir)) {
@@ -289,6 +322,13 @@ if (command === 'collect') {
       console.log('   Web UI: not built — run `pnpm --filter @iseemp/web build` first');
     }
   } catch (err) {
+    log(db, {
+      level: 'error',
+      phase: 'serve',
+      eventType: 'serve.error',
+      message: err instanceof Error ? err.message : String(err),
+      details: { port },
+    });
     console.error('❌ Server failed to start:', err instanceof Error ? err.message : err);
     process.exit(1);
   }

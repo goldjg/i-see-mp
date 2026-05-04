@@ -9,6 +9,7 @@ import {
   testRunToRow,
   evidenceToRow,
   findingToRow,
+  log,
 } from '@iseemp/storage';
 import type { ServerRow, ToolRow } from '@iseemp/storage';
 import type { Finding, TestRun, Evidence } from '@iseemp/core';
@@ -206,7 +207,23 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
       .map((server) => server.id),
   );
   const planned = planners[profile](servers, toolsByServer).filter((test) => applicableServerIds.has(test.serverId));
+  log(db, {
+    level: 'info',
+    phase: 'test',
+    eventType: 'test.start',
+    message: `Test profile ${profile} started`,
+    collectionId: col.id,
+    details: { profile, plannedCount: planned.length },
+  });
   if (planned.length === 0) {
+    log(db, {
+      level: 'warn',
+      phase: 'test',
+      eventType: 'test.profile.skipped',
+      message: `No tests planned for profile ${profile}`,
+      collectionId: col.id,
+      details: { profile, reason: 'No applicable servers/tools for profile' },
+    });
     return {
       collectionId: col.id,
       profile,
@@ -281,6 +298,20 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
           },
           createdAt: startedAt,
         });
+        log(db, {
+          level: 'warn',
+          phase: 'test',
+          eventType: 'test.execution.skipped',
+          message: 'Test execution skipped due to server connection failure',
+          collectionId: col.id,
+          serverId: p.serverId,
+          testRunId,
+          details: {
+            profile,
+            testCaseId: p.caseDef.id,
+            reason: 'Server connection failed',
+          },
+        });
         continue;
       }
 
@@ -317,7 +348,71 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
           : await executePlannedTest(ctx, p);
       allTestRuns.push(executed.testRun);
       allEvidence.push(...executed.evidence);
+      log(db, {
+        level: 'info',
+        phase: 'test',
+        eventType: 'test.execution.profile_run',
+        message: `Executed test case ${executed.testRun.testCaseId}`,
+        collectionId: col.id,
+        serverId: executed.testRun.serverId,
+        findingId: executed.testRun.findingId,
+        testRunId: executed.testRun.id,
+        details: {
+          profile,
+          pathStatus: executed.testRun.pathStatus,
+          outcome: executed.testRun.outcome,
+        },
+      });
+      log(db, {
+        level: executed.testRun.canaryObserved ? 'warn' : 'info',
+        phase: 'test',
+        eventType: executed.testRun.canaryObserved
+          ? 'test.execution.canary.observed'
+          : 'test.execution.canary.not_observed',
+        message: executed.testRun.canaryObserved
+          ? 'Canary observed during test execution'
+          : 'Canary not observed during test execution',
+        collectionId: col.id,
+        serverId: executed.testRun.serverId,
+        findingId: executed.testRun.findingId,
+        testRunId: executed.testRun.id,
+      });
+      if (executed.testRun.deviationDetected) {
+        log(db, {
+          level: 'warn',
+          phase: 'test',
+          eventType: 'test.execution.deviation.detected',
+          message: 'Behavioral deviation detected',
+          collectionId: col.id,
+          serverId: executed.testRun.serverId,
+          findingId: executed.testRun.findingId,
+          testRunId: executed.testRun.id,
+          details: { deviationScore: executed.testRun.deviationScore ?? null },
+        });
+      }
+      if (executed.testRun.pathStatus === PathStatus.INJECTION_INFLUENCE_BLOCKED) {
+        log(db, {
+          level: 'warn',
+          phase: 'test',
+          eventType: 'test.execution.blocked',
+          message: 'Prompt-injection influence observed but sink delivery blocked',
+          collectionId: col.id,
+          serverId: executed.testRun.serverId,
+          findingId: executed.testRun.findingId,
+          testRunId: executed.testRun.id,
+        });
+      }
     }
+  } catch (err) {
+    log(db, {
+      level: 'error',
+      phase: 'test',
+      eventType: 'test.error',
+      message: err instanceof Error ? err.message : String(err),
+      collectionId: col.id,
+      details: { profile },
+    });
+    throw err;
   } finally {
     for (const c of connected.values()) {
       try {
@@ -353,6 +448,21 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     behaviouralDeviation,
   } = summarizeRunsForCli(allTestRuns);
   const lethalCounts = summarizeLethalTrifecta(findingsRepo.findByCollection(col.id));
+  log(db, {
+    level: 'info',
+    phase: 'test',
+    eventType: 'test.end',
+    message: `Test profile ${profile} completed`,
+    collectionId: col.id,
+    details: {
+      profile,
+      totalPlanned: planned.length,
+      confirmed,
+      rejected,
+      inconclusive,
+      skipped,
+    },
+  });
 
   return {
     collectionId: col.id,

@@ -8,6 +8,7 @@ import {
   createFindingsRepo,
   createTestRunsRepo,
   createEvidenceRepo,
+  createLogsRepo,
   testRunToRow,
   evidenceToRow,
 } from '@iseemp/storage';
@@ -222,6 +223,63 @@ describe('API routes', () => {
     const ev = await app.inject({ method: 'GET', url: '/evidence/tr-1' });
     expect(ev.statusCode).toBe(200);
     expect(JSON.parse(ev.body)).toHaveLength(1);
+
+    vi.restoreAllMocks();
+  });
+
+  it('GET /logs returns filtered paginated logs', async () => {
+    const db = createMemoryDb();
+    vi.spyOn(storage, 'getDb').mockReturnValue(db);
+    const logsRepo = createLogsRepo(db);
+    logsRepo.insert({
+      id: 'log-1',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      level: 'info',
+      phase: 'collect',
+      collection_id: 'col-1',
+      server_id: null,
+      tool_id: null,
+      finding_id: 'f-1',
+      test_run_id: null,
+      event_type: 'collect.start',
+      message: 'Collect started',
+      details_json: null,
+      redacted: 0,
+    });
+    logsRepo.insert({
+      id: 'log-2',
+      timestamp: '2024-01-01T00:00:01.000Z',
+      level: 'error',
+      phase: 'test',
+      collection_id: 'col-1',
+      server_id: null,
+      tool_id: null,
+      finding_id: 'f-2',
+      test_run_id: null,
+      event_type: 'test.error',
+      message: 'Test failed',
+      details_json: null,
+      redacted: 0,
+    });
+
+    const app = buildServer();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/logs?collectionId=col-1&findingId=f-2&limit=1&offset=0',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      items: Array<{ id: string; findingId: string | null }>;
+      limit: number;
+      offset: number;
+      hasMore: boolean;
+    };
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]?.id).toBe('log-2');
+    expect(body.items[0]?.findingId).toBe('f-2');
+    expect(body.limit).toBe(1);
+    expect(body.offset).toBe(0);
+    expect(body.hasMore).toBe(false);
 
     vi.restoreAllMocks();
   });
