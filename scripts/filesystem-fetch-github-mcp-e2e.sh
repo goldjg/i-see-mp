@@ -428,11 +428,6 @@ function assertLethalTrifectaCounts(findings, opts) {
   }
 }
 
-function assertNoConfirmedInjection(findings) {
-  const confirmed = findings.filter((finding) => finding.injectionConfirmed === true);
-  if (confirmed.length > 0) fail(`Unexpected injectionConfirmed=true finding(s): ${confirmed.length}.`);
-}
-
 function associatedRunsForFinding(finding, testRuns) {
   const linked = new Set();
   if (Array.isArray(finding.testRunIds)) {
