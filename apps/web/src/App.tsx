@@ -38,7 +38,7 @@ class AppErrorBoundary extends React.Component<
 }
 
 type View = 'dashboard' | 'graph' | 'tools' | 'findings' | 'logs';
-const COLLAPSIBLE_NAV_MEDIA_QUERY = '(max-width: 768px)';
+const COLLAPSIBLE_NAV_ACTIVE_VAR = '--sidebar-collapsible-active';
 
 function AppContent() {
   const [view, setView] = useState<View>('dashboard');
@@ -94,17 +94,30 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    const mediaQueryList = window.matchMedia(COLLAPSIBLE_NAV_MEDIA_QUERY);
+    let resizeFrame: number | null = null;
 
     function syncNavStateToViewport() {
-      const shouldBeOpen = !mediaQueryList.matches;
+      const shouldBeOpen = !isCollapsibleNavActive();
       setIsNavOpen((current) => (current === shouldBeOpen ? current : shouldBeOpen));
     }
 
+    function onResize() {
+      if (resizeFrame !== null) return;
+      resizeFrame = window.requestAnimationFrame(() => {
+        resizeFrame = null;
+        syncNavStateToViewport();
+      });
+    }
+
     syncNavStateToViewport();
-    mediaQueryList.addEventListener('change', syncNavStateToViewport);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
     return () => {
-      mediaQueryList.removeEventListener('change', syncNavStateToViewport);
+      if (resizeFrame !== null) {
+        window.cancelAnimationFrame(resizeFrame);
+      }
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
     };
   }, []);
 
@@ -214,5 +227,7 @@ export function App() {
   );
 }
   function isCollapsibleNavActive(): boolean {
-    return window.matchMedia(COLLAPSIBLE_NAV_MEDIA_QUERY).matches;
+    return getComputedStyle(document.documentElement)
+      .getPropertyValue(COLLAPSIBLE_NAV_ACTIVE_VAR)
+      .trim() === '1';
   }
