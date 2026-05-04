@@ -680,7 +680,7 @@ if (includeUnsafe) {
   }
   const behaviouralDeviationCount = testRuns.filter((run) => run.deviationDetected === true).length;
   if (behaviouralDeviationCount < 1) {
-    fail('Expected behaviouralDeviation > 0 in unsafe run.');
+    fail('Expected behavioralDeviation > 0 in unsafe run.');
   }
 } else {
   const confirmedInjectionFindings = findings.filter((finding) => finding.injectionConfirmed === true);

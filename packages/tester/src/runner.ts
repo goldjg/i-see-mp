@@ -1811,7 +1811,7 @@ export async function executePromptInjectionFetchPlannedTest(
       status = TestStatus.REJECTED;
       outcome = TestOutcome.TESTED_REJECTED;
       pathStatus = PathStatus.TESTED_REJECTED;
-      notes = `Sink call failed after fetched payload: ${sinkRes.text}`;
+      notes = 'Sink call failed after fetched payload.';
     } else {
       status = TestStatus.REJECTED;
       outcome = TestOutcome.TESTED_REJECTED;
