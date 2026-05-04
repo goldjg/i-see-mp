@@ -123,8 +123,12 @@ function resolveExpectedBoundaryForPair(
     const transitions = candidates
       .map((candidate) => `${candidate.sourceTrustClass} → ${candidate.sinkTrustClass}`)
       .join(' | ');
+    const expected = unique[0];
+    if (typeof expected !== 'boolean') {
+      fail(`Internal trust expectation error: could not resolve unique boundary value for pair '${key}'.`);
+    }
     return {
-      expected: unique[0]!,
+      expected,
       transition: transitions,
     };
   }
