@@ -8,7 +8,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; colo
   display: flex; flex-direction: column; border-right: 1px solid #334155;
 }
 .logo { display: flex; align-items: center; padding: 0 16px 24px; }
-.logo-img { height: 36px; width: auto; max-width: 168px; object-fit: contain; display: block; }
+.logo-img { height: 72px; width: auto; max-width: 336px; object-fit: contain; display: block; }
 .mobile-header { display: none; }
 .nav-toggle {
   background: none; border: none; cursor: pointer;
@@ -17,7 +17,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; colo
 .hamburger-bar {
   display: block; width: 22px; height: 2px; background: #e2e8f0; border-radius: 1px;
 }
-.mobile-logo-img { height: 28px; width: auto; object-fit: contain; }
+.mobile-logo-img { height: 56px; width: auto; object-fit: contain; }
 .mobile-nav-backdrop { display: none; }
 .sidebar ul { list-style: none; }
 .sidebar li button {
@@ -236,7 +236,7 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
     display: flex; align-items: center; gap: 12px;
     position: fixed; top: 0; left: 0; right: 0; z-index: 200;
     background: #1e293b; border-bottom: 1px solid #334155;
-    padding: 8px 16px; height: 48px;
+    padding: 8px 16px; height: 72px;
   }
 
   .nav-toggle {
@@ -259,7 +259,7 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 
   .sidebar {
     position: fixed;
-    top: 48px;
+    top: 72px;
     left: 0;
     bottom: 0;
     z-index: 100;
@@ -274,11 +274,40 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
   }
 
   .main-content {
-    padding-top: calc(48px + 16px);
+    padding-top: calc(72px + 16px);
     overflow-x: hidden;
   }
 
   .graph-view {
-    height: calc(100vh - 48px - 48px);
+    height: calc(100vh - 72px - 48px);
+  }
+
+  .finding-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .finding-title {
+    flex: 1 1 200px;
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+
+  .finding-category {
+    margin-left: 0;
+    flex: 1 1 100%;
+    overflow-wrap: break-word;
+  }
+
+  .finding-badges {
+    margin-left: 0;
+    display: flex;
+    flex: 1 1 100%;
+  }
+
+  .finding-badge {
+    max-width: 100%;
+    overflow-wrap: break-word;
   }
 }
