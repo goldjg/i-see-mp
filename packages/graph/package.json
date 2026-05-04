@@ -15,11 +15,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "*"
   },
   "dependencies": {
     "@iseemp/core": "workspace:*",
-    "@iseemp/rules": "workspace:*",
-    "@iseemp/storage": "workspace:*"
+    "@iseemp/storage": "workspace:*",
+    "@iseemp/rules": "workspace:*"
   }
 }
