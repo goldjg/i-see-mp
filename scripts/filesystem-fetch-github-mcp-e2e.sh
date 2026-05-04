@@ -651,7 +651,13 @@ if (githubToFetch && githubToFetch.crossesTrustBoundary !== true) {
 assertInjectionConfirmationRequiresDeviation(findings, testRuns);
 
 if (expectGithubCanary) {
-  const githubCanaryRuns = testRuns.filter((run) => run.profile === 'github-safe-canary');
+  const CANARY_CASE_IDS = new Set([
+    'GITHUB_READ_CONTROLLED_ARTIFACT',
+    'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT',
+  ]);
+  const githubCanaryRuns = testRuns.filter(
+    (run) => run.profile === 'github-safe-canary' || CANARY_CASE_IDS.has(run.testCaseId),
+  );
   if (githubCanaryRuns.length === 0) {
     fail('Expected github-safe-canary test runs when github-safe-canary was enabled.');
   }
