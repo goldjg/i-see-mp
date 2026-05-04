@@ -481,10 +481,60 @@ function summarizeRun(run) {
   };
 }
 
+function summarizeEvidenceFailures(evidence) {
+  const urls = [];
+  let blockedPrivateAddress = 0;
+  let erroredToolCalls = 0;
+  for (const item of Array.isArray(evidence) ? evidence : []) {
+    if (item?.type === 'tool_call') {
+      if (item?.content?.isError === true || item?.redactedOutput?.isError === true) {
+        erroredToolCalls += 1;
+      }
+      const text = item?.redactedOutput?.text ?? '';
+      if (typeof text === 'string' && text.includes('blocked request to private address')) {
+        blockedPrivateAddress += 1;
+      }
+      const url = item?.redactedInput?.url;
+      if (typeof url === 'string') urls.push(url);
+    }
+    if (item?.type === 'INJECTED_TOOL_CALLS') {
+      const toolCalls = Array.isArray(item?.content?.toolCalls) ? item.content.toolCalls : [];
+      for (const call of toolCalls) {
+        const text = call?.output?.text ?? '';
+        if (typeof text === 'string' && text.includes('blocked request to private address')) {
+          blockedPrivateAddress += 1;
+        }
+        if (call?.output?.isError === true || typeof call?.error === 'string') {
+          erroredToolCalls += 1;
+        }
+        const url = call?.input?.url;
+        if (typeof url === 'string') urls.push(url);
+      }
+    }
+  }
+  return {
+    blockedPrivateAddress,
+    erroredToolCalls,
+    attemptedUrls: Array.from(new Set(urls)).slice(-8),
+  };
+}
+
+function summarizePromptRunOutcomes(promptRuns) {
+  const testedRejected = promptRuns.filter((run) => run.pathStatus === 'tested_rejected').length;
+  const testedConfirmed = promptRuns.filter((run) => run.pathStatus === 'tested_confirmed').length;
+  const withDeviation = promptRuns.filter((run) => run.deviationDetected === true).length;
+  const withCanary = promptRuns.filter((run) => run.canaryObserved === true).length;
+  const withInjectionConfirmed = promptRuns.filter((run) => run.injectionConfirmed === true).length;
+  return { testedRejected, testedConfirmed, withDeviation, withCanary, withInjectionConfirmed };
+}
+
 async function logPromptInjectionDiagnostics(testRuns) {
   const promptRuns = testRuns.filter((run) => run.profile === 'prompt-injection-fetch');
   console.error(`ℹ️ prompt-injection-fetch runs: ${promptRuns.length}`);
   if (promptRuns.length === 0) return;
+  console.error(
+    `ℹ️ prompt-injection-fetch outcome summary:\n${JSON.stringify(summarizePromptRunOutcomes(promptRuns), null, 2)}`,
+  );
   console.error(
     `ℹ️ prompt-injection-fetch run summaries:\n${JSON.stringify(promptRuns.map(summarizeRun), null, 2)}`,
   );
@@ -494,6 +544,15 @@ async function logPromptInjectionDiagnostics(testRuns) {
   for (const run of rejectedOrErrored) {
     try {
       const full = await getJson(`/test-runs/${run.id}`);
+      const failureSummary = summarizeEvidenceFailures(full.evidence ?? []);
+      console.error(
+        `ℹ️ run ${run.id} failure summary:\n${JSON.stringify(failureSummary, null, 2)}`,
+      );
+      if (failureSummary.blockedPrivateAddress > 0) {
+        console.error(
+          `⚠️ run ${run.id}: fetch calls were blocked for private-address targets, which can prevent canaryObserved from becoming true.`,
+        );
+      }
       console.error(
         `ℹ️ run ${run.id} evidence tail:\n${JSON.stringify((full.evidence ?? []).slice(-10), null, 2)}`,
       );
