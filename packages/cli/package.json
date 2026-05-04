@@ -18,7 +18,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "typescript": "*"
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "@iseemp/api": "workspace:*",
