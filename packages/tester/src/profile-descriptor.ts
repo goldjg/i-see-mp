@@ -110,6 +110,8 @@ export const FILESYSTEM_FETCH_GITHUB_PROFILE: ProfileDescriptor = {
   destructive: false,
   requiresCredentials: false,
   safeForE2E: true,
+  // filesystem-fetch-github profiles both canonical exfil (filesystem→fetch)
+  // and mixed SaaS paths (filesystem→github, tool-trust dependent).
   expectedTrustTransitions: [
     ...getKnownPairTrust('filesystem→fetch'),
     ...getKnownPairTrust('filesystem→github'),

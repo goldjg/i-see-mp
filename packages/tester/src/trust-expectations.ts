@@ -32,6 +32,11 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
+/**
+ * Sensitive transitions move data between "internalish" zones (LOCAL/INTERNAL)
+ * and "externalish" zones (USER_CONTROLLED_SAAS/EXTERNAL), which represents
+ * elevated risk even when neither side is UNKNOWN.
+ */
 function isSensitiveTrustTransition(sourceZone?: TrustZone, sinkZone?: TrustZone): boolean {
   if (!sourceZone || !sinkZone) return false;
   const externalish = new Set<TrustZone>([TRUST_ZONE.USER_CONTROLLED_SAAS, TRUST_ZONE.EXTERNAL]);
@@ -60,6 +65,12 @@ function makeExpectation(sourceTrustClass: TrustZone, sinkTrustClass: TrustZone)
   };
 }
 
+/**
+ * Canonical trust expectations for known topology pairs used by tester-side
+ * assertions and profile contracts. A pair can have multiple entries when
+ * tool-level trust classification changes the transition (for example
+ * filesystem→github can resolve to CONTROLLED_SAAS or USER_CONTROLLED_SAAS).
+ */
 export const KNOWN_SERVER_PAIR_TRUST: Record<PairTrustKey, PairTrustExpectation[]> = {
   'filesystem→fetch': [makeExpectation(TRUST_ZONE.LOCAL, TRUST_ZONE.EXTERNAL)],
   'filesystem→github': [
@@ -109,10 +120,12 @@ function resolveExpectedBoundaryForPair(
   }
   const unique = Array.from(new Set(candidates.map((candidate) => candidate.expectedTrustBoundaryCrossed)));
   if (unique.length === 1) {
-    const first = candidates[0]!;
+    const transitions = candidates
+      .map((candidate) => `${candidate.sourceTrustClass} → ${candidate.sinkTrustClass}`)
+      .join(' | ');
     return {
       expected: unique[0]!,
-      transition: `${first.sourceTrustClass} → ${first.sinkTrustClass}`,
+      transition: transitions,
     };
   }
   fail(
