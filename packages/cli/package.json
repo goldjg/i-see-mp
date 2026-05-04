@@ -13,12 +13,12 @@
     }
   },
   "scripts": {
-    "prepare": "tsc -p tsconfig.json",
+    "prepare": "tsc -b tsconfig.json",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "typescript": "*"
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "@iseemp/api": "workspace:*",

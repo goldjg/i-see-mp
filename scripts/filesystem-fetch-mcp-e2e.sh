@@ -31,6 +31,12 @@ FSMCP_MOUNT_PATH="${ISEEMP_FS_MCP_MOUNT_PATH:-/tmp/fs-mcp-pkg}"
 FETCHMCP_MOUNT_PATH="${ISEEMP_FETCH_MCP_MOUNT_PATH:-/tmp/fetch-mcp-pkg}"
 FSMCP_BIN_NAME="mcp-server-filesystem"
 FETCHMCP_BIN_NAME="mcp-fetch-server"
+FSMCP_NPM_PACKAGE="@modelcontextprotocol/server-filesystem"
+FSMCP_NPM_VERSION="${ISEEMP_FS_MCP_NPM_VERSION:-2026.1.14}"
+FSMCP_GLOB_OVERRIDE_VERSION="${ISEEMP_FS_MCP_GLOB_OVERRIDE_VERSION:-13.0.0}"
+FETCHMCP_NPM_PACKAGE="mcp-fetch-server"
+FETCHMCP_NPM_VERSION="${ISEEMP_FETCH_MCP_NPM_VERSION:-1.1.2}"
+NPM_INSTALL_NODE_IMAGE="${ISEEMP_NPM_INSTALL_NODE_IMAGE:-node:20-bookworm-slim}"
 FSMCP_BIN_IN_CONTAINER="${FSMCP_MOUNT_PATH}/node_modules/.bin/${FSMCP_BIN_NAME}"
 FETCHMCP_BIN_IN_CONTAINER="${FETCHMCP_MOUNT_PATH}/node_modules/.bin/${FETCHMCP_BIN_NAME}"
 FETCH_FIXTURE_PORT="${ISEEMP_FETCH_FIXTURE_PORT:-8787}"
@@ -71,6 +77,17 @@ validate_tmp_delete_target() {
   fi
 }
 
+npm_install_prefix_in_node_image() {
+  local prefix="$1"
+  shift
+  docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    --volume "${prefix}:/work" \
+    --workdir /work \
+    "$NPM_INSTALL_NODE_IMAGE" \
+    npm install --no-audit --no-fund "$@"
+}
+
 cleanup() {
   if [[ -n "${FETCH_FIXTURE_PID}" ]]; then
     "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T "$SERVICE" \
@@ -103,19 +120,40 @@ trap cleanup EXIT
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-echo "▶ Installing filesystem MCP package into ${FSMCP_PKG_DIR}…"
+echo "▶ Installing filesystem MCP package (${FSMCP_NPM_PACKAGE}@${FSMCP_NPM_VERSION}) into ${FSMCP_PKG_DIR}…"
 rm -rf "$FSMCP_PKG_DIR"
 mkdir -p "$FSMCP_PKG_DIR"
-npm install --no-audit --no-fund --prefix "$FSMCP_PKG_DIR" @modelcontextprotocol/server-filesystem
+cat > "${FSMCP_PKG_DIR}/package.json" <<JSON
+{
+  "name": "iseemp-filesystem-mcp-runtime",
+  "private": true,
+  "dependencies": {
+    "${FSMCP_NPM_PACKAGE}": "${FSMCP_NPM_VERSION}"
+  },
+  "overrides": {
+    "glob": "${FSMCP_GLOB_OVERRIDE_VERSION}"
+  }
+}
+JSON
+npm_install_prefix_in_node_image "$FSMCP_PKG_DIR"
 if [[ ! -x "${FSMCP_PKG_DIR}/node_modules/.bin/${FSMCP_BIN_NAME}" ]]; then
   echo "❌ Filesystem MCP binary not found at ${FSMCP_PKG_DIR}/node_modules/.bin/${FSMCP_BIN_NAME}." >&2
   exit 1
 fi
 
-echo "▶ Installing fetch MCP package into ${FETCHMCP_PKG_DIR}…"
+echo "▶ Installing fetch MCP package (${FETCHMCP_NPM_PACKAGE}@${FETCHMCP_NPM_VERSION}) into ${FETCHMCP_PKG_DIR}…"
 rm -rf "$FETCHMCP_PKG_DIR"
 mkdir -p "$FETCHMCP_PKG_DIR"
-npm install --no-audit --no-fund --prefix "$FETCHMCP_PKG_DIR" mcp-fetch-server
+cat > "${FETCHMCP_PKG_DIR}/package.json" <<JSON
+{
+  "name": "iseemp-fetch-mcp-runtime",
+  "private": true,
+  "dependencies": {
+    "${FETCHMCP_NPM_PACKAGE}": "${FETCHMCP_NPM_VERSION}"
+  }
+}
+JSON
+npm_install_prefix_in_node_image "$FETCHMCP_PKG_DIR"
 if [[ ! -x "${FETCHMCP_PKG_DIR}/node_modules/.bin/${FETCHMCP_BIN_NAME}" ]]; then
   echo "❌ Fetch MCP binary not found at ${FETCHMCP_PKG_DIR}/node_modules/.bin/${FETCHMCP_BIN_NAME}." >&2
   exit 1
