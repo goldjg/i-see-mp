@@ -20,3 +20,7 @@ export { createTestRunsRepo, testRunToRow } from './repos/test-runs.js';
 export type { TestRunRow } from './repos/test-runs.js';
 export { createEvidenceRepo, evidenceToRow } from './repos/evidence.js';
 export type { EvidenceRow } from './repos/evidence.js';
+export { createLogsRepo } from './repos/logs.js';
+export type { LogRow, LogQuery, LogRecord } from './repos/logs.js';
+export { log } from './logger.js';
+export type { LogEntry } from './logger.js';

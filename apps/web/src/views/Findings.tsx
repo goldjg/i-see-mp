@@ -391,7 +391,13 @@ function EvidenceSummary({ findingId }: { findingId: string }) {
   );
 }
 
-export function Findings({ onShowOnGraph }: { onShowOnGraph?: (nodeIds: string[]) => void }) {
+export function Findings({
+  onShowOnGraph,
+  onShowLogs,
+}: {
+  onShowOnGraph?: (nodeIds: string[]) => void;
+  onShowLogs?: (filters: { collectionId?: string; findingId?: string; testRunId?: string }) => void;
+}) {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'trifecta' | 'severity'>('trifecta');
@@ -482,6 +488,20 @@ export function Findings({ onShowOnGraph }: { onShowOnGraph?: (nodeIds: string[]
                 onClick={() => onShowOnGraph(f.affectedNodeIds)}
               >
                 Show on graph →
+              </button>
+            )}
+            {onShowLogs && (
+              <button
+                className="show-logs-btn"
+                onClick={() =>
+                  onShowLogs({
+                    collectionId: f.collectionId,
+                    findingId: f.id,
+                    testRunId: f.testRunIds?.[0],
+                  })
+                }
+              >
+                Show logs →
               </button>
             )}
           </div>

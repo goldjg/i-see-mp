@@ -9,6 +9,7 @@ import {
   createEdgesRepo,
   createFindingsRepo,
   findingToRow,
+  log,
 } from '@iseemp/storage';
 import type { NodeRow, EdgeRow, FindingRow } from '@iseemp/storage';
 import { runFindingsRules } from '@iseemp/rules';
@@ -39,13 +40,35 @@ export async function analyze(options: {
   }
 
   const collectionId = col.id;
+  log(db, {
+    level: 'info',
+    phase: 'analyze',
+    eventType: 'analyze.start',
+    message: 'Analyze started',
+    collectionId,
+  });
 
   const servers = serversRepo.findByCollection(collectionId);
   const tools = toolsRepo.findByCollection(collectionId);
   const resources = resourcesRepo.findByCollection(collectionId);
   const prompts = promptsRepo.findByCollection(collectionId);
 
-  const { nodes, edges } = buildGraph({ collectionId, servers, tools, resources, prompts });
+  let nodes: ReturnType<typeof buildGraph>['nodes'];
+  let edges: ReturnType<typeof buildGraph>['edges'];
+  try {
+    const built = buildGraph({ collectionId, servers, tools, resources, prompts });
+    nodes = built.nodes;
+    edges = built.edges;
+  } catch (err) {
+    log(db, {
+      level: 'error',
+      phase: 'analyze',
+      eventType: 'analyze.graph_build.error',
+      message: err instanceof Error ? err.message : String(err),
+      collectionId,
+    });
+    throw err;
+  }
 
   // Persist nodes
   const nodeRows: NodeRow[] = nodes.map((n) => ({
@@ -77,12 +100,36 @@ export async function analyze(options: {
   edgesRepo.upsertMany(edgeRows);
 
   // Run findings rules
-  const findings = runFindingsRules({ nodes, edges, servers, tools, collectionId });
+  let findings: Finding[];
+  try {
+    findings = runFindingsRules({ nodes, edges, servers, tools, collectionId });
+  } catch (err) {
+    log(db, {
+      level: 'error',
+      phase: 'analyze',
+      eventType: 'analyze.findings_rules.error',
+      message: err instanceof Error ? err.message : String(err),
+      collectionId,
+    });
+    throw err;
+  }
 
   // Persist findings (with rich fields)
   const findingRows: FindingRow[] = findings.map((f) => findingToRow(f));
   findingsRepo.deleteByCollection(collectionId);
   findingsRepo.insertMany(findingRows);
+  log(db, {
+    level: 'info',
+    phase: 'analyze',
+    eventType: 'analyze.end',
+    message: 'Analyze completed',
+    collectionId,
+    details: {
+      nodes: nodes.length,
+      edges: edges.length,
+      findings: findings.length,
+    },
+  });
 
   return findings;
 }

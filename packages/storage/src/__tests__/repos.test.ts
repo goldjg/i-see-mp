@@ -5,6 +5,7 @@ import { createServersRepo } from '../repos/servers.js';
 import { createToolsRepo } from '../repos/tools.js';
 import { createResourcesRepo } from '../repos/resources.js';
 import { createFindingsRepo } from '../repos/findings.js';
+import { createLogsRepo } from '../repos/logs.js';
 import type Database from 'better-sqlite3';
 
 let db: Database.Database;
@@ -293,5 +294,85 @@ describe('FindingsRepo', () => {
     expect(finding?.isCrossServer).toBe(false);
     expect(finding?.sourceServerId).toBeUndefined();
     expect(finding?.sinkServerId).toBeUndefined();
+  });
+});
+
+describe('LogsRepo', () => {
+  it('inserts and queries logs with pagination metadata support', () => {
+    const repo = createLogsRepo(db);
+    repo.insert({
+      id: 'log-1',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      level: 'info',
+      phase: 'collect',
+      collection_id: 'col-a',
+      server_id: null,
+      tool_id: null,
+      finding_id: null,
+      test_run_id: null,
+      event_type: 'collect.start',
+      message: 'Collect started',
+      details_json: null,
+      redacted: 0,
+    });
+    repo.insert({
+      id: 'log-2',
+      timestamp: '2024-01-01T00:00:01.000Z',
+      level: 'error',
+      phase: 'test',
+      collection_id: 'col-a',
+      server_id: 'srv-1',
+      tool_id: null,
+      finding_id: 'f-1',
+      test_run_id: 'tr-1',
+      event_type: 'test.execution.blocked',
+      message: 'Blocked',
+      details_json: '{"reason":"policy"}',
+      redacted: 1,
+    });
+
+    const result = repo.query({ collectionId: 'col-a', limit: 1, offset: 0 });
+    expect(result.total).toBe(2);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.id).toBe('log-2');
+    expect(result.items[0]?.redacted).toBe(true);
+  });
+
+  it('filters logs by finding and search query', () => {
+    const repo = createLogsRepo(db);
+    repo.insert({
+      id: 'log-a',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      level: 'warn',
+      phase: 'test',
+      collection_id: 'col-a',
+      server_id: null,
+      tool_id: null,
+      finding_id: 'finding-1',
+      test_run_id: null,
+      event_type: 'test.execution.canary.not_observed',
+      message: 'Canary not observed',
+      details_json: null,
+      redacted: 0,
+    });
+    repo.insert({
+      id: 'log-b',
+      timestamp: '2024-01-01T00:00:01.000Z',
+      level: 'info',
+      phase: 'analyze',
+      collection_id: 'col-a',
+      server_id: null,
+      tool_id: null,
+      finding_id: 'finding-2',
+      test_run_id: null,
+      event_type: 'analyze.end',
+      message: 'Analyze completed',
+      details_json: null,
+      redacted: 0,
+    });
+
+    const filtered = repo.query({ findingId: 'finding-1', q: 'Canary' });
+    expect(filtered.total).toBe(1);
+    expect(filtered.items[0]?.id).toBe('log-a');
   });
 });

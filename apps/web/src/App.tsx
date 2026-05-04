@@ -4,6 +4,7 @@ import { Dashboard } from './views/Dashboard.js';
 import { Graph } from './views/Graph.js';
 import { Tools } from './views/Tools.js';
 import { Findings } from './views/Findings.js';
+import { Logs } from './views/Logs.js';
 import logoUrl from './assets/logo.png';
 
 class AppErrorBoundary extends React.Component<
@@ -36,7 +37,7 @@ class AppErrorBoundary extends React.Component<
   }
 }
 
-type View = 'dashboard' | 'graph' | 'tools' | 'findings';
+type View = 'dashboard' | 'graph' | 'tools' | 'findings' | 'logs';
 const MOBILE_BREAKPOINT = 768;
 
 function AppContent() {
@@ -44,6 +45,11 @@ function AppContent() {
   const [isNavOpen, setIsNavOpen] = useState<boolean>(false);
   const [trifectaNodeIds, setTrifectaNodeIds] = useState<Set<string>>(new Set());
   const [completeNodeIds, setCompleteNodeIds] = useState<Set<string>>(new Set());
+  const [logsFilters, setLogsFilters] = useState<{
+    collectionId?: string;
+    findingId?: string;
+    testRunId?: string;
+  }>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +153,11 @@ function AppContent() {
     }
   }
 
+  function showLogs(filters: { collectionId?: string; findingId?: string; testRunId?: string }) {
+    setLogsFilters(filters);
+    switchTo('logs');
+  }
+
   return (
     <div className="app-shell">
       <header className="mobile-header">
@@ -173,13 +184,14 @@ function AppContent() {
           <img src={logoUrl} alt="ISeeMP logo" className="logo-img" />
         </div>
         <ul>
-          {(['dashboard', 'graph', 'tools', 'findings'] as View[]).map((v) => (
+          {(['dashboard', 'graph', 'tools', 'findings', 'logs'] as View[]).map((v) => (
             <li key={v} className={view === v ? 'active' : ''}>
               <button onClick={() => switchTo(v)}>
                 {v === 'dashboard' && '📊 '}
                 {v === 'graph' && '🕸️ '}
                 {v === 'tools' && '🔧 '}
                 {v === 'findings' && '🚨 '}
+                {v === 'logs' && '🪵 '}
                 {v.charAt(0).toUpperCase() + v.slice(1)}
               </button>
             </li>
@@ -197,8 +209,9 @@ function AppContent() {
         )}
         {view === 'tools' && <Tools />}
         {view === 'findings' && (
-          <Findings onShowOnGraph={() => switchTo('graph')} />
+          <Findings onShowOnGraph={() => switchTo('graph')} onShowLogs={showLogs} />
         )}
+        {view === 'logs' && <Logs initialFilters={logsFilters} />}
       </main>
     </div>
   );

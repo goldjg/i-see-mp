@@ -5,6 +5,7 @@ import {
   createResourcesRepo,
   createPromptsRepo,
   getDb,
+  log,
 } from '@iseemp/storage';
 import { classifyTool, isKnownVerifiedServer } from '@iseemp/rules';
 import { discoverConfigs } from './config-discovery.js';
@@ -25,6 +26,13 @@ export async function collect(options: {
   const collectionId = crypto.randomUUID();
   const startedAt = new Date().toISOString();
   collections.create(collectionId, startedAt);
+  log(db, {
+    level: 'info',
+    phase: 'collect',
+    eventType: 'collect.start',
+    message: 'Collect started',
+    collectionId,
+  });
 
   const configs = await discoverConfigs({
     configPath: options.configPath,
@@ -33,6 +41,13 @@ export async function collect(options: {
 
   if (configs.length === 0) {
     collections.fail(collectionId, 'No MCP server configurations found');
+    log(db, {
+      level: 'error',
+      phase: 'collect',
+      eventType: 'collect.config.missing',
+      message: 'No MCP server configurations found',
+      collectionId,
+    });
     throw new Error('No MCP server configurations found. Create iseemp.config.json or use --server <url>');
   }
 
@@ -67,9 +82,59 @@ export async function collect(options: {
     let enumResult: Awaited<ReturnType<typeof enumerateServer>>;
     try {
       enumResult = await enumerateServer(config);
+      log(db, {
+        level: 'info',
+        phase: 'collect',
+        eventType: 'collect.server.connect.success',
+        message: `Enumerated server ${config.name}`,
+        collectionId,
+        serverId,
+        details: { toolCount: enumResult.tools.length, resourceCount: enumResult.resources.length, promptCount: enumResult.prompts.length },
+      });
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      log(db, {
+        level: 'error',
+        phase: 'collect',
+        eventType: 'collect.server.connect.failure',
+        message: errorMessage,
+        collectionId,
+        serverId,
+        details: { serverName: config.name },
+      });
       console.error(`Failed to enumerate ${config.name}:`, err);
       continue;
+    }
+
+    if (enumResult.errors?.tools) {
+      log(db, {
+        level: 'error',
+        phase: 'collect',
+        eventType: 'collect.enumeration.tools.error',
+        message: enumResult.errors.tools,
+        collectionId,
+        serverId,
+      });
+    }
+    if (enumResult.errors?.resources) {
+      log(db, {
+        level: 'error',
+        phase: 'collect',
+        eventType: 'collect.enumeration.resources.error',
+        message: enumResult.errors.resources,
+        collectionId,
+        serverId,
+      });
+    }
+    if (enumResult.errors?.prompts) {
+      log(db, {
+        level: 'error',
+        phase: 'collect',
+        eventType: 'collect.enumeration.prompts.error',
+        message: enumResult.errors.prompts,
+        collectionId,
+        serverId,
+      });
     }
 
     for (const tool of enumResult.tools) {
@@ -129,6 +194,19 @@ export async function collect(options: {
     toolCount: totalTools,
     resourceCount: totalResources,
     promptCount: totalPrompts,
+  });
+  log(db, {
+    level: 'info',
+    phase: 'collect',
+    eventType: 'collect.end',
+    message: 'Collect completed',
+    collectionId,
+    details: {
+      serverCount: configs.length,
+      toolCount: totalTools,
+      resourceCount: totalResources,
+      promptCount: totalPrompts,
+    },
   });
 
   return collectionId;

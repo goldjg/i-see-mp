@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import staticPlugin from '@fastify/static';
+import { randomUUID } from 'node:crypto';
 import {
   getDb,
   createCollectionsRepo,
@@ -11,6 +12,7 @@ import {
   createFindingsRepo,
   createTestRunsRepo,
   createEvidenceRepo,
+  createLogsRepo,
 } from '@iseemp/storage';
 import { buildGraph } from '@iseemp/graph';
 import { applyTrifectaAnalysis } from '@iseemp/rules';
@@ -28,6 +30,26 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
   const findings = createFindingsRepo(db);
   const testRuns = createTestRunsRepo(db);
   const evidence = createEvidenceRepo(db);
+  const logs = createLogsRepo(db);
+
+  app.setErrorHandler((error, _request, reply) => {
+    logs.insert({
+      id: randomUUID(),
+      timestamp: new Date().toISOString(),
+      level: 'error',
+      phase: 'serve',
+      collection_id: null,
+      server_id: null,
+      tool_id: null,
+      finding_id: null,
+      test_run_id: null,
+      event_type: 'api.error',
+      message: error.message,
+      details_json: null,
+      redacted: 0,
+    });
+    reply.code((error as { statusCode?: number }).statusCode ?? 500).send({ error: error.message });
+  });
 
   app.get('/health', async () => ({
     status: 'ok',
@@ -141,6 +163,42 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
 
   app.get<{ Params: { testRunId: string } }>('/evidence/:testRunId', async (req) => {
     return evidence.findByTestRun(req.params.testRunId);
+  });
+
+  app.get<{
+    Querystring: {
+      collectionId?: string;
+      findingId?: string;
+      testRunId?: string;
+      serverId?: string;
+      toolId?: string;
+      phase?: 'collect' | 'analyze' | 'test' | 'serve' | 'demo';
+      level?: 'info' | 'warn' | 'error';
+      q?: string;
+      limit?: string;
+      offset?: string;
+    };
+  }>('/logs', async (req) => {
+    const limit = Math.min(Math.max(parseInt(req.query.limit ?? '100', 10), 1), 500);
+    const offset = Math.max(parseInt(req.query.offset ?? '0', 10), 0);
+    const { items, total } = logs.query({
+      collectionId: req.query.collectionId,
+      findingId: req.query.findingId,
+      testRunId: req.query.testRunId,
+      serverId: req.query.serverId,
+      toolId: req.query.toolId,
+      phase: req.query.phase,
+      level: req.query.level,
+      q: req.query.q,
+      limit,
+      offset,
+    });
+    return {
+      items,
+      limit,
+      offset,
+      hasMore: offset + items.length < total,
+    };
   });
 
   if (options.staticDir) {

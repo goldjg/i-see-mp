@@ -112,6 +112,7 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 .finding-body p { margin-bottom: 8px; }
 .remediation { color: #86efac !important; }
 .show-on-graph-btn { background: #3b82f6; border: none; color: #fff; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.show-logs-btn { background: #334155; border: none; color: #e2e8f0; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 8px; }
 
 .loading, .empty-state { color: #64748b; padding: 32px; text-align: center; }
 .empty-state code { background: #1e293b; padding: 2px 6px; border-radius: 3px; color: #94a3b8; }
@@ -228,6 +229,80 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 }
 .legend-text {
   color: #94a3b8;
+  font-size: 12px;
+}
+
+.logs-view h1 { margin-bottom: 16px; }
+.logs-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+.logs-filters select,
+.logs-filters input {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.logs-filters input { flex: 1; min-width: 180px; }
+.logs-context-chip {
+  display: inline-block;
+  margin-right: 6px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  background: #334155;
+  color: #94a3b8;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+.logs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.logs-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background: #1e293b;
+  color: #94a3b8;
+  border-bottom: 1px solid #334155;
+}
+.logs-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #1e293b;
+  vertical-align: top;
+}
+.logs-table tr:hover td { background: #1e293b; }
+.log-level-info,
+.log-level-warn,
+.log-level-error {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.log-level-info { background: #1d4ed8; color: #dbeafe; }
+.log-level-warn { background: #ca8a04; color: #fff; }
+.log-level-error { background: #dc2626; color: #fff; }
+.log-details pre {
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #0f172a;
+  padding: 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+.log-redacted-label { font-size: 10px; color: #64748b; margin-left: 4px; }
+.logs-load-more {
+  display: block;
+  margin: 16px auto 0;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
   font-size: 12px;
 }
 

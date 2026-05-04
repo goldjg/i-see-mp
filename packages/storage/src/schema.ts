@@ -167,4 +167,26 @@ CREATE TABLE IF NOT EXISTS evidence (
   content TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS logs (
+  id TEXT PRIMARY KEY,
+  timestamp TEXT NOT NULL,
+  level TEXT NOT NULL,
+  phase TEXT NOT NULL,
+  collection_id TEXT,
+  server_id TEXT,
+  tool_id TEXT,
+  finding_id TEXT,
+  test_run_id TEXT,
+  event_type TEXT NOT NULL,
+  message TEXT NOT NULL,
+  details_json TEXT,
+  redacted INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_logs_collection_id ON logs(collection_id);
+CREATE INDEX IF NOT EXISTS idx_logs_finding_id ON logs(finding_id);
+CREATE INDEX IF NOT EXISTS idx_logs_test_run_id ON logs(test_run_id);
+CREATE INDEX IF NOT EXISTS idx_logs_phase ON logs(phase);
 `;

@@ -8,6 +8,11 @@ export interface EnumerationResult {
   tools: McpTool[];
   resources: McpResource[];
   prompts: McpPrompt[];
+  errors?: {
+    tools?: string;
+    resources?: string;
+    prompts?: string;
+  };
 }
 
 export async function enumerateServer(config: ServerConfig): Promise<EnumerationResult> {
@@ -72,7 +77,27 @@ export async function enumerateServer(config: ServerConfig): Promise<Enumeration
         }))
       : [];
 
-  return { tools, resources, prompts };
+  const errors: EnumerationResult['errors'] = {};
+  if (toolsResult.status === 'rejected') {
+    errors.tools = toolsResult.reason instanceof Error ? toolsResult.reason.message : String(toolsResult.reason);
+  }
+  if (resourcesResult.status === 'rejected') {
+    errors.resources =
+      resourcesResult.reason instanceof Error
+        ? resourcesResult.reason.message
+        : String(resourcesResult.reason);
+  }
+  if (promptsResult.status === 'rejected') {
+    errors.prompts =
+      promptsResult.reason instanceof Error ? promptsResult.reason.message : String(promptsResult.reason);
+  }
+
+  return {
+    tools,
+    resources,
+    prompts,
+    errors: Object.keys(errors).length > 0 ? errors : undefined,
+  };
 }
 
 function buildRemoteRequestInit(config: ServerConfig): RequestInit | undefined {
