@@ -33,6 +33,7 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
   const logs = createLogsRepo(db);
 
   app.setErrorHandler((error, _request, reply) => {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     logs.insert({
       id: randomUUID(),
       timestamp: new Date().toISOString(),
@@ -44,11 +45,11 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
       finding_id: null,
       test_run_id: null,
       event_type: 'api.error',
-      message: error.message,
+      message: errorMessage,
       details_json: null,
       redacted: 0,
     });
-    reply.code((error as { statusCode?: number }).statusCode ?? 500).send({ error: error.message });
+    reply.code((error as { statusCode?: number }).statusCode ?? 500).send({ error: errorMessage });
   });
 
   app.get('/health', async () => ({

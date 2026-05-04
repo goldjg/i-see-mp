@@ -52,8 +52,9 @@ export function Logs({ initialFilters }: { initialFilters?: LogsViewFilters }) {
       setLoading(true);
       setError(null);
       try {
+        const collectionFilter = fixedCollectionId ?? (selectedCollectionId || undefined);
         const res = await api.logs({
-          collectionId: fixedCollectionId ?? selectedCollectionId || undefined,
+          collectionId: collectionFilter,
           findingId,
           testRunId,
           phase: phase ? (phase as 'collect' | 'analyze' | 'test' | 'serve' | 'demo') : undefined,
@@ -84,8 +85,9 @@ export function Logs({ initialFilters }: { initialFilters?: LogsViewFilters }) {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
+      const collectionFilter = fixedCollectionId ?? (selectedCollectionId || undefined);
       const res = await api.logs({
-        collectionId: fixedCollectionId ?? selectedCollectionId || undefined,
+        collectionId: collectionFilter,
         findingId,
         testRunId,
         phase: phase ? (phase as 'collect' | 'analyze' | 'test' | 'serve' | 'demo') : undefined,

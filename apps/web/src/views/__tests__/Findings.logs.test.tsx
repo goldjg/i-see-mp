@@ -17,6 +17,7 @@ vi.mock('../../api.js', () => ({
         description: 'Desc',
         affectedNodeIds: ['node-1'],
         createdAt: '2024-01-01T00:00:00.000Z',
+        trifectaStage: 'COMPLETE',
         testRunIds: ['tr-1'],
       },
     ]),

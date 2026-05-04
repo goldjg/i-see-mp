@@ -19,7 +19,7 @@ const REDACTED = '[REDACTED]';
 const SENSITIVE_KEY_RE =
   /(token|key|secret|password|authorization|cookie|bearer|pat|credential|api[_-]?key|access[_-]?token|refresh[_-]?token|gh_|github[_-]?token)/i;
 const SENSITIVE_VALUE_RE = /(ghp_[A-Za-z0-9_]+|ghs_[A-Za-z0-9_]+|bearer\s+[A-Za-z0-9._~-]+|authorization:|cookie:)/i;
-const BASE64_RE = /^[A-Za-z0-9+/=]{40,}$/;
+const BASE64_RE = /^[A-Za-z0-9+/=]{64,}$/;
 
 function redact(details: Record<string, unknown> | undefined): {
   details: Record<string, unknown> | undefined;
@@ -79,5 +79,6 @@ export function log(db: Database.Database, entry: LogEntry): void {
     });
   } catch {
     // additive diagnostics must not fail callers
+    console.error('ISeeMP diagnostic log persistence failed');
   }
 }
