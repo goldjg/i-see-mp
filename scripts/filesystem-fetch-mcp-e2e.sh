@@ -397,6 +397,44 @@ async function getJson(path) {
   return res.json();
 }
 
+function summarizeRun(run) {
+  return {
+    id: run.id,
+    profile: run.profile,
+    testCaseId: run.testCaseId,
+    outcome: run.outcome,
+    pathStatus: run.pathStatus,
+    injectionConfirmed: run.injectionConfirmed,
+    canaryObserved: run.canaryObserved,
+    deviationDetected: run.deviationDetected,
+    notes: run.notes ?? null,
+  };
+}
+
+async function logPromptInjectionDiagnostics(testRuns) {
+  const promptRuns = testRuns.filter((run) => run.profile === 'prompt-injection-fetch');
+  console.error(`ℹ️ prompt-injection-fetch runs: ${promptRuns.length}`);
+  if (promptRuns.length === 0) return;
+  console.error(
+    `ℹ️ prompt-injection-fetch run summaries:\n${JSON.stringify(promptRuns.map(summarizeRun), null, 2)}`,
+  );
+  const rejectedOrErrored = promptRuns
+    .filter((run) => run.outcome === 'TESTED_REJECTED' || run.outcome === 'TEST_ERROR')
+    .slice(-3);
+  for (const run of rejectedOrErrored) {
+    try {
+      const full = await getJson(`/test-runs/${run.id}`);
+      console.error(
+        `ℹ️ run ${run.id} evidence tail:\n${JSON.stringify((full.evidence ?? []).slice(-10), null, 2)}`,
+      );
+    } catch (err) {
+      console.error(
+        `⚠️ Failed to fetch verbose evidence for run ${run.id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+}
+
 const [servers, tools, findings, testRuns] = await Promise.all([
   getJson('/servers'),
   getJson('/tools'),
@@ -494,14 +532,20 @@ if (includeUnsafe) {
       run.canaryObserved === true,
   );
   if (confirmedPromptInjectionRuns.length < 1) {
+    await logPromptInjectionDiagnostics(testRuns);
     fail('Expected at least one TESTED_CONFIRMED prompt-injection-fetch run with canaryObserved=true in unsafe run.');
   }
   const confirmedInjectionFindings = findings.filter((finding) => finding.injectionConfirmed === true);
   if (confirmedInjectionFindings.length < 1) {
+    await logPromptInjectionDiagnostics(testRuns);
+    console.error(
+      `ℹ️ injectionConfirmed findings summary:\n${JSON.stringify(findings.filter((finding) => finding.injectionConfirmed === true), null, 2)}`,
+    );
     fail('Expected at least one finding with injectionConfirmed=true in unsafe run.');
   }
   const behaviouralDeviationCount = testRuns.filter((run) => run.deviationDetected === true).length;
   if (behaviouralDeviationCount < 1) {
+    await logPromptInjectionDiagnostics(testRuns);
     fail('Expected behaviouralDeviation > 0 in unsafe run.');
   }
 } else {
