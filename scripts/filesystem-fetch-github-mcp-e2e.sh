@@ -570,7 +570,7 @@ async function analyzeSecureDefaultPromptInjectionBlock(testRuns) {
   const promptRuns = testRuns.filter((run) => run.profile === 'prompt-injection-fetch');
   const defensiveCandidates = promptRuns.filter(
     (run) =>
-      run.pathStatus === 'tested_rejected' &&
+      (run.pathStatus === 'tested_rejected' || run.pathStatus === 'injection_influence_blocked') &&
       run.deviationDetected === true &&
       run.canaryObserved !== true,
   );
@@ -585,6 +585,11 @@ async function analyzeSecureDefaultPromptInjectionBlock(testRuns) {
   const blockedRunIds = [];
   const blockedInfluenceRunIds = [];
   for (const run of defensiveCandidates) {
+    if (run.pathStatus === 'injection_influence_blocked') {
+      blockedRunIds.push(run.id);
+      blockedInfluenceRunIds.push(run.id);
+      continue;
+    }
     try {
       const full = await getJson(`/test-runs/${run.id}`);
       const failureSummary = summarizeEvidenceFailures(full.evidence ?? []);
@@ -819,7 +824,7 @@ if (includeUnsafe) {
     await logPromptInjectionDiagnostics(testRuns);
     if (secureDefaultBlock.secureDefaultBlocked) {
       console.warn(
-        `⚠️ Unsafe prompt-injection run stayed TESTED_REJECTED because fetch MCP blocked private-address sink calls. Accepting defensive outcome for runs: ${secureDefaultBlock.blockedRunIds.join(', ')}.`,
+        `⚠️ Unsafe prompt-injection run was blocked by fetch MCP private-address policy. Accepting defensive outcome for runs: ${secureDefaultBlock.blockedRunIds.join(', ')}.`,
       );
       if (secureDefaultBlock.blockedInfluenceRunIds.length > 0) {
         console.warn(

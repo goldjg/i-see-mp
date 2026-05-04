@@ -42,6 +42,13 @@ describe('summarizeRunsForCli', () => {
         pathStatus: PathStatus.TESTED_INCONCLUSIVE,
       }),
       makeRun({
+        id: 'blocked-influence',
+        outcome: TestOutcome.TESTED_INCONCLUSIVE,
+        status: TestStatus.INCONCLUSIVE,
+        pathStatus: PathStatus.INJECTION_INFLUENCE_BLOCKED,
+        deviationDetected: true,
+      }),
+      makeRun({
         id: 'trust-boundary',
         outcome: TestOutcome.TESTED_CONFIRMED,
         status: TestStatus.CONFIRMED,
@@ -67,10 +74,10 @@ describe('summarizeRunsForCli', () => {
     expect(summary.failedReasons).toEqual([]);
     expect(summary.confirmed).toBe(3);
     expect(summary.rejected).toBe(1);
-    expect(summary.inconclusive).toBe(1);
+    expect(summary.inconclusive).toBe(2);
     expect(summary.skipped).toBe(1);
     expect(summary.injectionConfirmed).toBe(1);
     expect(summary.trustBoundaryConfirmed).toBe(2);
-    expect(summary.behaviouralDeviation).toBe(1);
+    expect(summary.behaviouralDeviation).toBe(2);
   });
 });

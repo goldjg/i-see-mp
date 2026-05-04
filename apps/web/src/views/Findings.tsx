@@ -62,6 +62,12 @@ export function FindingBadges({ finding }: { finding: Finding }) {
         cls: 'badge-tested-rejected',
         title: 'Path execution was blocked before sink; finding downgraded.',
       });
+    } else if (finding.pathStatus === 'injection_influence_blocked') {
+      badges.push({
+        label: 'Influence blocked',
+        cls: 'badge-tested-inconclusive',
+        title: 'Behavioural influence was observed but sink delivery was blocked by policy.',
+      });
     } else {
       badges.push({
         label: 'Inconclusive',
@@ -145,6 +151,7 @@ export function FindingBadges({ finding }: { finding: Finding }) {
       PROMPT_INJECTION_CONFIRMED: 'badge-subcategory-prompt-confirmed',
       PROMPT_INJECTION_EXPLOIT_CHAIN: 'badge-subcategory-prompt-confirmed',
       PROMPT_INJECTION_BEHAVIOURAL: 'badge-subcategory-prompt-behavioural',
+      INJECTION_INFLUENCE_BLOCKED: 'badge-subcategory-prompt-behavioural',
       TRUST_BOUNDARY_CONFIRMED: 'badge-subcategory-trust-confirmed',
       TRUST_BOUNDARY_EXPLOIT_CONFIRMED: 'badge-subcategory-trust-confirmed',
     };

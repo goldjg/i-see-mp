@@ -436,6 +436,52 @@ describe('executePromptInjectionFetchPlannedTest', () => {
       await sink.close();
     }
   });
+
+  it('marks blocked influence when deviation+marker propagation is observed but sink is policy-blocked', async () => {
+    const planned = planPromptInjectionFetchProfile(
+      [server()],
+      new Map([
+        [
+          'srv1',
+          [
+            tool('t-fetch', 'web_fetch', [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA]),
+            tool('t-send', 'send_http_request', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
+          ],
+        ],
+      ]),
+    )[0];
+    expect(planned).toBeDefined();
+    const sink = await startMockSink();
+    try {
+      const executed = await executePromptInjectionFetchPlannedTest(
+        {
+          collectionId: 'col1',
+          profile: 'prompt-injection-fetch',
+          sink,
+          invoke: async (_serverId, toolName) => {
+            if (toolName === 'send_http_request') {
+              return {
+                raw: null,
+                text: 'blocked request to private address',
+                isError: true,
+              };
+            }
+            return { raw: null, text: 'ok', isError: false };
+          },
+        },
+        planned!,
+        'testrun:promptinjfetch:blocked',
+      );
+      expect(executed.testRun.outcome).toBe(TestOutcome.TESTED_INCONCLUSIVE);
+      expect(executed.testRun.pathStatus).toBe(PathStatus.INJECTION_INFLUENCE_BLOCKED);
+      expect(executed.testRun.canaryObserved).toBe(false);
+      expect(executed.testRun.injectionConfirmed).toBe(false);
+      expect(executed.testRun.deviationDetected).toBe(true);
+      expect(executed.testRun.notes).toContain('blocked by fetch policy');
+    } finally {
+      await sink.close();
+    }
+  });
 });
 
 describe('github-safe regex helpers', () => {
