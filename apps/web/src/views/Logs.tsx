@@ -226,6 +226,6 @@ function formatDetails(detailsJson: string | null): string | null {
     const parsed = JSON.parse(detailsJson) as unknown;
     return JSON.stringify(parsed, null, 2);
   } catch {
-    return detailsJson;
+    return '[invalid details payload]';
   }
 }

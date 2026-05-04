@@ -17,9 +17,20 @@ export interface LogEntry {
 
 const REDACTED = '[REDACTED]';
 const SENSITIVE_KEY_RE =
-  /(token|key|secret|password|authorization|cookie|bearer|pat|credential|api[_-]?key|access[_-]?token|refresh[_-]?token|gh_|github[_-]?token)/i;
-const SENSITIVE_VALUE_RE = /(ghp_[A-Za-z0-9_]+|ghs_[A-Za-z0-9_]+|bearer\s+[A-Za-z0-9._~-]+|authorization:|cookie:)/i;
-const BASE64_RE = /^[A-Za-z0-9+/=]{64,}$/;
+  /(token|secret|password|authorization|cookie|bearer|pat|credential|api[_-]?key|access[_-]?token|refresh[_-]?token|github[_-]?token|private[_-]?key)/i;
+const BASE64_RE = /^[A-Za-z0-9+/=]{48,}$/;
+
+function redactString(value: string): { value: string; redacted: boolean } {
+  const original = value;
+  let out = value;
+  out = out.replace(/ghp_[A-Za-z0-9_]+/gi, REDACTED);
+  out = out.replace(/ghs_[A-Za-z0-9_]+/gi, REDACTED);
+  out = out.replace(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, REDACTED);
+  out = out.replace(/bearer\s+[A-Za-z0-9._~-]+/gi, `bearer ${REDACTED}`);
+  out = out.replace(/\bauthorization\s*:\s*[^\s,;]+/gi, `authorization: ${REDACTED}`);
+  out = out.replace(/\bcookie\s*:\s*[^\s,;]+/gi, `cookie: ${REDACTED}`);
+  return { value: out, redacted: out !== original };
+}
 
 function redact(details: Record<string, unknown> | undefined): {
   details: Record<string, unknown> | undefined;
@@ -31,7 +42,7 @@ function redact(details: Record<string, unknown> | undefined): {
   const out: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(details)) {
-    const keySensitive = SENSITIVE_KEY_RE.test(key);
+    const keySensitive = SENSITIVE_KEY_RE.test(key) || key.toLowerCase() === 'key';
     if (keySensitive) {
       out[key] = REDACTED;
       anyRedacted = true;
@@ -39,17 +50,16 @@ function redact(details: Record<string, unknown> | undefined): {
     }
 
     if (typeof value === 'string') {
-      if (SENSITIVE_VALUE_RE.test(value)) {
+      if (BASE64_RE.test(value) && /auth|token|secret|key|cookie|credential|pat|bearer/i.test(key)) {
         out[key] = REDACTED;
         anyRedacted = true;
         continue;
       }
-      if (BASE64_RE.test(value) && /auth|token|secret|key|cookie|credential/i.test(key)) {
-        out[key] = REDACTED;
+      const redactedString = redactString(value);
+      out[key] = redactedString.value;
+      if (redactedString.redacted) {
         anyRedacted = true;
-        continue;
       }
-      out[key] = value;
       continue;
     }
 
@@ -62,6 +72,7 @@ function redact(details: Record<string, unknown> | undefined): {
 export function log(db: Database.Database, entry: LogEntry): void {
   try {
     const { details, redacted } = redact(entry.details);
+    const message = redactString(entry.message);
     createLogsRepo(db).insert({
       id: randomUUID(),
       timestamp: new Date().toISOString(),
@@ -73,12 +84,13 @@ export function log(db: Database.Database, entry: LogEntry): void {
       finding_id: entry.findingId ?? null,
       test_run_id: entry.testRunId ?? null,
       event_type: entry.eventType,
-      message: entry.message,
+      message: message.value,
       details_json: details ? JSON.stringify(details) : null,
-      redacted: redacted ? 1 : 0,
+      redacted: redacted || message.redacted ? 1 : 0,
     });
-  } catch {
+  } catch (err) {
     // additive diagnostics must not fail callers
-    console.error('ISeeMP diagnostic log persistence failed');
+    const reason = err instanceof Error ? err.name : 'unknown';
+    console.error(`ISeeMP diagnostic log persistence failed (${reason})`);
   }
 }

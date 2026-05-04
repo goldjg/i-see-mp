@@ -10,7 +10,7 @@ describe('log helper', () => {
       level: 'info',
       phase: 'test',
       eventType: 'test.sample',
-      message: 'sample',
+      message: 'Authorization: Bearer super-secret',
       details: {
         Authorization: 'Bearer secret-token',
         github_token: 'ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ123456',
@@ -22,6 +22,7 @@ describe('log helper', () => {
     expect(logs.total).toBe(1);
     const entry = logs.items[0];
     expect(entry?.redacted).toBe(true);
+    expect(entry?.message).toContain('[REDACTED]');
     const details = JSON.parse(entry?.detailsJson ?? '{}') as Record<string, string>;
     expect(details.Authorization).toBe('[REDACTED]');
     expect(details.github_token).toBe('[REDACTED]');

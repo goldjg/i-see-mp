@@ -88,23 +88,10 @@ if (command === 'collect') {
   const db = getDb(dbPath);
   try {
     console.log('🔍 Discovering MCP servers…');
-    log(db, {
-      level: 'info',
-      phase: 'collect',
-      eventType: 'collect.start',
-      message: 'Collection started',
-    });
     const collectionId = await collect({
       configPath: args.config as string | undefined,
       serverUrl: args.server as string | undefined,
       dbPath,
-    });
-    log(db, {
-      level: 'info',
-      phase: 'collect',
-      eventType: 'collect.end',
-      message: 'Collection completed',
-      collectionId,
     });
     console.log(`✅ Collection complete: ${collectionId}`);
     console.log('Run `iseemp analyze` to build the attack graph and find risks.');
@@ -123,24 +110,9 @@ if (command === 'collect') {
   const db = getDb(dbPath);
   try {
     console.log('🧠 Analyzing graph and running findings rules…');
-    log(db, {
-      level: 'info',
-      phase: 'analyze',
-      eventType: 'analyze.start',
-      message: 'Analyze started',
-      collectionId: (args.collection as string | undefined) ?? undefined,
-    });
     const findings = await analyze({
       collectionId: args.collection as string | undefined,
       dbPath,
-    });
-    log(db, {
-      level: 'info',
-      phase: 'analyze',
-      eventType: 'analyze.end',
-      message: `Analyze completed with ${findings.length} findings`,
-      collectionId: (args.collection as string | undefined) ?? undefined,
-      details: { findingsCount: findings.length },
     });
     console.log(`\n✅ Analysis complete. Found ${findings.length} issues:\n`);
     const counts: Record<string, number> = {};
@@ -175,14 +147,6 @@ if (command === 'collect') {
   }
   try {
     console.log(`🧪 Running deterministic test profile: ${profile}…`);
-    log(db, {
-      level: 'info',
-      phase: 'test',
-      eventType: 'test.start',
-      message: `Test started with profile ${profile}`,
-      collectionId: (args.collection as string | undefined) ?? undefined,
-      details: { profile },
-    });
     const summary = await runTests({
       collectionId: args.collection as string | undefined,
       profile: profile as Parameters<typeof runTests>[0]['profile'],
@@ -201,21 +165,6 @@ if (command === 'collect') {
             }
           : undefined,
       dbPath,
-    });
-    log(db, {
-      level: 'info',
-      phase: 'test',
-      eventType: 'test.end',
-      message: `Test completed for profile ${profile}`,
-      collectionId: summary.collectionId,
-      details: {
-        profile,
-        totalPlanned: summary.totalPlanned,
-        confirmed: summary.confirmed,
-        rejected: summary.rejected,
-        inconclusive: summary.inconclusive,
-        skipped: summary.skipped,
-      },
     });
     if (summary.totalPlanned === 0) {
       console.log(`ℹ️  No tools matched any test case in the ${profile} profile.`);
