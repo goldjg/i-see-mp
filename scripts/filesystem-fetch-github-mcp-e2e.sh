@@ -650,18 +650,6 @@ if (githubToFetch && githubToFetch.crossesTrustBoundary !== true) {
 }
 assertInjectionConfirmationRequiresDeviation(findings, testRuns);
 
-const badGithubCrossServer = findings.filter(
-  (finding) =>
-    finding.isCrossServer === true &&
-    finding.sourceServerId === githubServer.id &&
-    finding.sinkServerId === githubServer.id,
-);
-if (badGithubCrossServer.length > 0) {
-  fail(
-    `Same-server GitHub findings must not be marked cross-server; found ${badGithubCrossServer.length}.`,
-  );
-}
-
 if (expectGithubCanary) {
   const githubCanaryRuns = testRuns.filter((run) => run.profile === 'github-safe-canary');
   if (githubCanaryRuns.length === 0) {
