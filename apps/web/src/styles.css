@@ -312,7 +312,7 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
   font-size: 12px;
 }
 
-/* Collapsible-nav mode: phones in portrait AND landscape, plus tablets up to 1024 px.
+/* Collapsible-nav mode for any viewport up to 1024 px.
    This is the single source of truth for when the sidebar becomes a drawer.
    React reads --sidebar-collapsible-active to stay in sync with this breakpoint. */
 @media (max-width: 1024px) {
