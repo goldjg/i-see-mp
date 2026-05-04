@@ -675,3 +675,4 @@ function appendExplanation(prev: string | undefined, line: string): string {
 
 export * from './profile-descriptor.js';
 export * from './profile-assertions.js';
+export * from './trust-expectations.js';

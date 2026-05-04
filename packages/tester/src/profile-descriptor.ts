@@ -1,5 +1,6 @@
 import { Capability, PathStatus, ValidationMode, type EvidenceType, type TestProfile } from '@iseemp/core';
 import type { TesterProfile } from './runner.js';
+import { KNOWN_SERVER_PAIR_TRUST } from './trust-expectations.js';
 
 export interface ExpectedFindingDescriptor {
   category: string;
@@ -19,6 +20,11 @@ export interface ProfileDescriptor {
   destructive: boolean;
   requiresCredentials: boolean;
   safeForE2E: boolean;
+  expectedTrustTransitions?: Array<{
+    sourceTrustClass: string;
+    sinkTrustClass: string;
+    crossesBoundary: boolean;
+  }>;
 }
 
 export interface TopologyServer {
@@ -60,6 +66,7 @@ export const FILESYSTEM_ONLY_PROFILE: ProfileDescriptor = {
   destructive: false,
   requiresCredentials: false,
   safeForE2E: true,
+  expectedTrustTransitions: [],
 };
 
 /**
@@ -79,6 +86,11 @@ export const FILESYSTEM_FETCH_PROFILE: ProfileDescriptor = {
   destructive: false,
   requiresCredentials: false,
   safeForE2E: true,
+  expectedTrustTransitions: KNOWN_SERVER_PAIR_TRUST['filesystem→fetch'].map((transition) => ({
+    sourceTrustClass: transition.sourceTrustClass,
+    sinkTrustClass: transition.sinkTrustClass,
+    crossesBoundary: transition.expectedTrustBoundaryCrossed,
+  })),
 };
 
 /**
@@ -98,6 +110,14 @@ export const FILESYSTEM_FETCH_GITHUB_PROFILE: ProfileDescriptor = {
   destructive: false,
   requiresCredentials: false,
   safeForE2E: true,
+  expectedTrustTransitions: [
+    ...KNOWN_SERVER_PAIR_TRUST['filesystem→fetch'],
+    ...KNOWN_SERVER_PAIR_TRUST['filesystem→github'],
+  ].map((transition) => ({
+    sourceTrustClass: transition.sourceTrustClass,
+    sinkTrustClass: transition.sinkTrustClass,
+    crossesBoundary: transition.expectedTrustBoundaryCrossed,
+  })),
 };
 
 /**
@@ -117,6 +137,7 @@ export const GITHUB_SAFE_CANARY_DESCRIPTOR: ProfileDescriptor = {
   destructive: false,
   requiresCredentials: true,
   safeForE2E: true,
+  expectedTrustTransitions: [],
 };
 
 /**

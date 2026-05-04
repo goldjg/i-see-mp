@@ -611,6 +611,7 @@ if (filesystemToGithub.trustTransition === 'LOCAL → USER_CONTROLLED_SAAS') {
     fail('Expected filesystem → github to cross trust boundary for LOCAL → USER_CONTROLLED_SAAS.');
   }
 } else if (filesystemToGithub.trustTransition === 'LOCAL → CONTROLLED_SAAS') {
+  // LOCAL → CONTROLLED_SAAS keeps data in trusted/controlled zones only.
   if (filesystemToGithub.crossesTrustBoundary !== false) {
     fail('Expected filesystem → github not to cross trust boundary for LOCAL → CONTROLLED_SAAS.');
   }
@@ -639,8 +640,10 @@ if (filesystemToFetch.trustTransition !== 'LOCAL → EXTERNAL') {
 const githubToFetch = crossServerFindings.find(
   (finding) => finding.sourceServerId === githubServer.id && finding.sinkServerId === fetchServer.id,
 );
-if (githubToFetch && githubToFetch.crossesTrustBoundary !== false) {
-  fail('Expected github → fetch to be cross-server but not a trust-boundary crossing.');
+if (githubToFetch && githubToFetch.crossesTrustBoundary !== true) {
+  fail(
+    'Expected github → fetch to cross trust boundary (CONTROLLED_SAAS/USER_CONTROLLED_SAAS → EXTERNAL).',
+  );
 }
 assertNoConfirmedInjection(findings);
 
