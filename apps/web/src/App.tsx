@@ -127,6 +127,19 @@ function AppContent() {
     };
   }, [isNavOpen]);
 
+  useEffect(() => {
+    if (!isNavOpen || window.innerWidth > MOBILE_BREAKPOINT) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isNavOpen]);
+
   function switchTo(v: View) {
     setView(v);
     if (window.innerWidth <= MOBILE_BREAKPOINT) {
