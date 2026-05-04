@@ -15,11 +15,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.0",
-    "typescript": "*"
+    "@types/better-sqlite3": "^7.6.13",
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "@iseemp/core": "workspace:*",
-    "better-sqlite3": "^11.0.0"
+    "better-sqlite3": "^11.10.0"
   }
 }
