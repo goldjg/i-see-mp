@@ -93,10 +93,10 @@ export function getKnownPairTrust(key: PairTrustKey): PairTrustExpectation[] {
 
 function parseTrustTransition(transition?: string): { sourceTrustClass?: TrustZone; sinkTrustClass?: TrustZone } {
   if (!transition) return {};
-  const [sourceTrustClass, sinkTrustClass] = transition.split('→').map((part) => part.trim()) as [
-    TrustZone | undefined,
-    TrustZone | undefined,
-  ];
+  const parts = transition.split('→').map((part) => part.trim());
+  if (parts.length !== 2) return {};
+  const sourceTrustClass = parts[0] as TrustZone | undefined;
+  const sinkTrustClass = parts[1] as TrustZone | undefined;
   if (!sourceTrustClass || !sinkTrustClass) return {};
   return { sourceTrustClass, sinkTrustClass };
 }
