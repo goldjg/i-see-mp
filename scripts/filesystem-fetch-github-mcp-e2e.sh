@@ -366,9 +366,11 @@ echo "▶ Validating filesystem+fetch+github classification and cross-server exp
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T \
   -e "ISEEMP_API_PORT=${API_PORT}" \
   -e "ISEEMP_EXPECT_GITHUB_CANARY=${RUN_GITHUB_CANARY}" \
+  -e "ISEEMP_E2E_INCLUDE_UNSAFE=${ISEEMP_E2E_INCLUDE_UNSAFE_PROFILES:-false}" \
   "$SERVICE" node - <<'JS'
 const apiPort = process.env.ISEEMP_API_PORT || '7474';
 const expectGithubCanary = process.env.ISEEMP_EXPECT_GITHUB_CANARY === 'true';
+const includeUnsafe = process.env.ISEEMP_E2E_INCLUDE_UNSAFE === 'true';
 
 function fail(message) {
   console.error(`❌ ${message}`);
@@ -649,6 +651,53 @@ if (githubToFetch && githubToFetch.crossesTrustBoundary !== true) {
   );
 }
 assertInjectionConfirmationRequiresDeviation(findings, testRuns);
+const testerModulePath = process.env.ISEEMP_TESTER_MODULE || '/app/packages/tester/dist/index.js';
+const tester = await import(testerModulePath);
+const { selectProfilesForTopology, E2E_PROFILE_DESCRIPTORS } = tester;
+const { skipped } = selectProfilesForTopology(
+  servers.map((s) => ({ id: s.id, name: s.name })),
+  tools.map((t) => ({
+    serverId: t.serverId,
+    capabilities: Array.isArray(t.capabilities) ? t.capabilities : [],
+  })),
+  E2E_PROFILE_DESCRIPTORS,
+  { hasCredentials: expectGithubCanary, includeUnsafe },
+);
+if (includeUnsafe) {
+  const confirmedPromptInjectionRuns = testRuns.filter(
+    (run) =>
+      run.profile === 'prompt-injection-fetch' &&
+      run.pathStatus === 'tested_confirmed' &&
+      run.injectionConfirmed === true &&
+      run.canaryObserved === true,
+  );
+  if (confirmedPromptInjectionRuns.length < 1) {
+    fail('Expected at least one TESTED_CONFIRMED prompt-injection-fetch run with canaryObserved=true in unsafe run.');
+  }
+  const confirmedInjectionFindings = findings.filter((finding) => finding.injectionConfirmed === true);
+  if (confirmedInjectionFindings.length < 1) {
+    fail('Expected at least one finding with injectionConfirmed=true in unsafe run.');
+  }
+  const behaviouralDeviationCount = testRuns.filter((run) => run.deviationDetected === true).length;
+  if (behaviouralDeviationCount < 1) {
+    fail('Expected behaviouralDeviation > 0 in unsafe run.');
+  }
+} else {
+  const confirmedInjectionFindings = findings.filter((finding) => finding.injectionConfirmed === true);
+  if (confirmedInjectionFindings.length > 0) {
+    fail(`Unexpected injectionConfirmed=true findings in safe run: ${confirmedInjectionFindings.length}.`);
+  }
+  const confirmedInjectionRuns = testRuns.filter((run) => run.injectionConfirmed === true);
+  if (confirmedInjectionRuns.length > 0) {
+    fail(`Unexpected prompt-injection confirmed test runs in safe run: ${confirmedInjectionRuns.length}.`);
+  }
+  const skippedProfileIds = new Set(skipped.map((item) => item.profileId));
+  const requiredSkipped = ['prompt-injection-github', 'prompt-injection-fetch'];
+  const missing = requiredSkipped.filter((id) => !skippedProfileIds.has(id));
+  if (missing.length > 0) {
+    fail(`Expected prompt-injection profiles in skipped list during safe run: ${missing.join(', ')}`);
+  }
+}
 
 if (expectGithubCanary) {
   const CANARY_CASE_IDS = new Set([

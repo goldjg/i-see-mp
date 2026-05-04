@@ -240,9 +240,11 @@ echo "▶ iseemp analyze…"
 echo "▶ Running topology-selected deterministic profiles…"
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T \
   -e "ISEEMP_API_PORT=${API_PORT}" \
+  -e "ISEEMP_E2E_INCLUDE_UNSAFE=${ISEEMP_E2E_INCLUDE_UNSAFE_PROFILES:-false}" \
   "$SERVICE" node - <<'JS'
 (async () => {
   const apiPort = process.env.ISEEMP_API_PORT || '7474';
+  const includeUnsafe = process.env.ISEEMP_E2E_INCLUDE_UNSAFE === 'true';
   const { spawnSync } = await import('node:child_process');
   const testerModulePath = process.env.ISEEMP_TESTER_MODULE || '/app/packages/tester/dist/index.js';
   const tester = await import(testerModulePath);
@@ -262,7 +264,7 @@ echo "▶ Running topology-selected deterministic profiles…"
       capabilities: Array.isArray(t.capabilities) ? t.capabilities : [],
     })),
     E2E_PROFILE_DESCRIPTORS,
-    { hasCredentials: false },
+    { hasCredentials: false, includeUnsafe },
   );
   const uniqueSelected = [];
   const seenTypes = new Set();
@@ -275,6 +277,14 @@ echo "▶ Running topology-selected deterministic profiles…"
   console.log(`🧪 profiles planned: ${selected.length}`);
   console.log(`🧪 profiles skipped: ${skipped.length}`);
   for (const item of skipped) console.log(`⚠️  SKIPPED: ${item.profileId} — ${item.reason}`);
+  if (!includeUnsafe) {
+    const skippedProfileIds = new Set(skipped.map((item) => item.profileId));
+    const requiredSkipped = ['prompt-injection-github', 'prompt-injection-fetch'];
+    const missing = requiredSkipped.filter((id) => !skippedProfileIds.has(id));
+    if (missing.length > 0) {
+      throw new Error(`Expected unsafe prompt-injection profiles to be skipped in safe run: ${missing.join(', ')}`);
+    }
+  }
 
   let passed = 0;
   let failed = 0;
@@ -300,8 +310,10 @@ JS
 echo "▶ Validating cross-server classification expectations through API…"
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T \
   -e "ISEEMP_API_PORT=${API_PORT}" \
+  -e "ISEEMP_E2E_INCLUDE_UNSAFE=${ISEEMP_E2E_INCLUDE_UNSAFE_PROFILES:-false}" \
   "$SERVICE" node - <<'JS'
 const apiPort = process.env.ISEEMP_API_PORT || '7474';
+const includeUnsafe = process.env.ISEEMP_E2E_INCLUDE_UNSAFE === 'true';
 
 function fail(message) {
   console.error(`❌ ${message}`);
@@ -385,10 +397,11 @@ async function getJson(path) {
   return res.json();
 }
 
-const [servers, tools, findings] = await Promise.all([
+const [servers, tools, findings, testRuns] = await Promise.all([
   getJson('/servers'),
   getJson('/tools'),
   getJson('/findings'),
+  getJson('/test-runs'),
 ]);
 // /findings includes applyTrifectaAnalysis output (trifecta/trust/lethal fields) from the API.
 // This profile is the canonical cross-server exfil path sanity check: LOCAL read → EXTERNAL send.
@@ -460,7 +473,50 @@ if (crossServerPartial.length === 0) {
 assertCrossServerSourceSinkIntegrity(crossServerFindings);
 assertHasTrustTransition(crossServerPartial, 'LOCAL', 'EXTERNAL');
 assertLethalTrifectaCounts(findings, { confirmedMax: 0 });
-assertNoConfirmedInjection(findings);
+const testerModulePath = process.env.ISEEMP_TESTER_MODULE || '/app/packages/tester/dist/index.js';
+const tester = await import(testerModulePath);
+const { selectProfilesForTopology, E2E_PROFILE_DESCRIPTORS } = tester;
+const { skipped } = selectProfilesForTopology(
+  servers.map((s) => ({ id: s.id, name: s.name })),
+  tools.map((t) => ({
+    serverId: t.serverId,
+    capabilities: Array.isArray(t.capabilities) ? t.capabilities : [],
+  })),
+  E2E_PROFILE_DESCRIPTORS,
+  { hasCredentials: false, includeUnsafe },
+);
+if (includeUnsafe) {
+  const confirmedPromptInjectionRuns = testRuns.filter(
+    (run) =>
+      run.profile === 'prompt-injection-fetch' &&
+      run.pathStatus === 'tested_confirmed' &&
+      run.injectionConfirmed === true &&
+      run.canaryObserved === true,
+  );
+  if (confirmedPromptInjectionRuns.length < 1) {
+    fail('Expected at least one TESTED_CONFIRMED prompt-injection-fetch run with canaryObserved=true in unsafe run.');
+  }
+  const confirmedInjectionFindings = findings.filter((finding) => finding.injectionConfirmed === true);
+  if (confirmedInjectionFindings.length < 1) {
+    fail('Expected at least one finding with injectionConfirmed=true in unsafe run.');
+  }
+  const behaviouralDeviationCount = testRuns.filter((run) => run.deviationDetected === true).length;
+  if (behaviouralDeviationCount < 1) {
+    fail('Expected behaviouralDeviation > 0 in unsafe run.');
+  }
+} else {
+  assertNoConfirmedInjection(findings);
+  const confirmedInjectionRuns = testRuns.filter((run) => run.injectionConfirmed === true);
+  if (confirmedInjectionRuns.length > 0) {
+    fail(`Unexpected prompt-injection confirmed test runs in safe run: ${confirmedInjectionRuns.length}.`);
+  }
+  const skippedProfileIds = new Set(skipped.map((item) => item.profileId));
+  const requiredSkipped = ['prompt-injection-github', 'prompt-injection-fetch'];
+  const missing = requiredSkipped.filter((id) => !skippedProfileIds.has(id));
+  if (missing.length > 0) {
+    fail(`Expected prompt-injection profiles in skipped list during safe run: ${missing.join(', ')}`);
+  }
+}
 
 const crossServerPairs = Array.from(
   new Set(crossServerPartial.map((finding) => `${finding.sourceServerId ?? 'unknown'}->${finding.sinkServerId ?? 'unknown'}`)),

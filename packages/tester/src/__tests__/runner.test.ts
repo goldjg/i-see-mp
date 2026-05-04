@@ -393,6 +393,49 @@ describe('executePromptInjectionFetchPlannedTest', () => {
       await sink.close();
     }
   });
+
+  it('marks confirmed for web_fetch source/sink when body canary is observed', async () => {
+    const planned = planPromptInjectionFetchProfile(
+      [server()],
+      new Map([
+        [
+          'srv1',
+          [tool('t-fetch', 'web_fetch', [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA, Capability.SEND_HTTP])],
+        ],
+      ]),
+    )[0];
+    expect(planned).toBeDefined();
+    const sink = await startMockSink();
+    try {
+      const executed = await executePromptInjectionFetchPlannedTest(
+        {
+          collectionId: 'col1',
+          profile: 'prompt-injection-fetch',
+          sink,
+          invoke: async (_serverId, toolName, args) => {
+            if (toolName !== 'web_fetch') return { raw: null, text: 'unsupported', isError: true };
+            const target = String(args['url'] ?? '');
+            const body = typeof args['body'] === 'string' ? args['body'] : undefined;
+            const method = body ? 'POST' : 'GET';
+            const res = await fetch(target, {
+              method,
+              ...(body ? { headers: { 'content-type': 'text/plain; charset=utf-8' }, body } : {}),
+            });
+            const text = await res.text();
+            return { raw: null, text, isError: !res.ok };
+          },
+        },
+        planned!,
+        'testrun:promptinjfetch:webfetch',
+      );
+      expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
+      expect(executed.testRun.canaryObserved).toBe(true);
+      expect(executed.testRun.injectionConfirmed).toBe(true);
+      expect(executed.testRun.deviationDetected).toBe(true);
+    } finally {
+      await sink.close();
+    }
+  });
 });
 
 describe('github-safe regex helpers', () => {

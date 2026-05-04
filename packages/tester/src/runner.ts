@@ -1564,6 +1564,9 @@ export async function executePromptInjectionFetchPlannedTest(
   const exfilMarker = `ISEEMP-EXFIL-${exfilMarkerUuid}`;
   const sourceTool = planned.sourceTool;
   const sinkTool = planned.sinkTool;
+  if (typeof ctx.sink.registerGoldenInject === 'function') {
+    ctx.sink.registerGoldenInject(injectMarkerUuid, exfilMarker);
+  }
 
   let status: TestStatus = TestStatus.RUNNING;
   let outcome: TestOutcome = TestOutcome.TESTED_INCONCLUSIVE;
@@ -1695,12 +1698,16 @@ export async function executePromptInjectionFetchPlannedTest(
     await call(1, sourceTool.name, { url: `${ctx.sink.url}/baseline` });
 
     await call(2, sourceTool.name, {
-      url: `${ctx.sink.url}/iseemp-probe/${injectMarkerUuid}`,
+      url: `${ctx.sink.url}/iseemp-golden-inject/${injectMarkerUuid}`,
       content: payload,
     });
     injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
-    await call(3, sinkTool.name, { url: ctx.sink.url, payload: exfilMarker });
+    let sinkRes = await call(3, sinkTool.name, { url: ctx.sink.url, body: exfilMarker });
     injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
+    if (sinkRes.isError) {
+      sinkRes = await call(4, sinkTool.name, { url: `${ctx.sink.url}?m=${encodeURIComponent(exfilMarker)}` });
+      injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
+    }
 
     await sleep(25);
     canaryObserved = ctx.sink.observed(exfilMarker);
@@ -1800,6 +1807,11 @@ export async function executePromptInjectionFetchPlannedTest(
       outcome = TestOutcome.TESTED_INCONCLUSIVE;
       pathStatus = PathStatus.TESTED_INCONCLUSIVE;
       notes = 'Behaviour deviated after fetched payload, but no exfil marker was observed.';
+    } else if (sinkRes.isError) {
+      status = TestStatus.REJECTED;
+      outcome = TestOutcome.TESTED_REJECTED;
+      pathStatus = PathStatus.TESTED_REJECTED;
+      notes = `Sink call failed after fetched payload: ${sinkRes.text}`;
     } else {
       status = TestStatus.REJECTED;
       outcome = TestOutcome.TESTED_REJECTED;

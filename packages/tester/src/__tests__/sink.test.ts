@@ -29,4 +29,30 @@ describe('mock sink', () => {
       await sink.close();
     }
   });
+
+  it('serves registered golden inject payload markers', async () => {
+    const sink = await startMockSink();
+    try {
+      sink.registerGoldenInject('abc-123', 'ISEEMP-EXFIL-abc-123');
+      const res = await fetch(`${sink.url}/iseemp-golden-inject/abc-123`);
+      expect(res.ok).toBe(true);
+      const payload = await res.json();
+      expect(payload.injectMarker).toBe('ISEEMP-INJECT-abc-123');
+      expect(payload.exfilMarker).toBe('ISEEMP-EXFIL-abc-123');
+    } finally {
+      await sink.close();
+    }
+  });
+
+  it('observed() matches markers in request url as well as body', async () => {
+    const sink = await startMockSink();
+    try {
+      const marker = 'ISEEMP-EXFIL-url-marker';
+      const res = await fetch(`${sink.url}?m=${encodeURIComponent(marker)}`);
+      expect(res.ok).toBe(true);
+      expect(sink.observed(marker)).toBe(true);
+    } finally {
+      await sink.close();
+    }
+  });
 });
