@@ -240,9 +240,11 @@ echo "▶ iseemp analyze…"
 echo "▶ Running topology-selected deterministic profiles…"
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T \
   -e "ISEEMP_API_PORT=${API_PORT}" \
+  -e "ISEEMP_E2E_INCLUDE_UNSAFE=${ISEEMP_E2E_INCLUDE_UNSAFE_PROFILES:-false}" \
   "$SERVICE" node - <<'JS'
 (async () => {
   const apiPort = process.env.ISEEMP_API_PORT || '7474';
+  const includeUnsafe = process.env.ISEEMP_E2E_INCLUDE_UNSAFE === 'true';
   const { spawnSync } = await import('node:child_process');
   const testerModulePath = process.env.ISEEMP_TESTER_MODULE || '/app/packages/tester/dist/index.js';
   const tester = await import(testerModulePath);
@@ -262,7 +264,7 @@ echo "▶ Running topology-selected deterministic profiles…"
       capabilities: Array.isArray(t.capabilities) ? t.capabilities : [],
     })),
     E2E_PROFILE_DESCRIPTORS,
-    { hasCredentials: false },
+    { hasCredentials: false, includeUnsafe },
   );
   const uniqueSelected = [];
   const seenTypes = new Set();
@@ -275,6 +277,14 @@ echo "▶ Running topology-selected deterministic profiles…"
   console.log(`🧪 profiles planned: ${selected.length}`);
   console.log(`🧪 profiles skipped: ${skipped.length}`);
   for (const item of skipped) console.log(`⚠️  SKIPPED: ${item.profileId} — ${item.reason}`);
+  if (!includeUnsafe) {
+    const skippedProfileIds = new Set(skipped.map((item) => item.profileId));
+    const requiredSkipped = ['prompt-injection-github', 'prompt-injection-fetch'];
+    const missing = requiredSkipped.filter((id) => !skippedProfileIds.has(id));
+    if (missing.length > 0) {
+      throw new Error(`Expected unsafe prompt-injection profiles to be skipped in safe run: ${missing.join(', ')}`);
+    }
+  }
 
   let passed = 0;
   let failed = 0;
@@ -300,8 +310,10 @@ JS
 echo "▶ Validating cross-server classification expectations through API…"
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T \
   -e "ISEEMP_API_PORT=${API_PORT}" \
+  -e "ISEEMP_E2E_INCLUDE_UNSAFE=${ISEEMP_E2E_INCLUDE_UNSAFE_PROFILES:-false}" \
   "$SERVICE" node - <<'JS'
 const apiPort = process.env.ISEEMP_API_PORT || '7474';
+const includeUnsafe = process.env.ISEEMP_E2E_INCLUDE_UNSAFE === 'true';
 
 function fail(message) {
   console.error(`❌ ${message}`);
@@ -385,10 +397,159 @@ async function getJson(path) {
   return res.json();
 }
 
-const [servers, tools, findings] = await Promise.all([
+function summarizeRun(run) {
+  return {
+    id: run.id,
+    profile: run.profile,
+    testCaseId: run.testCaseId,
+    outcome: run.outcome,
+    pathStatus: run.pathStatus,
+    injectionConfirmed: run.injectionConfirmed,
+    canaryObserved: run.canaryObserved,
+    deviationDetected: run.deviationDetected,
+    notes: run.notes ?? null,
+  };
+}
+
+function summarizeEvidenceFailures(evidence) {
+  const MAX_DIAGNOSTIC_URLS = 8;
+  const urls = [];
+  let blockedPrivateAddress = 0;
+  let erroredToolCalls = 0;
+  for (const item of Array.isArray(evidence) ? evidence : []) {
+    if (item?.type === 'tool_call') {
+      if (item?.content?.isError === true || item?.redactedOutput?.isError === true) {
+        erroredToolCalls += 1;
+      }
+      const text = item?.redactedOutput?.text ?? '';
+      if (typeof text === 'string' && text.includes('blocked request to private address')) {
+        blockedPrivateAddress += 1;
+      }
+      const url = item?.redactedInput?.url;
+      if (typeof url === 'string') urls.push(url);
+    }
+    if (item?.type === 'INJECTED_TOOL_CALLS') {
+      const toolCalls = Array.isArray(item?.content?.toolCalls) ? item.content.toolCalls : [];
+      for (const call of toolCalls) {
+        const text = call?.output?.text ?? '';
+        if (typeof text === 'string' && text.includes('blocked request to private address')) {
+          blockedPrivateAddress += 1;
+        }
+        if (call?.output?.isError === true || typeof call?.error === 'string') {
+          erroredToolCalls += 1;
+        }
+        const url = call?.input?.url;
+        if (typeof url === 'string') urls.push(url);
+      }
+    }
+  }
+  return {
+    blockedPrivateAddress,
+    erroredToolCalls,
+    // Keep recent unique URLs only to avoid flooding logs while preserving latest failure context.
+    attemptedUrls: Array.from(new Set(urls)).slice(-MAX_DIAGNOSTIC_URLS),
+  };
+}
+
+function summarizePromptRunOutcomes(promptRuns) {
+  const testedRejected = promptRuns.filter((run) => run.pathStatus === 'tested_rejected').length;
+  const testedConfirmed = promptRuns.filter((run) => run.pathStatus === 'tested_confirmed').length;
+  const withDeviation = promptRuns.filter((run) => run.deviationDetected === true).length;
+  const withCanary = promptRuns.filter((run) => run.canaryObserved === true).length;
+  const withInjectionConfirmed = promptRuns.filter((run) => run.injectionConfirmed === true).length;
+  return { testedRejected, testedConfirmed, withDeviation, withCanary, withInjectionConfirmed };
+}
+
+async function logPromptInjectionDiagnostics(testRuns) {
+  const promptRuns = testRuns.filter((run) => run.profile === 'prompt-injection-fetch');
+  console.error(`ℹ️ prompt-injection-fetch runs: ${promptRuns.length}`);
+  if (promptRuns.length === 0) return;
+  console.error(
+    `ℹ️ prompt-injection-fetch outcome summary:\n${JSON.stringify(summarizePromptRunOutcomes(promptRuns), null, 2)}`,
+  );
+  console.error(
+    `ℹ️ prompt-injection-fetch run summaries:\n${JSON.stringify(promptRuns.map(summarizeRun), null, 2)}`,
+  );
+  const rejectedOrErrored = promptRuns
+    .filter((run) => run.outcome === 'TESTED_REJECTED' || run.outcome === 'TEST_ERROR')
+    .slice(-3);
+  for (const run of rejectedOrErrored) {
+    try {
+      const full = await getJson(`/test-runs/${run.id}`);
+      const failureSummary = summarizeEvidenceFailures(full.evidence ?? []);
+      console.error(
+        `ℹ️ run ${run.id} failure summary:\n${JSON.stringify(failureSummary, null, 2)}`,
+      );
+      if (failureSummary.blockedPrivateAddress > 0) {
+        console.error(
+          `⚠️ run ${run.id}: fetch calls were blocked for private-address targets, which can prevent canaryObserved from becoming true.`,
+        );
+      }
+      console.error(
+        `ℹ️ run ${run.id} evidence tail:\n${JSON.stringify((full.evidence ?? []).slice(-10), null, 2)}`,
+      );
+    } catch (err) {
+      console.error(
+        `⚠️ Failed to fetch verbose evidence for run ${run.id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+}
+
+async function analyzeSecureDefaultPromptInjectionBlock(testRuns) {
+  const promptRuns = testRuns.filter((run) => run.profile === 'prompt-injection-fetch');
+  const defensiveCandidates = promptRuns.filter(
+    (run) =>
+      (run.pathStatus === 'tested_rejected' || run.pathStatus === 'injection_influence_blocked') &&
+      run.deviationDetected === true &&
+      run.canaryObserved !== true,
+  );
+  if (defensiveCandidates.length === 0) {
+    return {
+      secureDefaultBlocked: false,
+      blockedRunIds: [],
+      blockedInfluenceRunIds: [],
+      candidateRunIds: [],
+    };
+  }
+  const blockedRunIds = [];
+  const blockedInfluenceRunIds = [];
+  for (const run of defensiveCandidates) {
+    if (run.pathStatus === 'injection_influence_blocked') {
+      blockedRunIds.push(run.id);
+      blockedInfluenceRunIds.push(run.id);
+      continue;
+    }
+    try {
+      const full = await getJson(`/test-runs/${run.id}`);
+      const failureSummary = summarizeEvidenceFailures(full.evidence ?? []);
+      const deviationReport = (full.evidence ?? []).find((entry) => entry?.type === 'DEVIATION_REPORT');
+      const injectMarkerPropagated = deviationReport?.content?.injectMarkerPropagated === true;
+      const exfilMarkerPropagated = deviationReport?.content?.exfilMarkerPropagated === true;
+      if (failureSummary.blockedPrivateAddress > 0) {
+        blockedRunIds.push(run.id);
+        if (injectMarkerPropagated && exfilMarkerPropagated) {
+          blockedInfluenceRunIds.push(run.id);
+        }
+      }
+    } catch {
+      // Leave run as unconfirmed for secure-default blocking if details cannot be fetched.
+    }
+  }
+  return {
+    secureDefaultBlocked:
+      blockedRunIds.length > 0 && blockedRunIds.length === defensiveCandidates.length,
+    blockedRunIds,
+    blockedInfluenceRunIds,
+    candidateRunIds: defensiveCandidates.map((run) => run.id),
+  };
+}
+
+const [servers, tools, findings, testRuns] = await Promise.all([
   getJson('/servers'),
   getJson('/tools'),
   getJson('/findings'),
+  getJson('/test-runs'),
 ]);
 // /findings includes applyTrifectaAnalysis output (trifecta/trust/lethal fields) from the API.
 // This profile is the canonical cross-server exfil path sanity check: LOCAL read → EXTERNAL send.
@@ -460,7 +621,74 @@ if (crossServerPartial.length === 0) {
 assertCrossServerSourceSinkIntegrity(crossServerFindings);
 assertHasTrustTransition(crossServerPartial, 'LOCAL', 'EXTERNAL');
 assertLethalTrifectaCounts(findings, { confirmedMax: 0 });
-assertNoConfirmedInjection(findings);
+const testerModulePath = process.env.ISEEMP_TESTER_MODULE || '/app/packages/tester/dist/index.js';
+const tester = await import(testerModulePath);
+const { selectProfilesForTopology, E2E_PROFILE_DESCRIPTORS } = tester;
+const { skipped } = selectProfilesForTopology(
+  servers.map((s) => ({ id: s.id, name: s.name })),
+  tools.map((t) => ({
+    serverId: t.serverId,
+    capabilities: Array.isArray(t.capabilities) ? t.capabilities : [],
+  })),
+  E2E_PROFILE_DESCRIPTORS,
+  { hasCredentials: false, includeUnsafe },
+);
+if (includeUnsafe) {
+  const confirmedPromptInjectionRuns = testRuns.filter(
+    (run) =>
+      run.profile === 'prompt-injection-fetch' &&
+      run.pathStatus === 'tested_confirmed' &&
+      run.injectionConfirmed === true &&
+      run.canaryObserved === true,
+  );
+  const secureDefaultBlock = await analyzeSecureDefaultPromptInjectionBlock(testRuns);
+  if (confirmedPromptInjectionRuns.length < 1) {
+    await logPromptInjectionDiagnostics(testRuns);
+    if (secureDefaultBlock.secureDefaultBlocked) {
+      console.warn(
+        `⚠️ Unsafe prompt-injection run was blocked by fetch MCP private-address policy. Accepting defensive outcome for runs: ${secureDefaultBlock.blockedRunIds.join(', ')}.`,
+      );
+      if (secureDefaultBlock.blockedInfluenceRunIds.length > 0) {
+        console.warn(
+          `⚠️ INJECTION_INFLUENCE_BLOCKED: behavioural deviation + marker propagation observed, but sink delivery was blocked by fetch MCP policy. Runs: ${secureDefaultBlock.blockedInfluenceRunIds.join(', ')}.`,
+        );
+      }
+    } else {
+      fail('Expected at least one TESTED_CONFIRMED prompt-injection-fetch run with canaryObserved=true in unsafe run.');
+    }
+  }
+  const confirmedInjectionFindings = findings.filter((finding) => finding.injectionConfirmed === true);
+  if (confirmedInjectionFindings.length < 1) {
+    if (secureDefaultBlock.secureDefaultBlocked) {
+      console.warn(
+        `⚠️ No injectionConfirmed=true findings because secure defaults blocked sink delivery for prompt-injection-fetch runs: ${secureDefaultBlock.blockedRunIds.join(', ')}.`,
+      );
+    } else {
+      await logPromptInjectionDiagnostics(testRuns);
+      console.error(
+        `ℹ️ injectionConfirmed findings summary:\n${JSON.stringify(findings.filter((finding) => finding.injectionConfirmed === true), null, 2)}`,
+      );
+      fail('Expected at least one finding with injectionConfirmed=true in unsafe run.');
+    }
+  }
+  const behaviouralDeviationCount = testRuns.filter((run) => run.deviationDetected === true).length;
+  if (behaviouralDeviationCount < 1) {
+    await logPromptInjectionDiagnostics(testRuns);
+    fail('Expected behaviouralDeviation > 0 in unsafe run.');
+  }
+} else {
+  assertNoConfirmedInjection(findings);
+  const confirmedInjectionRuns = testRuns.filter((run) => run.injectionConfirmed === true);
+  if (confirmedInjectionRuns.length > 0) {
+    fail(`Unexpected prompt-injection confirmed test runs in safe run: ${confirmedInjectionRuns.length}.`);
+  }
+  const skippedProfileIds = new Set(skipped.map((item) => item.profileId));
+  const requiredSkipped = ['prompt-injection-github', 'prompt-injection-fetch'];
+  const missing = requiredSkipped.filter((id) => !skippedProfileIds.has(id));
+  if (missing.length > 0) {
+    fail(`Expected prompt-injection profiles in skipped list during safe run: ${missing.join(', ')}`);
+  }
+}
 
 const crossServerPairs = Array.from(
   new Set(crossServerPartial.map((finding) => `${finding.sourceServerId ?? 'unknown'}->${finding.sinkServerId ?? 'unknown'}`)),

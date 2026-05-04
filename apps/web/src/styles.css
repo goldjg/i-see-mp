@@ -128,6 +128,7 @@ h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; color: #e2e8f0; }
 .badge-path-tested_confirmed { background: #b91c1c; color: #fff; }
 .badge-path-tested_rejected { background: #14532d; color: #bbf7d0; }
 .badge-path-tested_inconclusive { background: #6b21a8; color: #f3e8ff; }
+.badge-path-injection_influence_blocked { background: #6b21a8; color: #f3e8ff; }
 .badge-path-static_possible { background: #334155; color: #cbd5e1; }
 .badge-path-trust_boundary_confirmed { background: #7c3aed; color: #fff; }
 

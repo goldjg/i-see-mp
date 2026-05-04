@@ -105,7 +105,11 @@ export function summarizeRunsForCli(testRuns: TestRun[]): {
       r.pathStatus === PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED,
   ).length;
   const rejected = testRuns.filter((r) => r.pathStatus === PathStatus.TESTED_REJECTED).length;
-  const inconclusive = testRuns.filter((r) => r.pathStatus === PathStatus.TESTED_INCONCLUSIVE).length;
+  const inconclusive = testRuns.filter(
+    (r) =>
+      r.pathStatus === PathStatus.TESTED_INCONCLUSIVE ||
+      r.pathStatus === PathStatus.INJECTION_INFLUENCE_BLOCKED,
+  ).length;
   const skipped = testRuns.filter((r) => r.outcome === TestOutcome.TEST_SKIPPED).length;
   const injectionConfirmed = testRuns.filter((r) => r.injectionConfirmed === true).length;
   const trustBoundaryConfirmed = testRuns.filter(
@@ -565,6 +569,7 @@ export function applyRunsToFinding(
   profileDescriptor?: ProfileDescriptor,
 ): Finding {
   const confirmed = runs.find((r) => r.outcome === TestOutcome.TESTED_CONFIRMED);
+  const blocked = runs.find((r) => r.pathStatus === PathStatus.INJECTION_INFLUENCE_BLOCKED);
   const rejected = runs.find((r) => r.outcome === TestOutcome.TESTED_REJECTED);
   const inconclusive = runs.find((r) => r.outcome === TestOutcome.TESTED_INCONCLUSIVE || r.outcome === TestOutcome.TEST_ERROR);
   const skipped = runs.find((r) => r.outcome === TestOutcome.TEST_SKIPPED);
@@ -633,6 +638,22 @@ export function applyRunsToFinding(
         next.pathStatus = PathStatus.TRUST_BOUNDARY_CONFIRMED;
         next.trustBoundaryConfirmed = true;
       }
+    }
+  } else if (blocked) {
+    next.tested = true;
+    next.observed = false;
+    next.pathStatus = PathStatus.INJECTION_INFLUENCE_BLOCKED;
+    next.confidence = downgradeConfidence(finding.confidence);
+    next.explanation = appendExplanation(
+      baseExplanation,
+      'Prompt-injection influence was observed, but sink delivery was blocked by sink policy.',
+    );
+    if (allowsCoercionConfirmation && finding.category === RiskCategory.PROMPT_INJECTION) {
+      next.subCategory = 'INJECTION_INFLUENCE_BLOCKED';
+      next.injectionConfirmed = false;
+    }
+    if (finding.lethalTrifectaStatus === 'POSSIBLE') {
+      next.lethalTrifectaStatus = 'POSSIBLE';
     }
   } else if (rejected) {
     next.tested = true;

@@ -3,6 +3,7 @@ import {
   NodeType,
   EdgeType,
   Capability,
+  PathStatus,
   RiskCategory,
   TrifectaStage,
   LethalTrifectaStatus,
@@ -12,6 +13,7 @@ import {
   NodeTypeSchema,
   EdgeTypeSchema,
   CapabilitySchema,
+  PathStatusSchema,
   RiskCategorySchema,
   McpToolSchema,
   GraphNodeSchema,
@@ -67,6 +69,13 @@ describe('RiskCategory', () => {
 
   it('schema parses valid value', () => {
     expect(RiskCategorySchema.parse('CODE_EXECUTION')).toBe('CODE_EXECUTION');
+  });
+});
+
+describe('PathStatus', () => {
+  it('includes blocked prompt-injection influence status', () => {
+    expect(PathStatus.INJECTION_INFLUENCE_BLOCKED).toBe('injection_influence_blocked');
+    expect(PathStatusSchema.parse('injection_influence_blocked')).toBe('injection_influence_blocked');
   });
 });
 

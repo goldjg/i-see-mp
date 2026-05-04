@@ -118,6 +118,7 @@ export const PathStatus = {
   TESTED_CONFIRMED: 'tested_confirmed',
   TESTED_REJECTED: 'tested_rejected',
   TESTED_INCONCLUSIVE: 'tested_inconclusive',
+  INJECTION_INFLUENCE_BLOCKED: 'injection_influence_blocked',
   TRUST_BOUNDARY_CONFIRMED: 'trust_boundary_confirmed',
   TRUST_BOUNDARY_EXPLOIT_CONFIRMED: 'trust_boundary_exploit_confirmed',
 } as const;

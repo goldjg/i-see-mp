@@ -141,4 +141,25 @@ describe('finding updates from deterministic test outcomes', () => {
     expect(updated.lethalTrifectaStatus).toBe('CONFIRMED');
   });
 
+  it('preserves blocked influence as distinct core path status for coercion profile', () => {
+    const finding = {
+      ...makeFinding('f-pi-3', 'cp-pi-3'),
+      category: RiskCategory.PROMPT_INJECTION,
+      lethalTrifectaStatus: 'POSSIBLE' as const,
+    };
+    const run = {
+      ...makeRun(TestOutcome.TESTED_INCONCLUSIVE, 'cp-pi-3'),
+      profile: 'prompt-injection-fetch' as const,
+      testCaseId: 'PROMPT_INJECTION_FETCH_TO_SINK',
+      pathStatus: PathStatus.INJECTION_INFLUENCE_BLOCKED,
+      deviationDetected: true,
+      canaryObserved: false,
+    };
+    const updated = applyRunsToFinding(finding, [run], PROMPT_INJECTION_GITHUB_DESCRIPTOR);
+    expect(updated.pathStatus).toBe(PathStatus.INJECTION_INFLUENCE_BLOCKED);
+    expect(updated.subCategory).toBe('INJECTION_INFLUENCE_BLOCKED');
+    expect(updated.injectionConfirmed).toBe(false);
+    expect(updated.lethalTrifectaStatus).toBe('POSSIBLE');
+  });
+
 });

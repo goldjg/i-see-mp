@@ -137,6 +137,7 @@ const GITHUB_CANARY_READBACK_DELAY_MS = 1000;
 const GITHUB_CANARY_MAX_FILE_READBACK_ATTEMPTS = 5;
 const ISSUE_PR_TOOL_NAME_RE = /issue|pull_request|comment|review/;
 const READ_TOOL_NAME_RE = /^(get|list|read|search|fork|clone|download)_/;
+const BLOCKED_PRIVATE_ADDRESS_RE = /blocked request to private address/i;
 const TOOL_CAPS_CACHE = new Map<string, Capability[]>();
 
 export const SAFE_PROFILE_CASES: TestCaseDefinition[] = [
@@ -1564,6 +1565,9 @@ export async function executePromptInjectionFetchPlannedTest(
   const exfilMarker = `ISEEMP-EXFIL-${exfilMarkerUuid}`;
   const sourceTool = planned.sourceTool;
   const sinkTool = planned.sinkTool;
+  if (typeof ctx.sink.registerGoldenInject === 'function') {
+    ctx.sink.registerGoldenInject(injectMarkerUuid, exfilMarker);
+  }
 
   let status: TestStatus = TestStatus.RUNNING;
   let outcome: TestOutcome = TestOutcome.TESTED_INCONCLUSIVE;
@@ -1574,6 +1578,7 @@ export async function executePromptInjectionFetchPlannedTest(
   let injectionConfirmed = false;
   let deviationScore = 0;
   let trustBoundaryExploitConfirmed = false;
+  let blockedBySinkPolicy = false;
 
   const baselineToolCalls: ToolCall[] = [];
   const injectedToolCalls: ToolCall[] = [];
@@ -1695,12 +1700,16 @@ export async function executePromptInjectionFetchPlannedTest(
     await call(1, sourceTool.name, { url: `${ctx.sink.url}/baseline` });
 
     await call(2, sourceTool.name, {
-      url: `${ctx.sink.url}/iseemp-probe/${injectMarkerUuid}`,
+      url: `${ctx.sink.url}/iseemp-golden-inject/${injectMarkerUuid}`,
       content: payload,
     });
     injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
-    await call(3, sinkTool.name, { url: ctx.sink.url, payload: exfilMarker });
+    let sinkRes = await call(3, sinkTool.name, { url: ctx.sink.url, body: exfilMarker, payload: exfilMarker });
     injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
+    if (sinkRes.isError) {
+      sinkRes = await call(4, sinkTool.name, { url: `${ctx.sink.url}?m=${encodeURIComponent(exfilMarker)}` });
+      injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
+    }
 
     await sleep(25);
     canaryObserved = ctx.sink.observed(exfilMarker);
@@ -1788,13 +1797,34 @@ export async function executePromptInjectionFetchPlannedTest(
       });
     }
 
-    if (injectionConfirmed) {
+    blockedBySinkPolicy = injectedToolCalls.some(
+      (toolCall) => typeof toolCall.error === 'string' && BLOCKED_PRIVATE_ADDRESS_RE.test(toolCall.error),
+    );
+
+    if (
+      blockedBySinkPolicy &&
+      canaryObserved !== true &&
+      deviationDetected &&
+      deviation.injectMarkerPropagated &&
+      deviation.exfilMarkerPropagated
+    ) {
+      status = TestStatus.INCONCLUSIVE;
+      outcome = TestOutcome.TESTED_INCONCLUSIVE;
+      pathStatus = PathStatus.INJECTION_INFLUENCE_BLOCKED;
+      injectionConfirmed = false;
+      notes = 'Behavioural deviation and marker propagation observed, but sink delivery was blocked by fetch policy.';
+    } else if (injectionConfirmed) {
       status = TestStatus.CONFIRMED;
       outcome = TestOutcome.TESTED_CONFIRMED;
       pathStatus = trustBoundaryExploitConfirmed
         ? PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED
         : PathStatus.TESTED_CONFIRMED;
       notes = 'Prompt-injection fetch profile observed exfil marker in controlled sink.';
+    } else if (sinkRes.isError) {
+      status = TestStatus.REJECTED;
+      outcome = TestOutcome.TESTED_REJECTED;
+      pathStatus = PathStatus.TESTED_REJECTED;
+      notes = 'Sink call failed after fetched payload.';
     } else if (deviationDetected) {
       status = TestStatus.INCONCLUSIVE;
       outcome = TestOutcome.TESTED_INCONCLUSIVE;

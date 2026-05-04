@@ -71,6 +71,7 @@ export interface Finding {
     | 'tested_confirmed'
     | 'tested_rejected'
     | 'tested_inconclusive'
+    | 'injection_influence_blocked'
     | 'trust_boundary_confirmed'
     | 'trust_boundary_exploit_confirmed';
   testRunIds?: string[];
@@ -140,6 +141,7 @@ export interface TestRun {
     | 'tested_confirmed'
     | 'tested_rejected'
     | 'tested_inconclusive'
+    | 'injection_influence_blocked'
     | 'trust_boundary_confirmed'
     | 'trust_boundary_exploit_confirmed';
   timestamp?: string;
