@@ -4,6 +4,7 @@ import {
   FILESYSTEM_FETCH_GITHUB_PROFILE,
   FILESYSTEM_FETCH_PROFILE,
   FILESYSTEM_ONLY_PROFILE,
+  SAFE_PROFILE_DESCRIPTOR,
   selectProfilesForTopology,
 } from '../profile-descriptor.js';
 
@@ -55,5 +56,16 @@ describe('selectProfilesForTopology', () => {
         (s) => s.profileId === 'github-safe-canary' && s.reason === 'missing required credentials',
       ),
     ).toBe(true);
+  });
+
+  it('does not select safe profile for github-only topologies', () => {
+    const result = selectProfilesForTopology(
+      [githubServer],
+      [{ serverId: githubServer.id, capabilities: ['READ_REMOTE_DATA', 'MUTATE_REMOTE_STATE'] }],
+      [SAFE_PROFILE_DESCRIPTOR],
+      { hasCredentials: false },
+    );
+    expect(result.selected).toHaveLength(0);
+    expect(result.skipped[0]?.reason).toBe('not applicable to topology');
   });
 });

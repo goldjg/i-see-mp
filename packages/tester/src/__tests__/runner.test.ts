@@ -81,6 +81,7 @@ describe('planSafeProfile', () => {
     const planned = planSafeProfile([server()], new Map([['srv1', tools]]));
     expect(planned.map((p) => p.caseDef.id)).toEqual([]);
   });
+
 });
 
 describe('planDemoConfirmProfile', () => {

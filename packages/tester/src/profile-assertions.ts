@@ -88,6 +88,24 @@ export function assertHasTrustTransition(findings: Finding[], from: string, to: 
   return finding;
 }
 
+export function assertFindingPairTrustBoundary(
+  finding: Finding,
+  sourceName: string,
+  sinkName: string,
+  expected: boolean,
+): void {
+  if (typeof finding.crossesTrustBoundary !== 'boolean') {
+    fail(
+      `Expected finding for ${sourceName} → ${sinkName} to include boolean crossesTrustBoundary, got ${typeof finding.crossesTrustBoundary}.`,
+    );
+  }
+  if (finding.crossesTrustBoundary !== expected) {
+    fail(
+      `Expected ${sourceName} → ${sinkName} crossesTrustBoundary=${expected}, got ${finding.crossesTrustBoundary}.`,
+    );
+  }
+}
+
 export function assertCanaryEvidence(testRuns: TestRun[]): void {
   const observed = testRuns.some((run) => run.canaryObserved === true);
   if (!observed) fail('Expected at least one test run with canaryObserved=true.');

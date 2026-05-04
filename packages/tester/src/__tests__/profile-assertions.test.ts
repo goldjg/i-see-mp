@@ -6,6 +6,7 @@ import {
   assertHasFindingWithStatus,
   assertHasServer,
   assertHasTrustTransition,
+  assertFindingPairTrustBoundary,
   assertNoCoercionEvidence,
   assertNoFindingWithStatus,
   assertNoUnexpectedLethalTrifectaConfirmed,
@@ -87,6 +88,16 @@ describe('profile assertions', () => {
     const finding = { ...baseFinding, trustTransition: 'LOCAL → EXTERNAL' };
     expect(assertHasTrustTransition([finding], 'LOCAL', 'EXTERNAL').id).toBe('f-1');
     expect(() => assertHasTrustTransition([finding], 'LOCAL', 'SAAS')).toThrow(/Expected trust transition/);
+  });
+
+  it('assertFindingPairTrustBoundary pass and fail', () => {
+    const findingTrue = { ...baseFinding, crossesTrustBoundary: true };
+    expect(() =>
+      assertFindingPairTrustBoundary(findingTrue, 'github', 'fetch', true),
+    ).not.toThrow();
+    expect(() => assertFindingPairTrustBoundary(findingTrue, 'github', 'fetch', false)).toThrow(
+      /crossesTrustBoundary=false/,
+    );
   });
 
   it('assertCanaryEvidence pass and fail', () => {

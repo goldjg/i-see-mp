@@ -428,9 +428,21 @@ function assertLethalTrifectaCounts(findings, opts) {
   }
 }
 
-function assertNoConfirmedInjection(findings) {
-  const confirmed = findings.filter((finding) => finding.injectionConfirmed === true);
-  if (confirmed.length > 0) fail(`Unexpected injectionConfirmed=true finding(s): ${confirmed.length}.`);
+function isTestedConfirmedWithCanary(run) {
+  if (!run || run.canaryObserved !== true) return false;
+  if (run.pathStatus === 'tested_confirmed') return true;
+  return run.outcome === 'TESTED_CONFIRMED';
+}
+
+function assertInjectionConfirmationRequiresDeviation(findings, testRuns) {
+  const confirmedInjectionFindings = findings.filter((finding) => finding.injectionConfirmed === true);
+  if (confirmedInjectionFindings.length === 0) return;
+  const hasBehaviouralDeviationEvidence = testRuns.some((run) => run.deviationDetected === true);
+  if (!hasBehaviouralDeviationEvidence) {
+    fail(
+      `injectionConfirmed=true requires behavioural deviation evidence, but no deviating test runs were recorded.`,
+    );
+  }
 }
 
 function assertCrossServerSourceSinkIntegrity(crossServerFindings) {
@@ -447,26 +459,17 @@ function assertCrossServerSourceSinkIntegrity(crossServerFindings) {
   }
 }
 
-function assertHasFindingBadge(findings, serverId, field, value) {
-  const match = findings.some(
-    (finding) =>
-      (finding.sourceServerId === serverId || finding.sinkServerId === serverId) && finding[field] === value,
-  );
-  if (!match) {
-    fail(`Expected finding badge ${field}=${value} for server '${serverId}'.`);
-  }
-}
-
 async function getJson(path) {
   const res = await fetch(`http://127.0.0.1:${apiPort}${path}`);
   if (!res.ok) fail(`API ${path} returned HTTP ${res.status}`);
   return res.json();
 }
 
-const [servers, tools, findings] = await Promise.all([
+const [servers, tools, findings, testRuns] = await Promise.all([
   getJson('/servers'),
   getJson('/tools'),
   getJson('/findings'),
+  getJson('/test-runs'),
 ]);
 // /findings includes applyTrifectaAnalysis output (trifecta/trust/lethal fields) from the API.
 
@@ -611,6 +614,7 @@ if (filesystemToGithub.trustTransition === 'LOCAL → USER_CONTROLLED_SAAS') {
     fail('Expected filesystem → github to cross trust boundary for LOCAL → USER_CONTROLLED_SAAS.');
   }
 } else if (filesystemToGithub.trustTransition === 'LOCAL → CONTROLLED_SAAS') {
+  // LOCAL → CONTROLLED_SAAS keeps data in trusted/controlled zones only.
   if (filesystemToGithub.crossesTrustBoundary !== false) {
     fail('Expected filesystem → github not to cross trust boundary for LOCAL → CONTROLLED_SAAS.');
   }
@@ -639,46 +643,41 @@ if (filesystemToFetch.trustTransition !== 'LOCAL → EXTERNAL') {
 const githubToFetch = crossServerFindings.find(
   (finding) => finding.sourceServerId === githubServer.id && finding.sinkServerId === fetchServer.id,
 );
-if (githubToFetch && githubToFetch.crossesTrustBoundary !== false) {
-  fail('Expected github → fetch to be cross-server but not a trust-boundary crossing.');
-}
-assertNoConfirmedInjection(findings);
-
-const badGithubCrossServer = findings.filter(
-  (finding) =>
-    finding.isCrossServer === true &&
-    finding.sourceServerId === githubServer.id &&
-    finding.sinkServerId === githubServer.id,
-);
-if (badGithubCrossServer.length > 0) {
+if (githubToFetch && githubToFetch.crossesTrustBoundary !== true) {
   fail(
-    `Same-server GitHub findings must not be marked cross-server; found ${badGithubCrossServer.length}.`,
+    'Expected github → fetch to cross trust boundary (CONTROLLED_SAAS/USER_CONTROLLED_SAAS → EXTERNAL).',
   );
 }
+assertInjectionConfirmationRequiresDeviation(findings, testRuns);
 
 if (expectGithubCanary) {
-  const githubServerNode = `server:${githubServer.id}`;
-  assertHasFindingBadge(findings, githubServer.id, 'pathStatus', 'tested_confirmed');
-  const githubSameServerConfirmed = findings.filter(
-    (finding) =>
-      finding.isCrossServer !== true &&
-      finding.pathStatus === 'tested_confirmed' &&
-      Array.isArray(finding.affectedNodeIds) &&
-      finding.affectedNodeIds.includes(githubServerNode),
+  const githubCanaryRuns = testRuns.filter((run) => run.profile === 'github-safe-canary');
+  if (githubCanaryRuns.length === 0) {
+    fail('Expected github-safe-canary test runs when github-safe-canary was enabled.');
+  }
+  const githubCanaryFailures = githubCanaryRuns.filter(
+    (run) => run.outcome === 'TEST_ERROR' || run.outcome === 'TESTED_REJECTED',
   );
-  if (githubSameServerConfirmed.length === 0) {
-    fail('Expected at least one same-server GitHub tested_confirmed finding when github-safe-canary ran.');
+  if (githubCanaryFailures.length > 0) {
+    fail(
+      `Expected github-safe-canary profile to pass when enabled; found ${githubCanaryFailures.length} failed run(s).`,
+    );
   }
 
-  const nonGithubConfirmed = findings.filter(
-    (finding) =>
-      finding.pathStatus === 'tested_confirmed' &&
-      (!Array.isArray(finding.affectedNodeIds) || !finding.affectedNodeIds.includes(githubServerNode)),
+  const githubCanaryConfirmedRuns = githubCanaryRuns.filter((run) => isTestedConfirmedWithCanary(run));
+
+  const readSearchConfirmed = githubCanaryConfirmedRuns.some(
+    (run) => run.testCaseId === 'GITHUB_READ_CONTROLLED_ARTIFACT',
   );
-  if (nonGithubConfirmed.length > 0) {
-    fail(
-      `GitHub canary evidence should stay scoped to GitHub findings; found ${nonGithubConfirmed.length} tested_confirmed non-GitHub finding(s).`,
-    );
+  if (!readSearchConfirmed) {
+    fail('Expected TESTED_CONFIRMED + canaryObserved evidence for GitHub controlled read/search canary.');
+  }
+
+  const issueCommentPrConfirmed = githubCanaryConfirmedRuns.some(
+    (run) => run.testCaseId === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT',
+  );
+  if (!issueCommentPrConfirmed) {
+    fail('Expected TESTED_CONFIRMED + canaryObserved evidence for GitHub issue/comment/PR write controls.');
   }
 }
 

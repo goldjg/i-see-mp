@@ -1,5 +1,8 @@
 import { Capability, PathStatus, ValidationMode, type EvidenceType, type TestProfile } from '@iseemp/core';
 import type { TesterProfile } from './runner.js';
+import { getKnownPairTrust } from './trust-expectations.js';
+
+const NON_GITHUB_SERVER_PATTERN = '^(?!.*github).*$';
 
 export interface ExpectedFindingDescriptor {
   category: string;
@@ -19,6 +22,11 @@ export interface ProfileDescriptor {
   destructive: boolean;
   requiresCredentials: boolean;
   safeForE2E: boolean;
+  expectedTrustTransitions?: Array<{
+    sourceTrustClass: string;
+    sinkTrustClass: string;
+    crossesBoundary: boolean;
+  }>;
 }
 
 export interface TopologyServer {
@@ -60,6 +68,7 @@ export const FILESYSTEM_ONLY_PROFILE: ProfileDescriptor = {
   destructive: false,
   requiresCredentials: false,
   safeForE2E: true,
+  expectedTrustTransitions: [],
 };
 
 /**
@@ -79,6 +88,11 @@ export const FILESYSTEM_FETCH_PROFILE: ProfileDescriptor = {
   destructive: false,
   requiresCredentials: false,
   safeForE2E: true,
+  expectedTrustTransitions: getKnownPairTrust('filesystem→fetch').map((transition) => ({
+    sourceTrustClass: transition.sourceTrustClass,
+    sinkTrustClass: transition.sinkTrustClass,
+    crossesBoundary: transition.expectedTrustBoundaryCrossed,
+  })),
 };
 
 /**
@@ -98,6 +112,16 @@ export const FILESYSTEM_FETCH_GITHUB_PROFILE: ProfileDescriptor = {
   destructive: false,
   requiresCredentials: false,
   safeForE2E: true,
+  // filesystem-fetch-github profiles both canonical exfil (filesystem→fetch)
+  // and mixed SaaS paths (filesystem→github, tool-trust dependent).
+  expectedTrustTransitions: [
+    ...getKnownPairTrust('filesystem→fetch'),
+    ...getKnownPairTrust('filesystem→github'),
+  ].map((transition) => ({
+    sourceTrustClass: transition.sourceTrustClass,
+    sinkTrustClass: transition.sinkTrustClass,
+    crossesBoundary: transition.expectedTrustBoundaryCrossed,
+  })),
 };
 
 /**
@@ -117,6 +141,7 @@ export const GITHUB_SAFE_CANARY_DESCRIPTOR: ProfileDescriptor = {
   destructive: false,
   requiresCredentials: true,
   safeForE2E: true,
+  expectedTrustTransitions: [],
 };
 
 /**
@@ -161,7 +186,9 @@ export const PROMPT_INJECTION_FETCH_DESCRIPTOR: ProfileDescriptor = {
 export const SAFE_PROFILE_DESCRIPTOR: ProfileDescriptor = {
   profileId: 'safe',
   profileType: 'safe',
-  applicableServers: [],
+  // Safe deterministic checks should not execute against GitHub-oriented servers;
+  // those are covered by github-safe-canary / prompt-injection-github profiles.
+  applicableServers: [NON_GITHUB_SERVER_PATTERN],
   requiredCapabilities: [],
   validationMode: ValidationMode.DATAFLOW_CANARY,
   expectedFindings: [],
