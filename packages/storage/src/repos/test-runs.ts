@@ -256,5 +256,14 @@ export function createTestRunsRepo(db: Database.Database) {
       ).run(collectionId);
       db.prepare(`DELETE FROM test_runs WHERE collection_id=?`).run(collectionId);
     },
+    deleteByCollectionAndProfile(collectionId: string, profile: string): void {
+      db.prepare(
+        `DELETE FROM evidence
+         WHERE test_run_id IN (
+           SELECT id FROM test_runs WHERE collection_id=? AND profile=?
+         )`,
+      ).run(collectionId, profile);
+      db.prepare(`DELETE FROM test_runs WHERE collection_id=? AND profile=?`).run(collectionId, profile);
+    },
   };
 }

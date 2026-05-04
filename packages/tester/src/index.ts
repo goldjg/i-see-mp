@@ -228,8 +228,8 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     };
   }
 
-  // Clear previous runs for this collection so re-runs are deterministic.
-  testRunsRepo.deleteByCollection(col.id);
+  // Clear previous runs for this collection/profile so re-runs are deterministic.
+  testRunsRepo.deleteByCollectionAndProfile(col.id, profile);
 
   const sink = await startMockSink();
   const connected = new Map<string, ConnectedServer>();
