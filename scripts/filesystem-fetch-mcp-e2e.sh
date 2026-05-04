@@ -445,6 +445,7 @@ function summarizeEvidenceFailures(evidence) {
   return {
     blockedPrivateAddress,
     erroredToolCalls,
+    // Keep recent unique URLs only to avoid flooding logs while preserving latest failure context.
     attemptedUrls: Array.from(new Set(urls)).slice(-8),
   };
 }
