@@ -14,6 +14,7 @@ SERVICE="${ISEEMP_COMPOSE_SERVICE:-iseemp}"
 API_PORT="${ISEEMP_API_PORT:-7474}"
 READY_TIMEOUT="${ISEEMP_READY_TIMEOUT_SECS:-60}"
 COMPOSE_OVERRIDE="${ISEEMP_DV_COMPOSE_OVERRIDE:-/tmp/compose-dv-mcp-e2e-override.yml}"
+KEEP_UP="${ISEEMP_DV_KEEP_UP:-0}"
 CONFIG_PATH_IN_CONTAINER="/data/iseemp.dv-mcp.config.json"
 
 if docker compose version >/dev/null 2>&1; then
@@ -26,6 +27,9 @@ else
 fi
 
 cleanup() {
+  if [[ "$KEEP_UP" == "1" || "$KEEP_UP" == "true" || "$KEEP_UP" == "TRUE" ]]; then
+    return
+  fi
   "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" down -v >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -162,3 +166,8 @@ console.log('✅ Post-test assertions passed.');
 JS
 
 echo "✅ dv-mcp e2e completed successfully."
+if [[ "$KEEP_UP" == "1" || "$KEEP_UP" == "true" || "$KEEP_UP" == "TRUE" ]]; then
+  echo "ℹ️  Keeping ${SERVICE} running for UI inspection."
+  echo "   Open UI: http://127.0.0.1:${API_PORT}"
+  echo "   Teardown: ${DC[*]} -f docker-compose.yml -f ${COMPOSE_OVERRIDE} down -v"
+fi
