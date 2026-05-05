@@ -290,6 +290,10 @@ export function Graph({
     cy.on('tap', onCanvasTap);
 
     cyRef.current = cy;
+    // Expose cy on the container element so Playwright/test tooling can trigger taps programmatically.
+    if (containerRef.current) {
+      (containerRef.current as HTMLElement & { __cy?: cytoscape.Core }).__cy = cy;
+    }
     const activePathKey = [...pathNodeSet].sort().join('|');
     if (isPathActive && activePathKey !== lastFitPathKeyRef.current) {
       const pathNodes = cy.nodes('[pathActive = 1]');

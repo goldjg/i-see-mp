@@ -41,6 +41,8 @@ Static detection shows _possible_ paths. Deterministic tests confirm whether a c
 - [Monorepo layout](#monorepo-layout)
 - [Troubleshooting](#troubleshooting)
 - [Safety notes](#safety-notes)
+- [Security notice](#security-notice)
+- [License](#license)
 
 ## Why this matters
 
@@ -394,6 +396,26 @@ Graph view after clicking **Show on graph →** on the top CONFIRMED finding, wi
 
 ![Graph highlighted](docs/screenshots/graph-highlighted.png)
 
+### Graph — node detail panels
+
+Clicking any highlighted node opens its detail panel showing type, risk score, and capability classifications. Below are the four nodes in the top CONFIRMED lethal trifecta finding.
+
+**MCP Server node (dv-mcp)**
+
+![Graph node: dv-mcp server](docs/screenshots/graph-node-1-server-dv-mcp.png)
+
+**Source node: dv_get_untrusted_prompt**
+
+![Graph node: dv_get_untrusted_prompt](docs/screenshots/graph-node-2-tool-dv-get-untrusted-prompt.png)
+
+**Private data node: dv_read_secret**
+
+![Graph node: dv_read_secret](docs/screenshots/graph-node-3-tool-dv-read-secret.png)
+
+**Sink node: dv_send_external**
+
+![Graph node: dv_send_external](docs/screenshots/graph-node-4-tool-dv-send-external.png)
+
 ### Logs
 
 ![Logs](docs/screenshots/logs.png)
@@ -726,3 +748,11 @@ examples/dv-mcp       Deliberately vulnerable fixture for lethal trifecta demo
 - **Remote collection uses metadata only** — `collect` calls `listTools`, `listResources`, and `listPrompts`; it does not invoke tools.
 - **`github-safe-canary` requires a disposable repository** — this profile performs controlled writes. Only target repositories created specifically for canary testing; never point it at production repos.
 - **`safe` profile is read-only by default** — uses a local mock webhook sink; no real external traffic.
+
+## Security notice
+
+ISeeMP is a security research and analysis tool. You must only run it against infrastructure you own or have explicit written authorisation to test. See [SECURITY.md](SECURITY.md) for the full notice, prohibited uses, and disclaimer.
+
+## License
+
+[MIT](LICENSE.md)

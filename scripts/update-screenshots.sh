@@ -214,6 +214,71 @@ if (showLogsBtn) {
   await page.screenshot({ path: `${outDir}/logs-finding.png`, fullPage: true });
 }
 
+// ----- Graph — node detail panels for top finding -----
+console.log('  📸 Graph node-click screenshots...');
+// Navigate back to Findings, expand top card, click Show on graph
+await clickNav('Findings');
+await waitForContent('.findings-view');
+await page.waitForTimeout(600);
+const firstHeaderForGraph = await page.$('.finding-header');
+if (firstHeaderForGraph) {
+  await firstHeaderForGraph.click();
+  await page.waitForTimeout(2500);
+  const showGraphBtnForNodes = await page.$('.show-on-graph-btn');
+  if (showGraphBtnForNodes) {
+    await showGraphBtnForNodes.click();
+    await waitForContent('.graph-container');
+    await waitForContent('.cytoscape-canvas');
+    await page.waitForTimeout(5000); // layout settle
+
+    // Read affected node IDs from the API (top confirmed finding)
+    const topFindingNodes = await page.evaluate(async function(apiBase) {
+      const res = await fetch(apiBase + '/findings');
+      const findings = await res.json();
+      const confirmed = findings.filter(function(f) { return f.lethalTrifectaStatus === 'CONFIRMED'; });
+      const top = confirmed.length > 0 ? confirmed[0] : findings[0];
+      return top ? top.affectedNodeIds : [];
+    }, baseUrl);
+
+    const nodeSlugMap = {
+      server: 'server',
+      'dv_get_untrusted_prompt': 'tool-dv-get-untrusted-prompt',
+      'dv_read_secret': 'tool-dv-read-secret',
+      'dv_send_external': 'tool-dv-send-external',
+    };
+
+    for (let i = 0; i < topFindingNodes.length; i++) {
+      const nodeId = topFindingNodes[i];
+      // Derive a filesystem-safe slug from the node ID
+      const parts = nodeId.split(':');
+      const lastName = parts[parts.length - 1].replace(/[^a-z0-9_-]/gi, '-');
+      const typePart = parts[0];
+      const slug = typePart + '-' + lastName;
+      const fname = `graph-node-${i + 1}-${slug}.png`;
+      console.log(`    📸 ${fname}...`);
+
+      const found = await page.evaluate(function(id) {
+        var cy = document.querySelector('.cytoscape-canvas').__cy;
+        if (!cy) return false;
+        var node = cy.nodes().filter(function(n) { return n.id() === id; });
+        if (node.length === 0) return false;
+        node.emit('tap');
+        return true;
+      }, nodeId);
+
+      if (!found) { console.warn('    ⚠ node not found: ' + nodeId); continue; }
+
+      await page.waitForSelector('.node-detail-panel', { timeout: 5000 });
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${outDir}/${fname}`, fullPage: false });
+
+      const closeBtn = await page.$('.node-detail-panel button');
+      if (closeBtn) await closeBtn.click();
+      await page.waitForTimeout(250);
+    }
+  }
+}
+
 // ----- Logs -----
 console.log('  📸 Logs...');
 await clickNav('Logs');
@@ -225,5 +290,5 @@ await browser.close();
 console.log('  ✅ All screenshots saved.');
 NODE_SCRIPT
 
-echo "✅ Screenshots updated in docs/screenshots/ (8 files)"
+echo "✅ Screenshots updated in docs/screenshots/"
 ls -lh "${REPO_ROOT}/docs/screenshots/"
