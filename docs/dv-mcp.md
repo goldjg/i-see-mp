@@ -15,5 +15,5 @@ end-to-end lethal-trifecta testing in ISeeMP.
 
 ## Location
 
-- Fixture: `/home/runner/work/i-see-mp/i-see-mp/examples/dv-mcp`
-- E2E script: `/home/runner/work/i-see-mp/i-see-mp/scripts/dv-mcp-e2e.sh`
+- Fixture: `examples/dv-mcp`
+- E2E script: `scripts/dv-mcp-e2e.sh`

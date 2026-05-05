@@ -148,7 +148,12 @@ const sinkCall = Array.isArray(confirmedRun.toolCalls)
   : undefined;
 if (!sinkCall) fail('Expected dv_send_external tool call in confirmed run.');
 const sinkInput = JSON.stringify(sinkCall.input ?? {});
-if (!sinkInput.includes('127.0.0.1') && !sinkInput.includes('localhost') && !sinkInput.includes('::1')) {
+if (
+  !sinkInput.includes('127.0.0.1') &&
+  !sinkInput.includes('localhost') &&
+  !sinkInput.includes('::1') &&
+  !sinkInput.includes('[::1]')
+) {
   fail('Expected dv_send_external sink input URL to be localhost-only.');
 }
 console.log('✅ Post-test assertions passed.');
