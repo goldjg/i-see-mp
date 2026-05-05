@@ -35,7 +35,7 @@ cat >"$COMPOSE_OVERRIDE" <<YAML
 services:
   ${SERVICE}:
     volumes:
-      - .:/app
+      - ./examples/dv-mcp:/app/examples/dv-mcp
 YAML
 
 echo "▶ Rebuilding and starting ${SERVICE}..."
