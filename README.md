@@ -2,18 +2,32 @@
 
 ![ISeeMP Logo](iseemap-logo.png)
 
-> **Execution path analysis engine for AI systems** — maps how models, tools, and context interact, revealing what your AI can actually be made to do.
+> ISeeMP shows what your AI system can actually be made to do.
 
-ISeeMP (I See Model Paths) is a read-only static analyzer for [Model Context Protocol](https://modelcontextprotocol.io/) ecosystems. It enumerates MCP servers, classifies tool capabilities with deterministic rules (no LLM required), builds an attack graph, and surfaces security findings in a local SQLite database with a visual web UI.
+ISeeMP maps execution paths in MCP/agent tooling environments. It answers the question: _what can a model be made to do through the available tools and context?_
+
+It classifies tool capabilities with deterministic rules (no LLM required), builds a graph of possible source→context→sink paths, detects **lethal trifecta** conditions, and can validate selected paths with deterministic canary tests. Everything is stored locally in SQLite.
+
+**Example path:**
+
+```
+READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL
+```
+
+Static detection shows _possible_ paths. Deterministic tests confirm whether a controlled path _actually executes_.
 
 ## Table of Contents
 
+- [Why this matters](#why-this-matters)
 - [What it does](#what-it-does)
-- [Core concepts](#core-concepts)
+- [How to read ISeeMP results](#how-to-read-iseemp-results)
+- [Lethal trifecta model](#lethal-trifecta-model)
 - [Prerequisites](#prerequisites)
 - [Quickstart](#quickstart)
+- [Damn Vulnerable MCP demo (dv-mcp)](#damn-vulnerable-mcp-demo-dv-mcp)
+- [Secure vs vulnerable demo contrast](#secure-vs-vulnerable-demo-contrast)
 - [End-to-end local demo (safe fixture)](#end-to-end-local-demo-safe-fixture)
-- [Run the demo](#run-the-demo)
+- [Filesystem MCP e2e scripts](#filesystem-mcp-e2e-scripts)
 - [Docker (local-first)](#docker-local-first)
 - [Web UI screenshots](#web-ui-screenshots)
 - [Architecture](#architecture)
@@ -26,36 +40,77 @@ ISeeMP (I See Model Paths) is a read-only static analyzer for [Model Context Pro
 - [Development](#development)
 - [Monorepo layout](#monorepo-layout)
 - [Troubleshooting](#troubleshooting)
-- [MVP scope and roadmap](#mvp-scope-and-roadmap)
 - [Safety notes](#safety-notes)
+
+## Why this matters
+
+MCP tool ecosystems compose risk across tools and servers. Inventorying what tools exist is not enough — the critical question is whether a **source** (sensitive data read), **model context** (untrusted instruction influence), and **sink** (external communication or mutation) form a connected path.
+
+ISeeMP makes those paths visible, testable, and explainable.
 
 ## What it does
 
 ISeeMP traces causal chains in AI tooling environments:
 
-- **What gets invoked** — path discovery
-- **What flows where** — path execution graphing
-- **What crosses trust boundaries** — path evidence and findings
+- **Deterministic capability classification** — classifies every tool by what it can do (read secrets, send data, mutate state, etc.) using name/description/schema heuristics; no LLM involved
+- **Path analysis** — builds a graph of source→context→sink paths across tools and servers; detects lethal trifecta conditions
+- **Graph view** — structural model path view with highlighted lethal trifecta paths
+- **Deterministic test profiles** — validates selected paths using canary injection; records whether the path was confirmed, rejected, or inconclusive
+- **Evidence and logs** — redacted tool-call records and a diagnostic timeline for every collection, analysis, and test run
 
 Unlike scanners that only inventory capabilities, ISeeMP highlights chained risk across tools and servers.
 
-## Core concepts
+## How to read ISeeMP results
 
-| Term | Meaning |
-|---|---|
-| Model Paths | Core concept |
-| Path discovery | Engine |
-| Path execution | Testing |
-| Path evidence | Traces |
-| Path risk | Findings |
+After running `collect`, `analyze`, and optionally `test`, open the web UI at `http://localhost:7474`:
+
+| View          | What it shows                                                                        |
+| ------------- | ------------------------------------------------------------------------------------ |
+| **Dashboard** | Summary: servers, tools, findings, exploitable paths, prompt-injection confirmations |
+| **Findings**  | Security conclusions grouped by trifecta stage and severity                          |
+| **Graph**     | Structural model path view; lethal trifecta paths are highlighted                    |
+| **Logs**      | Diagnostic timeline showing why a collection, analysis, or test succeeded or failed  |
+| **Evidence**  | Redacted tool-call and canary records attached to tested findings                    |
+
+Start with **Findings** to understand what ISeeMP concluded. Use **Graph** to see the structural path. Use **Logs** and **Evidence** to understand why a path was confirmed or rejected.
+
+## Lethal trifecta model
+
+A **lethal trifecta** is a complete source→context→sink path:
+
+| Leg                                  | What it means                                                | ISeeMP capability examples                          |
+| ------------------------------------ | ------------------------------------------------------------ | --------------------------------------------------- |
+| 1. Private data access               | A tool can read sensitive or secret data                     | `READ_SECRET_HIGH`, `READ_CREDENTIAL_HIGH`          |
+| 2. Untrusted content influence       | A tool exposes the model to attacker-controlled instructions | `UNTRUSTED_CONTENT_EXPOSURE`, `INSTRUCTION_SOURCE`  |
+| 3. External communication / mutation | A tool can send data out or mutate remote state              | `SEND_EXTERNAL`, `SEND_HTTP`, `MUTATE_REMOTE_STATE` |
+
+### Trifecta status
+
+| Status              | Meaning                                                                                |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| `TRIFECTA_COMPLETE` | Structural source/context/sink path is present                                         |
+| `TRIFECTA_PARTIAL`  | One or more relevant pieces are present but the full path is not structurally complete |
+| `CAPABILITY_ONLY`   | Standalone risky capability not currently part of a structural path                    |
+
+### Test states
+
+| State                 | Meaning                                                                   |
+| --------------------- | ------------------------------------------------------------------------- |
+| `TESTED_CONFIRMED`    | Canary marker was observed at the sink — the path executed                |
+| `TESTED_REJECTED`     | Execution was proven blocked or impossible                                |
+| `TESTED_INCONCLUSIVE` | Path ran but the canary was not observed; neither confirmed nor ruled out |
+
+**"Possible" is not the same as "confirmed."** Static detection identifies structural risk. Only a deterministic canary test can confirm a path actually executes end-to-end.
 
 ## Prerequisites
 
 - Node.js `>=20`
 - pnpm `>=9`
-- Access to MCP server configs and/or URLs you want to analyze
+- Docker (for the dv-mcp e2e demo and the Docker workflow)
 
 ## Quickstart
+
+The recommended path for new users is to start with a local demo fixture — no credentials or external services required.
 
 ```sh
 # 1) Clone and install
@@ -65,42 +120,133 @@ corepack enable
 corepack prepare pnpm@latest --activate
 pnpm install
 
-# 2) Create config: iseemp.config.json
+# 2) Build everything
+pnpm build
+
+# 3) Run the safe local fixture (no credentials needed)
+pnpm --filter safe-mcp build
+
 cat > iseemp.config.json << 'EOF_CONF'
 {
   "mcpServers": {
-    "github": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "ghcr.io/github/github-mcp-server"
-      ],
-      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_your_token_here" }
+    "safe-mcp": {
+      "command": "node",
+      "args": ["examples/safe-mcp/dist/index.js"]
     }
   }
 }
 EOF_CONF
 
-# 3) Build
-pnpm build
-pnpm --filter @iseemp/web build
-
-# 4) Collect + analyze
-node packages/cli/dist/index.js collect
+node packages/cli/dist/index.js collect --config iseemp.config.json
 node packages/cli/dist/index.js analyze
+node packages/cli/dist/index.js serve --port 7474
+# Open http://localhost:7474
 
-# 5) Serve UI
-node packages/cli/dist/index.js serve
+# 4) (Optional) Run the deliberately vulnerable demo — see "Damn Vulnerable MCP demo" section below
+
+# 5) (Optional) Analyze your own MCP servers — set up iseemp.config.json with your servers
+#    GitHub PAT is only required when targeting GitHub MCP servers
+```
+
+## Damn Vulnerable MCP demo (dv-mcp)
+
+> ⚠️ **`dv-mcp` is deliberately vulnerable. It exists for local controlled testing only.**
+> Do not expose it as a real service. It uses only synthetic fake secrets and canary values.
+
+`examples/dv-mcp` is a local demo fixture that demonstrates a **full lethal trifecta** in a controlled lab environment:
+
+```
+UNTRUSTED_CONTENT_EXPOSURE -> MODEL_CONTEXT -> READ_SECRET_HIGH -> SEND_EXTERNAL
+```
+
+Tools in the fixture:
+
+| Tool                      | Role                                                                 |
+| ------------------------- | -------------------------------------------------------------------- |
+| `dv_get_untrusted_prompt` | Source — returns a synthetic attacker-controlled instruction payload |
+| `dv_read_secret`          | Source — returns a synthetic fake secret (no real credential)        |
+| `dv_send_external`        | Sink — HTTP POST to a localhost-only webhook URL                     |
+| `dv_update_issue`         | Sink — fake remote mutation (no real call performed)                 |
+
+### Recommended: run the e2e script
+
+The `scripts/dv-mcp-e2e.sh` script is the simplest way to run the full demo. It requires Docker.
+
+```sh
+# Run the full dv-mcp e2e demo (builds, collects, analyzes, tests, asserts)
+bash scripts/dv-mcp-e2e.sh
+
+# Keep the UI running after the script completes for manual inspection
+ISEEMP_DV_KEEP_UP=1 bash scripts/dv-mcp-e2e.sh
 # Open http://localhost:7474
 ```
 
+Expected outcomes:
+
+- `TESTED_CONFIRMED` — canary observed at the sink
+- `canaryObserved: true` on the `dv-lethal-trifecta` test run
+- `lethalTrifectaStatus: CONFIRMED` on at least one finding
+- Findings, Graph, Logs, and Evidence all show the path and proof
+
+### Manual step-by-step (no Docker)
+
+If you prefer to run without Docker, use these explicit commands from the repo root:
+
+```sh
+# 1) Build the fixture
+pnpm --filter dv-mcp install --frozen-lockfile
+pnpm --filter dv-mcp build
+
+# 2) Write the dv-mcp config
+cat > iseemp.dv-mcp.config.json << 'EOF_CONF'
+{
+  "mcpServers": {
+    "dv-mcp": {
+      "transport": "stdio",
+      "command": "node",
+      "args": ["examples/dv-mcp/dist/index.js"]
+    }
+  }
+}
+EOF_CONF
+
+# 3) Build ISeeMP (if not already built)
+pnpm build
+
+# 4) Collect + analyze
+node packages/cli/dist/index.js collect --config iseemp.dv-mcp.config.json
+node packages/cli/dist/index.js analyze
+
+# 5) Run the dv-lethal-trifecta test profile
+node packages/cli/dist/index.js test --profile dv-lethal-trifecta
+
+# 6) Serve the UI
+node packages/cli/dist/index.js serve --port 7474
+# Open http://localhost:7474 → Findings, Graph, Logs, Evidence
+```
+
+Expected test output includes:
+
+```
+lethal trifecta: CONFIRMED 1
+canary observed: true
+path status: tested_confirmed
+```
+
+## Secure vs vulnerable demo contrast
+
+ISeeMP can show both **risk** and **control effectiveness**:
+
+| Scenario                             | What happens                                                                                                                                                                                                                                  |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Safe/default fixture**             | Fetch or private-address protections may block unsafe delivery. The path may be structurally possible or influenced but the canary is not observed — `TESTED_REJECTED` or `TESTED_INCONCLUSIVE`. This demonstrates that controls are working. |
+| **dv-mcp (deliberately vulnerable)** | The fixture intentionally permits the controlled source-to-sink flow. The canary is observed at the localhost sink. The lethal trifecta is confirmed — `TESTED_CONFIRMED`.                                                                    |
+
+This contrast matters: ISeeMP does not only flag risk. It can confirm that a path is genuinely blocked when controls are in place.
+
 ## End-to-end local demo (safe fixture)
 
-Use the deterministic `examples/safe-mcp` server to validate the full flow locally.
+Use the deterministic `examples/safe-mcp` server to validate the full ISeeMP flow locally against a server with known-safe tools.
 
 ```sh
 # Build the safe fixture
@@ -120,25 +266,24 @@ EOF_CONF
 
 # Build, collect, analyze, serve
 pnpm build
-pnpm --filter @iseemp/web build
 node packages/cli/dist/index.js collect --config iseemp.config.json
 node packages/cli/dist/index.js analyze
 node packages/cli/dist/index.js serve --port 7474
 ```
 
-## Run the demo
+## Run the demo fixture
 
 Use the bundled deterministic demo fixture in `examples/demo-mcp-server`.
 
 ```sh
 # Build demo fixture + write iseemp.demo.config.json
-iseemp demo up
+node packages/cli/dist/index.js demo up
 
 # Collect, analyze, test, and serve
-iseemp demo collect
-iseemp analyze
-iseemp demo test
-iseemp serve --port 7474
+node packages/cli/dist/index.js demo collect
+node packages/cli/dist/index.js analyze
+node packages/cli/dist/index.js demo test
+node packages/cli/dist/index.js serve --port 7474
 ```
 
 Expected demo-confirm tested outcomes:
@@ -197,7 +342,7 @@ SQLite data is persisted in the named volume `iseemp_data` at `/data/iseemp.db`.
 ```yaml
 github-mcp:
   image: ghcr.io/github/github-mcp-server
-  command: ["http", "--port", "8082"]
+  command: ['http', '--port', '8082']
 ```
 
 - Required env var for GitHub collection/testing: `GITHUB_PERSONAL_ACCESS_TOKEN`
@@ -237,6 +382,8 @@ These screenshots were generated via Playwright.
 
 ![Findings](docs/screenshots/findings.png)
 
+<!-- TODO: add docs/screenshots/logs.png once captured -->
+
 ## Architecture
 
 ```mermaid
@@ -261,57 +408,57 @@ ISeeMP classifies tools using name/description/schema heuristics. Capabilities a
 
 **Execution (only true shell/code-eval tools)**
 
-| Capability | Description | Risk |
-|---|---|---|
-| `RUN_SHELL` | Executes shell/OS commands or subprocesses | 95 |
-| `EXECUTE_CODE` | Evaluates code in an interpreter / REPL | 90 |
+| Capability     | Description                                | Risk |
+| -------------- | ------------------------------------------ | ---- |
+| `RUN_SHELL`    | Executes shell/OS commands or subprocesses | 95   |
+| `EXECUTE_CODE` | Evaluates code in an interpreter / REPL    | 90   |
 
 **Reads (sensitivity tiers)**
 
-| Capability | Description | Risk |
-|---|---|---|
-| `READ_CREDENTIAL_HIGH` | Real credentials/tokens/passwords/API keys/env vars | 85 |
-| `READ_SECRET_HIGH` | Secrets / vault contents | 80 |
-| `READ_SECRET` | (legacy alias for READ_SECRET_HIGH) | 80 |
-| `READ_SENSITIVE_MEDIUM` | Team/org/collaborator metadata | 55 |
-| `READ_LOCAL_FILE` | Read local filesystem | 30 |
-| `READ_REMOTE_DATA` | Read from remote sources | 25 |
-| `READ_METADATA_LOW` | Public metadata (releases, tags, labels) | 15 |
+| Capability              | Description                                         | Risk |
+| ----------------------- | --------------------------------------------------- | ---- |
+| `READ_CREDENTIAL_HIGH`  | Real credentials/tokens/passwords/API keys/env vars | 85   |
+| `READ_SECRET_HIGH`      | Secrets / vault contents                            | 80   |
+| `READ_SECRET`           | (legacy alias for READ_SECRET_HIGH)                 | 80   |
+| `READ_SENSITIVE_MEDIUM` | Team/org/collaborator metadata                      | 55   |
+| `READ_LOCAL_FILE`       | Read local filesystem                               | 30   |
+| `READ_REMOTE_DATA`      | Read from remote sources                            | 25   |
+| `READ_METADATA_LOW`     | Public metadata (releases, tags, labels)            | 15   |
 
 **Writes / mutation**
 
-| Capability | Description | Risk |
-|---|---|---|
-| `MUTATE_IDENTITY` | IAM, roles, permissions | 80 |
-| `MUTATE_CLOUD_RESOURCE` | AWS/Azure/GCP resources | 75 |
-| `MUTATE_REPOSITORY` | Create/delete/push to a remote repo | 65 |
-| `WRITE_LOCAL_FILE` | Write to local filesystem | 55 |
-| `WRITE_REMOTE_DATA` | Write to remote systems | 50 |
-| `MUTATE_REMOTE_STATE` | Generic remote state mutation | 45 |
-| `MUTATE_ISSUE_OR_PR` | Create/edit issues, PRs, comments, reviews | 40 |
+| Capability              | Description                                | Risk |
+| ----------------------- | ------------------------------------------ | ---- |
+| `MUTATE_IDENTITY`       | IAM, roles, permissions                    | 80   |
+| `MUTATE_CLOUD_RESOURCE` | AWS/Azure/GCP resources                    | 75   |
+| `MUTATE_REPOSITORY`     | Create/delete/push to a remote repo        | 65   |
+| `WRITE_LOCAL_FILE`      | Write to local filesystem                  | 55   |
+| `WRITE_REMOTE_DATA`     | Write to remote systems                    | 50   |
+| `MUTATE_REMOTE_STATE`   | Generic remote state mutation              | 45   |
+| `MUTATE_ISSUE_OR_PR`    | Create/edit issues, PRs, comments, reviews | 40   |
 
 **Network / send**
 
-| Capability | Description | Risk |
-|---|---|---|
-| `SEND_EXTERNAL` | Send data to a destination outside the trust boundary | 65 |
-| `SEND_EMAIL` | Send email | 60 |
-| `SEND_HTTP` | Make HTTP requests | 55 |
+| Capability      | Description                                           | Risk |
+| --------------- | ----------------------------------------------------- | ---- |
+| `SEND_EXTERNAL` | Send data to a destination outside the trust boundary | 65   |
+| `SEND_EMAIL`    | Send email                                            | 60   |
+| `SEND_HTTP`     | Make HTTP requests                                    | 55   |
 
 **Query**
 
-| Capability | Description | Risk |
-|---|---|---|
-| `QUERY_DATABASE` | Execute SQL queries | 50 |
-| `QUERY_REMOTE_SYSTEM` | Read-only search/list/get on remote SaaS | 20 |
+| Capability            | Description                              | Risk |
+| --------------------- | ---------------------------------------- | ---- |
+| `QUERY_DATABASE`      | Execute SQL queries                      | 50   |
+| `QUERY_REMOTE_SYSTEM` | Read-only search/list/get on remote SaaS | 20   |
 
 **Other**
 
-| Capability | Description | Risk |
-|---|---|---|
-| `EXPORT_DATA` | Bulk export/dump | 70 |
-| `CREATE_TICKET` | Create issues/PRs/tickets (legacy) | 35 |
-| `UNKNOWN` | Unclassified | 10 |
+| Capability      | Description                        | Risk |
+| --------------- | ---------------------------------- | ---- |
+| `EXPORT_DATA`   | Bulk export/dump                   | 70   |
+| `CREATE_TICKET` | Create issues/PRs/tickets (legacy) | 35   |
+| `UNKNOWN`       | Unclassified                       | 10   |
 
 ## Trust boundaries
 
@@ -327,16 +474,16 @@ Findings prefer paths that cross trust boundaries, especially `LOCAL`/`INTERNAL`
 
 ## Risk categories
 
-| Category | Description |
-|---|---|
-| `DATA_EXFILTRATION` | Path from sensitive read → external send (across trust boundary) |
-| `PRIVILEGED_MUTATION` | Remote-state mutation tools exposed to the agent |
-| `CODE_EXECUTION` | Tools with real shell/code execution capability |
-| `TRUST_BOUNDARY_CROSSING` | Server hosted at non-localhost URL |
-| `SENSITIVE_DATA_EXPOSURE` | Tools that can read secrets/credentials/sensitive metadata |
-| `UNVERIFIED_SERVER` | Server not cryptographically verified |
-| `OVERBROAD_TOOL` | Single tool with 4+ capabilities |
-| `DANGEROUS_TOOL_CHAIN` | Server has multiple capabilities forming a risky path |
+| Category                  | Description                                                      |
+| ------------------------- | ---------------------------------------------------------------- |
+| `DATA_EXFILTRATION`       | Path from sensitive read → external send (across trust boundary) |
+| `PRIVILEGED_MUTATION`     | Remote-state mutation tools exposed to the agent                 |
+| `CODE_EXECUTION`          | Tools with real shell/code execution capability                  |
+| `TRUST_BOUNDARY_CROSSING` | Server hosted at non-localhost URL                               |
+| `SENSITIVE_DATA_EXPOSURE` | Tools that can read secrets/credentials/sensitive metadata       |
+| `UNVERIFIED_SERVER`       | Server not cryptographically verified                            |
+| `OVERBROAD_TOOL`          | Single tool with 4+ capabilities                                 |
+| `DANGEROUS_TOOL_CHAIN`    | Server has multiple capabilities forming a risky path            |
 
 Findings now also carry: `confidence`, `staticPossible` / `observed` / `tested`, `sourceCapabilities`, `sinkCapabilities`, `boundaryCrossed`, and `pathSummary` (e.g. `READ_SECRET_HIGH -> MODEL_CONTEXT -> SEND_EXTERNAL (SAAS)`).
 
@@ -370,13 +517,13 @@ Config format (Claude Desktop compatible):
 ## CLI reference
 
 ```text
-iseemp collect [--config <path>] [--server <url>] [--db <path>]
-iseemp analyze [--collection <id>] [--db <path>]
-iseemp test    [--collection <id>] [--profile safe|demo-confirm|github-safe-canary] [--db <path>]
+iseemp collect  [--config <path>] [--server <url>] [--db <path>]
+iseemp analyze  [--collection <id>] [--db <path>]
+iseemp test     [--collection <id>] [--profile <name>] [--db <path>]
 iseemp demo up
-iseemp demo collect [--db <path>]
-iseemp demo test [--collection <id>] [--db <path>]
-iseemp serve   [--port <n>] [--db <path>]
+iseemp demo collect  [--db <path>]
+iseemp demo test     [--collection <id>] [--db <path>]
+iseemp serve    [--port <n>] [--db <path>]
 iseemp --help
 ```
 
@@ -384,22 +531,31 @@ iseemp --help
 
 - `collect` — discovers MCP servers, inventories tools/resources/prompts, and persists results
 - `analyze` — builds graph edges/nodes and runs findings rules
-- `test` — runs the deterministic test profile against the latest collection.
-  The `safe` profile drives canary-based tests for the three required paths
-  (`READ_SECRET_HIGH → SEND_EXTERNAL`, `READ_SENSITIVE_MEDIUM → SEND_EXTERNAL`,
-  and `MUTATE_REMOTE_STATE` exposed). It uses a local-only mock webhook sink
-  (no real external services), records redacted inputs/outputs as evidence,
-  and updates findings to `tested_confirmed` / `tested_rejected` /
-  `tested_inconclusive`.
-- `test --profile github-safe-canary` — runs high-fidelity controlled tests
-  **only** on GitHub/GitHub MCP servers using a disposable repository.
-  This profile performs controlled writes (canary file/issue and optional branch/PR),
-  requires explicit repo config flags, refuses unsafe repo names by default, and
-  stores full redacted evidence + cleanup status.
+- `test` — runs the deterministic test profile against the latest collection
 - `demo up` — builds `examples/demo-mcp-server` and writes `iseemp.demo.config.json`
 - `demo collect` — runs collection against the bundled demo fixture config
 - `demo test` — runs `--profile demo-confirm` with deterministic confirmed/rejected/inconclusive outcomes
 - `serve` — starts Fastify API and serves web UI (if `apps/web/dist` exists)
+
+### Test profiles
+
+| Profile                   | Scope                 | Purpose                                                                                 |
+| ------------------------- | --------------------- | --------------------------------------------------------------------------------------- |
+| `safe`                    | Any server            | Canary-based tests for common risky paths; uses a local mock sink                       |
+| `demo-confirm`            | Demo fixture          | Deterministic confirmed/rejected/inconclusive outcomes against the bundled demo         |
+| `github-safe-canary`      | GitHub MCP servers    | High-fidelity controlled tests against a disposable GitHub repo                         |
+| `prompt-injection-github` | GitHub MCP servers    | Prompt-injection detection via GitHub content channels                                  |
+| `prompt-injection-fetch`  | Fetch MCP servers     | Prompt-injection detection via HTTP fetch channels                                      |
+| `prompt-injection-db`     | DB-capable servers    | Prompt-injection detection via database content channels                                |
+| `dv-lethal-trifecta`      | `dv-mcp` fixture only | Full source→context→sink path confirmation in the deliberately vulnerable local fixture |
+
+#### `dv-lethal-trifecta`
+
+Scoped exclusively to `dv-mcp`. Injects a canary into the untrusted-content source and validates that it reaches the external send sink. Expected outcome: `TESTED_CONFIRMED` with `canaryObserved: true`. Uses a localhost-only sink managed by the test harness — no real external traffic.
+
+```sh
+node packages/cli/dist/index.js test --profile dv-lethal-trifecta
+```
 
 ### Testing the canary fixture end-to-end
 
@@ -414,26 +570,22 @@ cat > iseemp.config.json <<'EOF'
 }
 EOF
 
-iseemp collect && iseemp analyze && iseemp test --profile safe
+node packages/cli/dist/index.js collect && \
+node packages/cli/dist/index.js analyze && \
+node packages/cli/dist/index.js test --profile safe
 ```
 
 ### GitHub high-fidelity safe-canary profile
 
 > ⚠️ `github-safe-canary` performs controlled writes to a **disposable** GitHub repository.
-> Do not point it at production repositories.
+> Do not point it at production repositories. Only target repositories created specifically for canary testing.
 
-Required permissions for the GitHub MCP token should include the minimum needed to:
-
-- read repository contents/metadata
-- create/update/delete test files/branches
-- create/update/close test issues (and PRs only if you enable optional PR creation)
-
-Example:
+Required permissions for the GitHub MCP token: read repository contents/metadata; create/update/delete test files and branches; create/update/close test issues.
 
 ```bash
-iseemp collect --config iseemp.config.json
-iseemp analyze
-iseemp test \
+node packages/cli/dist/index.js collect --config iseemp.config.json
+node packages/cli/dist/index.js analyze
+node packages/cli/dist/index.js test \
   --profile github-safe-canary \
   --test-repo-owner octo-org \
   --test-repo-name canary-sandbox \
@@ -445,7 +597,7 @@ iseemp test \
 Expected outcomes in this profile:
 
 - `TESTED_CONFIRMED` only when the unique canary marker is observed in expected controlled artifacts
-- `TESTED_REJECTED` only when execution is proven blocked/impossible
+- `TESTED_REJECTED` only when execution is proven blocked or impossible
 - `TESTED_INCONCLUSIVE` when marker is absent without proof of blockage
 - `TEST_SKIPPED` when required permissions/tools are missing
 
@@ -464,14 +616,33 @@ When using Docker Compose, write the GitHub server entry as:
 
 ## HTTP API reference
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/health` | GET | Liveness and timestamp |
-| `/collections` | GET | List collections |
-| `/servers?collectionId=...` | GET | Servers for collection (latest by default) |
-| `/tools?collectionId=...` | GET | Tools for collection (latest by default) |
-| `/graph?collectionId=...` | GET | Graph nodes/edges (persisted or built on read) |
-| `/findings?collectionId=...` | GET | Findings for collection |
+| Endpoint                                    | Method | Description                                    |
+| ------------------------------------------- | ------ | ---------------------------------------------- |
+| `/health`                                   | GET    | Liveness and timestamp                         |
+| `/collections`                              | GET    | List collections                               |
+| `/servers?collectionId=...`                 | GET    | Servers for collection (latest by default)     |
+| `/tools?collectionId=...&serverId=...`      | GET    | Tools for collection (latest by default)       |
+| `/graph?collectionId=...`                   | GET    | Graph nodes/edges (persisted or built on read) |
+| `/findings?collectionId=...`                | GET    | Findings for collection                        |
+| `/test-runs?collectionId=...&findingId=...` | GET    | Test runs for collection or finding            |
+| `/test-runs/:id`                            | GET    | Single test run with attached evidence         |
+| `/evidence/:testRunId`                      | GET    | Evidence records for a test run                |
+| `/logs`                                     | GET    | Diagnostic log entries (paginated)             |
+
+#### `/logs` query parameters
+
+| Parameter      | Description                                                    |
+| -------------- | -------------------------------------------------------------- |
+| `collectionId` | Filter by collection                                           |
+| `findingId`    | Filter by finding                                              |
+| `testRunId`    | Filter by test run                                             |
+| `serverId`     | Filter by server                                               |
+| `toolId`       | Filter by tool                                                 |
+| `phase`        | Filter by phase: `collect`, `analyze`, `test`, `serve`, `demo` |
+| `level`        | Filter by level: `info`, `warn`, `error`                       |
+| `q`            | Free-text search across log messages                           |
+| `limit`        | Page size (1–500, default 100)                                 |
+| `offset`       | Pagination offset (default 0)                                  |
 
 ## Data model (SQLite)
 
@@ -485,11 +656,9 @@ Primary tables:
 - `nodes`
 - `edges`
 - `findings`
-
-Reserved post-MVP testing tables:
-
-- `test_runs`
-- `evidence`
+- `test_runs` — one row per tested path; stores `pathStatus`, `canaryObserved`, `toolCalls`, and test metadata
+- `evidence` — redacted tool-call records attached to test runs
+- `logs` — diagnostic timeline for every phase; queryable via `/logs` API
 
 ## Development
 
@@ -511,8 +680,10 @@ packages/collector    Config discovery + MCP client
 packages/graph        Graph builder + attack-path queries
 packages/storage      SQLite schema + typed repositories
 packages/rules        Capability classifier + findings rules
+packages/tester       Deterministic test runner + profile registry
 packages/cli          iseemp CLI entry point
-examples/safe-mcp     Deterministic MCP fixture with known tools
+examples/safe-mcp     Deterministic MCP fixture with known-safe tools
+examples/dv-mcp       Deliberately vulnerable fixture for lethal trifecta demo
 ```
 
 ## Troubleshooting
@@ -527,32 +698,11 @@ examples/safe-mcp     Deterministic MCP fixture with known tools
 - **Remote server issues**
   - Verify URL/transport and credentials for that server.
 
-## MVP scope and roadmap
-
-### In scope
-
-- Static analysis only (does not execute tools)
-- Deterministic rules-based capability classification
-- SQLite storage with append-only collections
-- Local API + web UI
-
-### Out of scope (post-MVP)
-
-- LLM-driven fuzzing / prompt-injection probing
-- Observed-call tracking (`observed_call` / `tested_path` edges)
-- Multi-tenant cloud deployment
-- Historical collection diff UI
-
-### Roadmap highlights
-
-- CI failure gates (`analyze --fail-on critical`)
-- Diff views over time
-- Policy-as-code custom rules
-
 ## Safety notes
 
-- Static analysis remains read-only by default (`collect`/`analyze` and `safe` profile).
-- `github-safe-canary` is an explicit opt-in profile that performs controlled writes to disposable GitHub artifacts.
-- Secrets in config env vars are **redacted** before storage.
-- SQLite database is local; no automatic outbound data export.
-- Remote collection uses metadata endpoints only (`listTools`, `listResources`, `listPrompts`).
+- **Local-first storage** — all data is stored in a local SQLite file; no automatic outbound data export.
+- **Secret redaction** — secrets in config env vars are redacted before storage; evidence and log records are redacted before being written.
+- **dv-mcp is intentionally vulnerable** — `examples/dv-mcp` is a deliberate lab fixture. Do not expose it outside a local controlled environment. It uses only synthetic fake secrets and localhost-restricted sinks.
+- **Remote collection uses metadata only** — `collect` calls `listTools`, `listResources`, and `listPrompts`; it does not invoke tools.
+- **`github-safe-canary` requires a disposable repository** — this profile performs controlled writes. Only target repositories created specifically for canary testing; never point it at production repos.
+- **`safe` profile is read-only by default** — uses a local mock webhook sink; no real external traffic.

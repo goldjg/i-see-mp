@@ -41,9 +41,7 @@ export function createServersRepo(db: Database.Database) {
     },
 
     findById(id: string): ServerRow | undefined {
-      return db
-        .prepare(`SELECT * FROM servers WHERE id=?`)
-        .get(id) as ServerRow | undefined;
+      return db.prepare(`SELECT * FROM servers WHERE id=?`).get(id) as ServerRow | undefined;
     },
   };
 }

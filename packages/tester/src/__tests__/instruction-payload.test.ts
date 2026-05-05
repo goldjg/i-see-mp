@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { instructionPayloadGenerator, instructionPayloadRecordGenerator } from '../instruction-payload.js';
+import {
+  instructionPayloadGenerator,
+  instructionPayloadRecordGenerator,
+} from '../instruction-payload.js';
 
 describe('instructionPayloadGenerator', () => {
   it('builds deterministic instruction and exfil markers', () => {

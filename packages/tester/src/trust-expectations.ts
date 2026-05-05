@@ -47,21 +47,34 @@ function isSensitiveTrustTransition(sourceZone?: TrustZone, sinkZone?: TrustZone
   );
 }
 
-export function derivesExpectedTrustBoundaryCrossing(sourceZone?: TrustZone, sinkZone?: TrustZone): boolean {
+export function derivesExpectedTrustBoundaryCrossing(
+  sourceZone?: TrustZone,
+  sinkZone?: TrustZone,
+): boolean {
   if (!sourceZone || !sinkZone) return false;
   if (sourceZone === sinkZone) return false;
   const attackerControlledSource =
     sourceZone === TRUST_ZONE.USER_CONTROLLED_SAAS || sourceZone === TRUST_ZONE.EXTERNAL;
   const attackerReachableSink =
     sinkZone === TRUST_ZONE.USER_CONTROLLED_SAAS || sinkZone === TRUST_ZONE.EXTERNAL;
-  return attackerControlledSource || attackerReachableSink || isSensitiveTrustTransition(sourceZone, sinkZone);
+  return (
+    attackerControlledSource ||
+    attackerReachableSink ||
+    isSensitiveTrustTransition(sourceZone, sinkZone)
+  );
 }
 
-function makeExpectation(sourceTrustClass: TrustZone, sinkTrustClass: TrustZone): PairTrustExpectation {
+function makeExpectation(
+  sourceTrustClass: TrustZone,
+  sinkTrustClass: TrustZone,
+): PairTrustExpectation {
   return {
     sourceTrustClass,
     sinkTrustClass,
-    expectedTrustBoundaryCrossed: derivesExpectedTrustBoundaryCrossing(sourceTrustClass, sinkTrustClass),
+    expectedTrustBoundaryCrossed: derivesExpectedTrustBoundaryCrossing(
+      sourceTrustClass,
+      sinkTrustClass,
+    ),
   };
 }
 
@@ -91,7 +104,10 @@ export function getKnownPairTrust(key: PairTrustKey): PairTrustExpectation[] {
   return value;
 }
 
-function parseTrustTransition(transition?: string): { sourceTrustClass?: TrustZone; sinkTrustClass?: TrustZone } {
+function parseTrustTransition(transition?: string): {
+  sourceTrustClass?: TrustZone;
+  sinkTrustClass?: TrustZone;
+} {
   if (!transition) return {};
   const parts = transition.split('→').map((part) => part.trim());
   if (parts.length !== 2) return {};
@@ -112,7 +128,8 @@ function resolveExpectedBoundaryForPair(
   if (parsed.sourceTrustClass && parsed.sinkTrustClass) {
     const match = candidates.find(
       (candidate) =>
-        candidate.sourceTrustClass === parsed.sourceTrustClass && candidate.sinkTrustClass === parsed.sinkTrustClass,
+        candidate.sourceTrustClass === parsed.sourceTrustClass &&
+        candidate.sinkTrustClass === parsed.sinkTrustClass,
     );
     if (match) {
       return {
@@ -121,14 +138,18 @@ function resolveExpectedBoundaryForPair(
       };
     }
   }
-  const unique = Array.from(new Set(candidates.map((candidate) => candidate.expectedTrustBoundaryCrossed)));
+  const unique = Array.from(
+    new Set(candidates.map((candidate) => candidate.expectedTrustBoundaryCrossed)),
+  );
   if (unique.length === 1) {
     const transitions = candidates
       .map((candidate) => `${candidate.sourceTrustClass} → ${candidate.sinkTrustClass}`)
       .join(' | ');
     const expected = unique[0];
     if (typeof expected !== 'boolean') {
-      fail(`Internal trust expectation error: could not resolve unique boundary value for pair '${key}'.`);
+      fail(
+        `Internal trust expectation error: could not resolve unique boundary value for pair '${key}'.`,
+      );
     }
     return {
       expected,
@@ -158,7 +179,9 @@ export function assertTrustBoundaryForPair(
   }
 }
 
-export function assertCrossServerAndTrustBoundaryIndependent(finding: TrustExpectationFindingLike): void {
+export function assertCrossServerAndTrustBoundaryIndependent(
+  finding: TrustExpectationFindingLike,
+): void {
   if (typeof finding.isCrossServer !== 'boolean') {
     fail(`Expected finding ${finding.id ?? '<unknown>'} to include boolean isCrossServer.`);
   }
@@ -185,7 +208,9 @@ export function assertFindingTrustConsistency(
       fail(`Cross-server finding ${finding.id ?? '<unknown>'} is missing sinkServerId.`);
     }
     if (finding.sourceServerId === finding.sinkServerId) {
-      fail(`Cross-server finding ${finding.id ?? '<unknown>'} has identical source and sink server IDs.`);
+      fail(
+        `Cross-server finding ${finding.id ?? '<unknown>'} has identical source and sink server IDs.`,
+      );
     }
   }
   const { sourceTrustClass, sinkTrustClass } = parseTrustTransition(finding.trustTransition);

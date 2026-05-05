@@ -131,9 +131,7 @@ export function createLogsRepo(db: Database.Database) {
         .prepare(`SELECT COUNT(*) as total FROM logs ${whereSql}`)
         .get(...params) as { total: number };
       const rows = db
-        .prepare(
-          `SELECT * FROM logs ${whereSql} ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
-        )
+        .prepare(`SELECT * FROM logs ${whereSql} ORDER BY timestamp DESC LIMIT ? OFFSET ?`)
         .all(...params, limit, offset) as LogRow[];
 
       return {

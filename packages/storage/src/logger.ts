@@ -50,7 +50,10 @@ function redact(details: Record<string, unknown> | undefined): {
     }
 
     if (typeof value === 'string') {
-      if (BASE64_RE.test(value) && /auth|token|secret|key|cookie|credential|pat|bearer/i.test(key)) {
+      if (
+        BASE64_RE.test(value) &&
+        /auth|token|secret|key|cookie|credential|pat|bearer/i.test(key)
+      ) {
         out[key] = REDACTED;
         anyRedacted = true;
         continue;

@@ -1,4 +1,10 @@
-import { PathStatus, type Finding, type TestRun, type Capability, ValidationMode } from '@iseemp/core';
+import {
+  PathStatus,
+  type Finding,
+  type TestRun,
+  type Capability,
+  ValidationMode,
+} from '@iseemp/core';
 import type { ProfileDescriptor } from './profile-descriptor.js';
 
 export interface ProfileSummaryLike {
@@ -32,14 +38,23 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-export function assertProfileSummary(summary: ProfileSummaryLike, opts: ProfileSummaryExpected): void {
-  if (typeof opts.profilesPlanned === 'number' && summary.profilesPlanned !== opts.profilesPlanned) {
+export function assertProfileSummary(
+  summary: ProfileSummaryLike,
+  opts: ProfileSummaryExpected,
+): void {
+  if (
+    typeof opts.profilesPlanned === 'number' &&
+    summary.profilesPlanned !== opts.profilesPlanned
+  ) {
     fail(`Expected profilesPlanned=${opts.profilesPlanned}, got ${summary.profilesPlanned}.`);
   }
   if (typeof opts.profilesRun === 'number' && summary.profilesRun !== opts.profilesRun) {
     fail(`Expected profilesRun=${opts.profilesRun}, got ${summary.profilesRun}.`);
   }
-  if (typeof opts.profilesSkipped === 'number' && summary.profilesSkipped !== opts.profilesSkipped) {
+  if (
+    typeof opts.profilesSkipped === 'number' &&
+    summary.profilesSkipped !== opts.profilesSkipped
+  ) {
     fail(`Expected profilesSkipped=${opts.profilesSkipped}, got ${summary.profilesSkipped}.`);
   }
   if (typeof opts.profilesPassed === 'number' && summary.profilesPassed !== opts.profilesPassed) {
@@ -70,7 +85,10 @@ export function assertHasCapability(
   if (!found) fail(`Expected capability '${capability}' on server '${serverId}'.`);
 }
 
-export function assertHasFindingWithStatus(findings: Finding[], status: PathStatus | string): Finding {
+export function assertHasFindingWithStatus(
+  findings: Finding[],
+  status: PathStatus | string,
+): Finding {
   const finding = findings.find((candidate) => candidate.pathStatus === status);
   if (!finding) fail(`Expected at least one finding with pathStatus='${status}'.`);
   return finding;
@@ -116,7 +134,9 @@ export function assertNoCoercionEvidence(testRuns: TestRun[]): void {
     (run) => run.deviationDetected === true || run.injectionConfirmed === true,
   );
   if (coercion.length > 0) {
-    fail(`Expected no coercion evidence, found ${coercion.length} run(s) with deviation/injection markers.`);
+    fail(
+      `Expected no coercion evidence, found ${coercion.length} run(s) with deviation/injection markers.`,
+    );
   }
 }
 

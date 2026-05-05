@@ -67,11 +67,13 @@ describe('planSafeProfile', () => {
     const map = new Map<string, ToolRow[]>([['srv1', tools]]);
     const planned = planSafeProfile([server()], map);
     const ids = planned.map((p) => p.caseDef.id).sort();
-    expect(ids).toEqual([
-      'MUTATE_REMOTE_STATE_EXPOSED',
-      'READ_SENSITIVE_MEDIUM_TO_SEND_EXTERNAL',
-      'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
-    ].sort());
+    expect(ids).toEqual(
+      [
+        'MUTATE_REMOTE_STATE_EXPOSED',
+        'READ_SENSITIVE_MEDIUM_TO_SEND_EXTERNAL',
+        'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
+      ].sort(),
+    );
     expect(SAFE_PROFILE_CASES).toHaveLength(3);
     expect(planned.every((p) => !!p.candidatePathId)).toBe(true);
   });
@@ -81,7 +83,6 @@ describe('planSafeProfile', () => {
     const planned = planSafeProfile([server()], new Map([['srv1', tools]]));
     expect(planned.map((p) => p.caseDef.id)).toEqual([]);
   });
-
 });
 
 describe('planDemoConfirmProfile', () => {
@@ -95,11 +96,13 @@ describe('planDemoConfirmProfile', () => {
     ];
     const planned = planDemoConfirmProfile([server()], new Map([['srv1', tools]]));
     const ids = planned.map((p) => p.caseDef.id).sort();
-    expect(ids).toEqual([
-      'MUTATE_REMOTE_STATE_EXPOSED',
-      'READ_METADATA_LOW_TO_SEND_EXTERNAL',
-      'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
-    ].sort());
+    expect(ids).toEqual(
+      [
+        'MUTATE_REMOTE_STATE_EXPOSED',
+        'READ_METADATA_LOW_TO_SEND_EXTERNAL',
+        'READ_SECRET_HIGH_TO_SEND_EXTERNAL',
+      ].sort(),
+    );
     expect(DEMO_CONFIRM_PROFILE_CASES).toHaveLength(3);
   });
 });
@@ -155,8 +158,12 @@ describe('github-safe-canary planning and refusal gates', () => {
       tool('t-repo', 'create_or_update_file', [Capability.MUTATE_REMOTE_STATE]),
     ];
     const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
-    const issueCase = planned.find((p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT');
-    const repoCase = planned.find((p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT');
+    const issueCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT',
+    );
+    const repoCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT',
+    );
     expect(issueCase?.sourceTool?.name).toBe('create_issue');
     expect(repoCase?.sourceTool?.name).toBe('create_or_update_file');
   });
@@ -168,7 +175,9 @@ describe('github-safe-canary planning and refusal gates', () => {
       tool('t-issue', 'issue_write', [Capability.MUTATE_ISSUE_OR_PR]),
     ];
     const planned = planGithubSafeCanaryProfile([githubSrv], new Map([['srv1', githubTools]]));
-    const issueCase = planned.find((p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT');
+    const issueCase = planned.find(
+      (p) => p.caseDef.id === 'GITHUB_ISSUE_PR_WRITE_CONTROLLED_ARTIFACT',
+    );
     expect(issueCase?.sourceTool?.name).toBe('issue_write');
   });
 
@@ -200,14 +209,16 @@ describe('prompt-injection-github planning', () => {
   it('plans prompt injection case when issue_read and sink tool exist', () => {
     const githubSrv = { ...server(), name: 'github-mcp' };
     const githubTools = [
-      tool('t-read', 'issue_read', [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA]),
+      tool('t-read', 'issue_read', [
+        Capability.UNTRUSTED_CONTENT_EXPOSURE,
+        Capability.READ_REMOTE_DATA,
+      ]),
       tool('t-send', 'send_http_request', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
     ];
-    const planned = planPromptInjectionGithubProfile(
-      [githubSrv],
-      new Map([['srv1', githubTools]]),
+    const planned = planPromptInjectionGithubProfile([githubSrv], new Map([['srv1', githubTools]]));
+    expect(planned.some((p) => p.caseDef.id === 'PROMPT_INJECTION_GITHUB_ISSUE_TO_SINK')).toBe(
+      true,
     );
-    expect(planned.some((p) => p.caseDef.id === 'PROMPT_INJECTION_GITHUB_ISSUE_TO_SINK')).toBe(true);
   });
 });
 
@@ -293,7 +304,10 @@ describe('executePromptInjectionGithubPlannedTest', () => {
         [
           'srv1',
           [
-            tool('t-read', 'issue_read', [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA]),
+            tool('t-read', 'issue_read', [
+              Capability.UNTRUSTED_CONTENT_EXPOSURE,
+              Capability.READ_REMOTE_DATA,
+            ]),
             tool('t-send', 'send_http_request', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
           ],
         ],
@@ -358,7 +372,10 @@ describe('executePromptInjectionFetchPlannedTest', () => {
         [
           'srv1',
           [
-            tool('t-fetch', 'web_fetch', [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA]),
+            tool('t-fetch', 'web_fetch', [
+              Capability.UNTRUSTED_CONTENT_EXPOSURE,
+              Capability.READ_REMOTE_DATA,
+            ]),
             tool('t-send', 'send_http_request', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
           ],
         ],
@@ -400,7 +417,13 @@ describe('executePromptInjectionFetchPlannedTest', () => {
       new Map([
         [
           'srv1',
-          [tool('t-fetch', 'web_fetch', [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA, Capability.SEND_HTTP])],
+          [
+            tool('t-fetch', 'web_fetch', [
+              Capability.UNTRUSTED_CONTENT_EXPOSURE,
+              Capability.READ_REMOTE_DATA,
+              Capability.SEND_HTTP,
+            ]),
+          ],
         ],
       ]),
     )[0];
@@ -444,7 +467,10 @@ describe('executePromptInjectionFetchPlannedTest', () => {
         [
           'srv1',
           [
-            tool('t-fetch', 'web_fetch', [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.READ_REMOTE_DATA]),
+            tool('t-fetch', 'web_fetch', [
+              Capability.UNTRUSTED_CONTENT_EXPOSURE,
+              Capability.READ_REMOTE_DATA,
+            ]),
             tool('t-send', 'send_http_request', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]),
           ],
         ],
@@ -1215,7 +1241,8 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
         profile: 'github-safe-canary' as const,
         sink,
         invoke: async (_serverId: string, toolName: string) => {
-          if (toolName === 'get_file_contents') return { raw: null, text: '404 Not Found', isError: true };
+          if (toolName === 'get_file_contents')
+            return { raw: null, text: '404 Not Found', isError: true };
           if (toolName === 'create_or_update_file') {
             return {
               raw: null,
@@ -1272,7 +1299,10 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
           if (toolName === 'issue_write') {
             return {
               raw: null,
-              text: JSON.stringify({ number: 123, html_url: 'https://github.com/goldjg/canary-sandbox/issues/123' }),
+              text: JSON.stringify({
+                number: 123,
+                html_url: 'https://github.com/goldjg/canary-sandbox/issues/123',
+              }),
               isError: false,
             };
           }
@@ -1438,7 +1468,10 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
           if (toolName === 'issue_write') {
             return {
               raw: null,
-              text: JSON.stringify({ number: 123, html_url: 'https://github.com/goldjg/canary-sandbox/issues/123' }),
+              text: JSON.stringify({
+                number: 123,
+                html_url: 'https://github.com/goldjg/canary-sandbox/issues/123',
+              }),
               isError: false,
             };
           }
@@ -1446,7 +1479,11 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
             issueReads += 1;
             return issueReads === 1
               ? { raw: null, text: JSON.stringify({ body: 'controlled\nmissing' }), isError: false }
-              : { raw: null, text: JSON.stringify({ body: `controlled\n${marker}` }), isError: false };
+              : {
+                  raw: null,
+                  text: JSON.stringify({ body: `controlled\n${marker}` }),
+                  isError: false,
+                };
           }
           return { raw: null, text: JSON.stringify({ ok: true }), isError: false };
         },
@@ -1587,7 +1624,11 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
         },
       });
 
-      expect(toolCalls.slice(0, 3)).toEqual(['create_or_update_file', 'search_code', 'get_file_contents']);
+      expect(toolCalls.slice(0, 3)).toEqual([
+        'create_or_update_file',
+        'search_code',
+        'get_file_contents',
+      ]);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.notes).toContain('primary read tool failed');
     } finally {
@@ -1650,7 +1691,11 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
         },
       });
 
-      expect(toolCalls.slice(0, 3)).toEqual(['create_or_update_file', 'get_code_scanning_alert', 'get_file_contents']);
+      expect(toolCalls.slice(0, 3)).toEqual([
+        'create_or_update_file',
+        'get_code_scanning_alert',
+        'get_file_contents',
+      ]);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.notes).toContain('primary read tool failed');
     } finally {
@@ -1713,7 +1758,11 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
         },
       });
 
-      expect(toolCalls.slice(0, 3)).toEqual(['create_or_update_file', 'search_code', 'get_file_contents']);
+      expect(toolCalls.slice(0, 3)).toEqual([
+        'create_or_update_file',
+        'search_code',
+        'get_file_contents',
+      ]);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.canaryObserved).toBe(true);
     } finally {
@@ -1776,7 +1825,11 @@ describe('executeGithubSafeCanaryPlannedTest', () => {
         },
       });
 
-      expect(toolCalls.slice(0, 3)).toEqual(['create_or_update_file', 'search_code', 'get_file_contents']);
+      expect(toolCalls.slice(0, 3)).toEqual([
+        'create_or_update_file',
+        'search_code',
+        'get_file_contents',
+      ]);
       expect(executed.testRun.pathStatus).toBe(PathStatus.TESTED_CONFIRMED);
       expect(executed.testRun.canaryObserved).toBe(true);
       expect(executed.testRun.notes).toContain('primary read tool failed');

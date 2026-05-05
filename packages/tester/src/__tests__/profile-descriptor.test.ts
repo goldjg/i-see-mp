@@ -21,7 +21,9 @@ describe('selectProfilesForTopology', () => {
       { hasCredentials: false },
     );
     expect(result.selected.map((p) => p.profileId)).toContain(FILESYSTEM_ONLY_PROFILE.profileId);
-    expect(result.selected.map((p) => p.profileId)).not.toContain(FILESYSTEM_FETCH_PROFILE.profileId);
+    expect(result.selected.map((p) => p.profileId)).not.toContain(
+      FILESYSTEM_FETCH_PROFILE.profileId,
+    );
     expect(result.skipped.some((s) => s.reason === 'not applicable to topology')).toBe(true);
   });
 
@@ -36,7 +38,9 @@ describe('selectProfilesForTopology', () => {
       { hasCredentials: false },
     );
     expect(result.selected.map((p) => p.profileId)).toContain(FILESYSTEM_FETCH_PROFILE.profileId);
-    expect(result.selected.map((p) => p.profileId)).not.toContain(FILESYSTEM_FETCH_GITHUB_PROFILE.profileId);
+    expect(result.selected.map((p) => p.profileId)).not.toContain(
+      FILESYSTEM_FETCH_GITHUB_PROFILE.profileId,
+    );
   });
 
   it('selects filesystem-fetch-github and skips credential-required profiles when credentials missing', () => {
@@ -50,7 +54,9 @@ describe('selectProfilesForTopology', () => {
       E2E_PROFILE_DESCRIPTORS,
       { hasCredentials: false },
     );
-    expect(result.selected.map((p) => p.profileId)).toContain(FILESYSTEM_FETCH_GITHUB_PROFILE.profileId);
+    expect(result.selected.map((p) => p.profileId)).toContain(
+      FILESYSTEM_FETCH_GITHUB_PROFILE.profileId,
+    );
     expect(
       result.skipped.some(
         (s) => s.profileId === 'github-safe-canary' && s.reason === 'missing required credentials',

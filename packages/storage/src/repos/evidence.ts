@@ -22,7 +22,9 @@ function rowToEvidence(r: EvidenceRow): Evidence {
     type: r.type,
     stepIndex: r.step_index ?? undefined,
     toolName: r.tool_name ?? undefined,
-    redactedInput: r.redacted_input ? (JSON.parse(r.redacted_input) as Record<string, unknown>) : undefined,
+    redactedInput: r.redacted_input
+      ? (JSON.parse(r.redacted_input) as Record<string, unknown>)
+      : undefined,
     redactedOutput: r.redacted_output ? (JSON.parse(r.redacted_output) as unknown) : undefined,
     content: JSON.parse(r.content) as Record<string, unknown>,
     createdAt: r.created_at,
@@ -49,20 +51,18 @@ export function createEvidenceRepo(db: Database.Database) {
     'INSERT OR REPLACE INTO evidence (id, test_run_id, candidate_path_id, type, step_index, tool_name, redacted_input, redacted_output, content, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)';
   return {
     insert(row: EvidenceRow): void {
-      db
-        .prepare(insertSql)
-        .run(
-          row.id,
-          row.test_run_id,
-          row.candidate_path_id,
-          row.type,
-          row.step_index,
-          row.tool_name,
-          row.redacted_input,
-          row.redacted_output,
-          row.content,
-          row.created_at,
-        );
+      db.prepare(insertSql).run(
+        row.id,
+        row.test_run_id,
+        row.candidate_path_id,
+        row.type,
+        row.step_index,
+        row.tool_name,
+        row.redacted_input,
+        row.redacted_output,
+        row.content,
+        row.created_at,
+      );
     },
     insertMany(rows: EvidenceRow[]): void {
       const stmt = db.prepare(insertSql);

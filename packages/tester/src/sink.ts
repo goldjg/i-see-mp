@@ -48,7 +48,9 @@ export async function startMockSink(): Promise<MockSink> {
         body,
       });
       const urlPath = req.url ?? '/';
-      const goldenInjectMatch = /^\/canary-sink\/iseemp-golden-inject\/([A-Za-z0-9-]+)$/.exec(urlPath);
+      const goldenInjectMatch = /^\/canary-sink\/iseemp-golden-inject\/([A-Za-z0-9-]+)$/.exec(
+        urlPath,
+      );
       if (goldenInjectMatch?.[1]) {
         const injectMarkerUuid = goldenInjectMatch[1];
         const exfilMarker = goldenInjectMarkers.get(injectMarkerUuid);

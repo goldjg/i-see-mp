@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { PathStatus, RiskCategory, TestOutcome, TestStatus, type Finding, type TestRun } from '@iseemp/core';
+import {
+  PathStatus,
+  RiskCategory,
+  TestOutcome,
+  TestStatus,
+  type Finding,
+  type TestRun,
+} from '@iseemp/core';
 import {
   assertCanaryEvidence,
   assertHasCapability,
@@ -54,7 +61,9 @@ describe('profile assertions', () => {
       profilesPassed: 1,
       profilesFailed: 0,
     };
-    expect(() => assertProfileSummary(summary, { profilesPlanned: 1, profilesRun: 1 })).not.toThrow();
+    expect(() =>
+      assertProfileSummary(summary, { profilesPlanned: 1, profilesRun: 1 }),
+    ).not.toThrow();
     expect(() => assertProfileSummary(summary, { profilesFailed: 1 })).toThrow(/profilesFailed/);
   });
 
@@ -78,7 +87,9 @@ describe('profile assertions', () => {
   });
 
   it('assertNoFindingWithStatus pass and fail', () => {
-    expect(() => assertNoFindingWithStatus([baseFinding], PathStatus.TESTED_REJECTED)).not.toThrow();
+    expect(() =>
+      assertNoFindingWithStatus([baseFinding], PathStatus.TESTED_REJECTED),
+    ).not.toThrow();
     expect(() => assertNoFindingWithStatus([baseFinding], PathStatus.TESTED_CONFIRMED)).toThrow(
       /Expected no findings/,
     );
@@ -87,7 +98,9 @@ describe('profile assertions', () => {
   it('assertHasTrustTransition pass and fail', () => {
     const finding = { ...baseFinding, trustTransition: 'LOCAL → EXTERNAL' };
     expect(assertHasTrustTransition([finding], 'LOCAL', 'EXTERNAL').id).toBe('f-1');
-    expect(() => assertHasTrustTransition([finding], 'LOCAL', 'SAAS')).toThrow(/Expected trust transition/);
+    expect(() => assertHasTrustTransition([finding], 'LOCAL', 'SAAS')).toThrow(
+      /Expected trust transition/,
+    );
   });
 
   it('assertFindingPairTrustBoundary pass and fail', () => {
@@ -102,7 +115,9 @@ describe('profile assertions', () => {
 
   it('assertCanaryEvidence pass and fail', () => {
     expect(() => assertCanaryEvidence([baseRun])).not.toThrow();
-    expect(() => assertCanaryEvidence([{ ...baseRun, canaryObserved: false }])).toThrow(/canaryObserved/);
+    expect(() => assertCanaryEvidence([{ ...baseRun, canaryObserved: false }])).toThrow(
+      /canaryObserved/,
+    );
   });
 
   it('assertNoCoercionEvidence pass and fail', () => {
@@ -115,7 +130,10 @@ describe('profile assertions', () => {
   it('assertNoUnexpectedPromptInjectionConfirmed pass and fail', () => {
     const injectionFinding = { ...baseFinding, injectionConfirmed: true };
     expect(() =>
-      assertNoUnexpectedPromptInjectionConfirmed([injectionFinding], PROMPT_INJECTION_GITHUB_DESCRIPTOR),
+      assertNoUnexpectedPromptInjectionConfirmed(
+        [injectionFinding],
+        PROMPT_INJECTION_GITHUB_DESCRIPTOR,
+      ),
     ).not.toThrow();
     expect(() =>
       assertNoUnexpectedPromptInjectionConfirmed([injectionFinding], FILESYSTEM_ONLY_PROFILE),
@@ -125,7 +143,10 @@ describe('profile assertions', () => {
   it('assertNoUnexpectedLethalTrifectaConfirmed pass and fail', () => {
     const lethalFinding = { ...baseFinding, lethalTrifectaStatus: 'CONFIRMED' as const };
     expect(() =>
-      assertNoUnexpectedLethalTrifectaConfirmed([lethalFinding], PROMPT_INJECTION_GITHUB_DESCRIPTOR),
+      assertNoUnexpectedLethalTrifectaConfirmed(
+        [lethalFinding],
+        PROMPT_INJECTION_GITHUB_DESCRIPTOR,
+      ),
     ).not.toThrow();
     expect(() =>
       assertNoUnexpectedLethalTrifectaConfirmed([lethalFinding], FILESYSTEM_ONLY_PROFILE),

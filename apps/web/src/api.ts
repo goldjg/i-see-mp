@@ -122,7 +122,12 @@ export interface TestRun {
   serverId?: string;
   sourceToolId?: string;
   sinkToolId?: string;
-  outcome?: 'TESTED_CONFIRMED' | 'TESTED_REJECTED' | 'TESTED_INCONCLUSIVE' | 'TEST_SKIPPED' | 'TEST_ERROR';
+  outcome?:
+    | 'TESTED_CONFIRMED'
+    | 'TESTED_REJECTED'
+    | 'TESTED_INCONCLUSIVE'
+    | 'TEST_SKIPPED'
+    | 'TEST_ERROR';
   pathSummary?: string;
   plan: string;
   toolCalls: ToolCallRecord[];

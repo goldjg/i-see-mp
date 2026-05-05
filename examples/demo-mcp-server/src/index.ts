@@ -71,7 +71,12 @@ server.tool(
     if (!isLocalhostUrl(url)) {
       return {
         isError: true,
-        content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: 'non-local url blocked', url }) }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ ok: false, error: 'non-local url blocked', url }),
+          },
+        ],
       };
     }
     try {
@@ -81,13 +86,20 @@ server.tool(
         body: payload,
       });
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ ok: response.ok, status: response.status, url }) }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ ok: response.ok, status: response.status, url }),
+          },
+        ],
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return {
         isError: true,
-        content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: message, url }) }],
+        content: [
+          { type: 'text' as const, text: JSON.stringify({ ok: false, error: message, url }) },
+        ],
       };
     }
   },

@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { Confidence, PathStatus, RiskCategory, TestOutcome } from '@iseemp/core';
-import { createMemoryDb, createFindingsRepo, findingToRow, createCollectionsRepo } from '@iseemp/storage';
+import {
+  createMemoryDb,
+  createFindingsRepo,
+  findingToRow,
+  createCollectionsRepo,
+} from '@iseemp/storage';
 import type { Finding, TestRun } from '@iseemp/core';
 import { applyRunsToFinding, applyTestResultsToFindings, matchRunsToFinding } from '../index.js';
-import { SAFE_PROFILE_DESCRIPTOR, PROMPT_INJECTION_GITHUB_DESCRIPTOR } from '../profile-descriptor.js';
+import {
+  SAFE_PROFILE_DESCRIPTOR,
+  PROMPT_INJECTION_GITHUB_DESCRIPTOR,
+} from '../profile-descriptor.js';
 
 function makeFinding(id: string, candidatePathId?: string): Finding {
   return {
@@ -161,5 +169,4 @@ describe('finding updates from deterministic test outcomes', () => {
     expect(updated.injectionConfirmed).toBe(false);
     expect(updated.lethalTrifectaStatus).toBe('POSSIBLE');
   });
-
 });

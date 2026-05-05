@@ -31,9 +31,7 @@ export function createResourcesRepo(db: Database.Database) {
     },
 
     findByServer(serverId: string): ResourceRow[] {
-      return db
-        .prepare(`SELECT * FROM resources WHERE server_id=?`)
-        .all(serverId) as ResourceRow[];
+      return db.prepare(`SELECT * FROM resources WHERE server_id=?`).all(serverId) as ResourceRow[];
     },
 
     findByCollection(collectionId: string): ResourceRow[] {

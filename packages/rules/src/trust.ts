@@ -88,10 +88,17 @@ export function deriveCrossesTrustBoundary(
     sourceTrust === TrustZone.USER_CONTROLLED_SAAS || sourceTrust === TrustZone.EXTERNAL;
   const attackerReachableSink =
     sinkTrust === TrustZone.USER_CONTROLLED_SAAS || sinkTrust === TrustZone.EXTERNAL;
-  return attackerControlledSource || attackerReachableSink || isSensitiveTrustTransition(sourceTrust, sinkTrust);
+  return (
+    attackerControlledSource ||
+    attackerReachableSink ||
+    isSensitiveTrustTransition(sourceTrust, sinkTrust)
+  );
 }
 
-export function isSensitiveTrustTransition(sourceTrust?: TrustZone, sinkTrust?: TrustZone): boolean {
+export function isSensitiveTrustTransition(
+  sourceTrust?: TrustZone,
+  sinkTrust?: TrustZone,
+): boolean {
   if (!sourceTrust || !sinkTrust) return false;
   const externalish = new Set<TrustZone>([TrustZone.USER_CONTROLLED_SAAS, TrustZone.EXTERNAL]);
   const internalish = new Set<TrustZone>([TrustZone.LOCAL, TrustZone.INTERNAL]);

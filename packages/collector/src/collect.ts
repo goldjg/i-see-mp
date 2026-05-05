@@ -48,7 +48,9 @@ export async function collect(options: {
       message: 'No MCP server configurations found',
       collectionId,
     });
-    throw new Error('No MCP server configurations found. Create iseemp.config.json or use --server <url>');
+    throw new Error(
+      'No MCP server configurations found. Create iseemp.config.json or use --server <url>',
+    );
   }
 
   let totalTools = 0;
@@ -66,7 +68,11 @@ export async function collect(options: {
       url: config.url ?? null,
       command: config.command ?? null,
       args: config.args ? JSON.stringify(config.args) : null,
-      env: config.env ? JSON.stringify(Object.fromEntries(Object.entries(config.env).map(([k]) => [k, '[redacted]']))) : null,
+      env: config.env
+        ? JSON.stringify(
+            Object.fromEntries(Object.entries(config.env).map(([k]) => [k, '[redacted]'])),
+          )
+        : null,
       transport: config.transport,
       is_verified: isKnownVerifiedServer({
         name: config.name,
@@ -89,7 +95,11 @@ export async function collect(options: {
         message: `Enumerated server ${config.name}`,
         collectionId,
         serverId,
-        details: { toolCount: enumResult.tools.length, resourceCount: enumResult.resources.length, promptCount: enumResult.prompts.length },
+        details: {
+          toolCount: enumResult.tools.length,
+          resourceCount: enumResult.resources.length,
+          promptCount: enumResult.prompts.length,
+        },
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);

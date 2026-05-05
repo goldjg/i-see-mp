@@ -170,13 +170,15 @@ if (command === 'collect') {
       console.log(`ℹ️  No tools matched any test case in the ${profile} profile.`);
       if (profile === 'demo-confirm') {
         console.log('   Run `iseemp demo up` then `iseemp demo collect` and retry.');
-       } else if (profile === 'github-safe-canary' || profile === 'prompt-injection-github') {
-         console.log('   Ensure a GitHub MCP server is collected and required github-safe-canary flags are set.');
-        } else if (profile === 'dv-lethal-trifecta') {
-          console.log('   Add the dv-mcp fixture to your iseemp.config.json, then re-run collect.');
-        } else {
-          console.log('   Add the canary-mcp fixture to your iseemp.config.json and re-run collect.');
-        }
+      } else if (profile === 'github-safe-canary' || profile === 'prompt-injection-github') {
+        console.log(
+          '   Ensure a GitHub MCP server is collected and required github-safe-canary flags are set.',
+        );
+      } else if (profile === 'dv-lethal-trifecta') {
+        console.log('   Add the dv-mcp fixture to your iseemp.config.json, then re-run collect.');
+      } else {
+        console.log('   Add the canary-mcp fixture to your iseemp.config.json and re-run collect.');
+      }
     } else {
       console.log(`\n✅ Test run complete:`);
       console.log(`  profiles planned : ${summary.profilesPlanned}`);
@@ -192,7 +194,9 @@ if (command === 'collect') {
       console.log(`  trust-boundary-confirmed : ${summary.trustBoundaryConfirmed}`);
       console.log(`  behavioural-deviation    : ${summary.behaviouralDeviation}`);
       if (summary.skipped > 0) {
-        console.log(`  skipped     : ${summary.skipped} (server unavailable or missing credentials)`);
+        console.log(
+          `  skipped     : ${summary.skipped} (server unavailable or missing credentials)`,
+        );
       }
       if (summary.skippedReasons.length > 0) {
         console.log(`  skip reasons: ${summary.skippedReasons.join(' | ')}`);
@@ -242,7 +246,9 @@ if (command === 'collect') {
       };
       await writeFile(DEMO_CONFIG_PATH, JSON.stringify(config, null, 2) + '\n', 'utf8');
       console.log(`✅ Demo fixture ready. Wrote ${DEMO_CONFIG_PATH}`);
-      console.log('Next: `iseemp demo collect`, `iseemp analyze`, `iseemp demo test`, `iseemp serve`.');
+      console.log(
+        'Next: `iseemp demo collect`, `iseemp analyze`, `iseemp demo test`, `iseemp serve`.',
+      );
       process.exit(0);
     } catch (err) {
       console.error('❌ Demo setup failed:', err instanceof Error ? err.message : err);

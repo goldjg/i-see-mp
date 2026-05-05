@@ -30,9 +30,10 @@ function rowToCollection(row: CollectionRow): Collection {
 export function createCollectionsRepo(db: Database.Database) {
   return {
     create(id: string, startedAt: string): void {
-      db.prepare(
-        `INSERT INTO collections (id, started_at, status) VALUES (?, ?, 'running')`,
-      ).run(id, startedAt);
+      db.prepare(`INSERT INTO collections (id, started_at, status) VALUES (?, ?, 'running')`).run(
+        id,
+        startedAt,
+      );
     },
 
     complete(
@@ -57,15 +58,17 @@ export function createCollectionsRepo(db: Database.Database) {
     },
 
     fail(id: string, error: string): void {
-      db.prepare(
-        `UPDATE collections SET status='failed', completed_at=?, error=? WHERE id=?`,
-      ).run(new Date().toISOString(), error, id);
+      db.prepare(`UPDATE collections SET status='failed', completed_at=?, error=? WHERE id=?`).run(
+        new Date().toISOString(),
+        error,
+        id,
+      );
     },
 
     findById(id: string): Collection | undefined {
-      const row = db
-        .prepare(`SELECT * FROM collections WHERE id=?`)
-        .get(id) as CollectionRow | undefined;
+      const row = db.prepare(`SELECT * FROM collections WHERE id=?`).get(id) as
+        | CollectionRow
+        | undefined;
       return row ? rowToCollection(row) : undefined;
     },
 
@@ -77,9 +80,9 @@ export function createCollectionsRepo(db: Database.Database) {
     },
 
     latest(): Collection | undefined {
-      const row = db
-        .prepare(`SELECT * FROM collections ORDER BY started_at DESC LIMIT 1`)
-        .get() as CollectionRow | undefined;
+      const row = db.prepare(`SELECT * FROM collections ORDER BY started_at DESC LIMIT 1`).get() as
+        | CollectionRow
+        | undefined;
       return row ? rowToCollection(row) : undefined;
     },
   };

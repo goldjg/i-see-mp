@@ -18,7 +18,9 @@ export function Logs({ initialFilters }: { initialFilters?: LogsViewFilters }) {
   const [phase, setPhase] = useState<string>('');
   const [level, setLevel] = useState<string>('');
   const [q, setQ] = useState<string>('');
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string>(initialFilters?.collectionId ?? '');
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>(
+    initialFilters?.collectionId ?? '',
+  );
 
   const findingId = initialFilters?.findingId;
   const testRunId = initialFilters?.testRunId;
@@ -132,7 +134,11 @@ export function Logs({ initialFilters }: { initialFilters?: LogsViewFilters }) {
             </option>
           ))}
         </select>
-        <select aria-label="Filter by phase" value={phase} onChange={(e) => setPhase(e.target.value)}>
+        <select
+          aria-label="Filter by phase"
+          value={phase}
+          onChange={(e) => setPhase(e.target.value)}
+        >
           <option value="">All phases</option>
           <option value="collect">collect</option>
           <option value="analyze">analyze</option>
@@ -140,7 +146,11 @@ export function Logs({ initialFilters }: { initialFilters?: LogsViewFilters }) {
           <option value="serve">serve</option>
           <option value="demo">demo</option>
         </select>
-        <select aria-label="Filter by level" value={level} onChange={(e) => setLevel(e.target.value)}>
+        <select
+          aria-label="Filter by level"
+          value={level}
+          onChange={(e) => setLevel(e.target.value)}
+        >
           <option value="">All levels</option>
           <option value="info">info</option>
           <option value="warn">warn</option>
@@ -197,7 +207,9 @@ export function Logs({ initialFilters }: { initialFilters?: LogsViewFilters }) {
                           <details>
                             <summary>
                               view
-                              {item.redacted && <span className="log-redacted-label">redacted</span>}
+                              {item.redacted && (
+                                <span className="log-redacted-label">redacted</span>
+                              )}
                             </summary>
                             <pre>{detailsText}</pre>
                           </details>
@@ -212,7 +224,11 @@ export function Logs({ initialFilters }: { initialFilters?: LogsViewFilters }) {
             </table>
           </div>
           {hasMore && (
-            <button className="logs-load-more" onClick={() => void loadMore()} disabled={loadingMore}>
+            <button
+              className="logs-load-more"
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+            >
               {loadingMore ? 'Loading…' : 'Load more'}
             </button>
           )}

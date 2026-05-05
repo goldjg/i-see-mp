@@ -47,7 +47,9 @@ function matchesAny(text: string, patterns: string[]): boolean {
 /** Match whole-word-ish — pattern must appear as an isolated token, not as a substring of another word. */
 function matchesToken(text: string, tokens: string[]): boolean {
   return tokens.some((t) => {
-    const re = new RegExp(`(^|[^a-z0-9])${t.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}([^a-z0-9]|$)`);
+    const re = new RegExp(
+      `(^|[^a-z0-9])${t.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}([^a-z0-9]|$)`,
+    );
     return re.test(text);
   });
 }
@@ -137,8 +139,12 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   if (
     matchesAny(name, codeExecNamePatterns) ||
     matchesToken(combined, codeExecTokens) ||
-    /\b(execute|run|evaluate|interpret)s?\s+(arbitrary\s+)?(python|javascript|typescript|node|js|ruby|code)\b/.test(combined) ||
-    /\b(python|javascript|node|js|ruby)\s+(code|script)\s+(execution|interpreter|repl)/.test(combined)
+    /\b(execute|run|evaluate|interpret)s?\s+(arbitrary\s+)?(python|javascript|typescript|node|js|ruby|code)\b/.test(
+      combined,
+    ) ||
+    /\b(python|javascript|node|js|ruby)\s+(code|script)\s+(execution|interpreter|repl)/.test(
+      combined,
+    )
   ) {
     caps.add(Capability.EXECUTE_CODE);
   }
@@ -361,7 +367,11 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   }
 
   // get_file_contents from remote SaaS → READ_REMOTE_DATA, not local file
-  if (/get_file_contents?$/.test(name) || /get_file_content$/.test(name) || /^get_content$/.test(name)) {
+  if (
+    /get_file_contents?$/.test(name) ||
+    /get_file_content$/.test(name) ||
+    /^get_content$/.test(name)
+  ) {
     if (remoteSaas) {
       caps.add(Capability.READ_REMOTE_DATA);
     } else {
@@ -416,7 +426,10 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   }
 
   // ---------- Email ----------
-  if (matchesAny(name, ['send_email', 'send_mail']) || matchesToken(combined, ['smtp', 'sendgrid', 'mailgun'])) {
+  if (
+    matchesAny(name, ['send_email', 'send_mail']) ||
+    matchesToken(combined, ['smtp', 'sendgrid', 'mailgun'])
+  ) {
     caps.add(Capability.SEND_EMAIL);
     caps.add(Capability.SEND_EXTERNAL);
   }

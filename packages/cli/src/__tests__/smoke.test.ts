@@ -40,11 +40,21 @@ describe('CLI smoke tests', () => {
 
     const results = safeMcpTools.map((t) => ({ name: t.name, ...classifyTool(t) }));
 
-    expect(results.find((r) => r.name === 'run_shell')?.capabilities).toContain(Capability.RUN_SHELL);
-    expect(results.find((r) => r.name === 'read_file')?.capabilities).toContain(Capability.READ_LOCAL_FILE);
-    expect(results.find((r) => r.name === 'write_file')?.capabilities).toContain(Capability.WRITE_LOCAL_FILE);
-    expect(results.find((r) => r.name === 'query_database')?.capabilities).toContain(Capability.QUERY_DATABASE);
-    expect(results.find((r) => r.name === 'send_http_request')?.capabilities).toContain(Capability.SEND_HTTP);
+    expect(results.find((r) => r.name === 'run_shell')?.capabilities).toContain(
+      Capability.RUN_SHELL,
+    );
+    expect(results.find((r) => r.name === 'read_file')?.capabilities).toContain(
+      Capability.READ_LOCAL_FILE,
+    );
+    expect(results.find((r) => r.name === 'write_file')?.capabilities).toContain(
+      Capability.WRITE_LOCAL_FILE,
+    );
+    expect(results.find((r) => r.name === 'query_database')?.capabilities).toContain(
+      Capability.QUERY_DATABASE,
+    );
+    expect(results.find((r) => r.name === 'send_http_request')?.capabilities).toContain(
+      Capability.SEND_HTTP,
+    );
 
     // run_shell should be highest risk
     const shellRisk = results.find((r) => r.name === 'run_shell')?.riskScore ?? 0;

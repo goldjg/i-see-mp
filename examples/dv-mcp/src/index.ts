@@ -26,9 +26,15 @@ function isLocalhostUrl(raw: string): boolean {
 server.tool(
   'dv_get_untrusted_prompt',
   'Returns a simulated attacker-controlled / untrusted instruction payload (deliberately vulnerable demo fixture)',
-  { injectMarkerUuid: z.string().optional().describe('Optional deterministic marker suffix from test harness') },
+  {
+    injectMarkerUuid: z
+      .string()
+      .optional()
+      .describe('Optional deterministic marker suffix from test harness'),
+  },
   async ({ injectMarkerUuid }) => {
-    const suffix = injectMarkerUuid && injectMarkerUuid.trim().length > 0 ? injectMarkerUuid : '0001';
+    const suffix =
+      injectMarkerUuid && injectMarkerUuid.trim().length > 0 ? injectMarkerUuid : '0001';
     const canary = `CANARY-DV-INJECT-${suffix}`;
     return {
       content: [
@@ -89,12 +95,16 @@ server.tool(
         body: payload,
       });
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ ok: res.ok, status: res.status, url }) }],
+        content: [
+          { type: 'text' as const, text: JSON.stringify({ ok: res.ok, status: res.status, url }) },
+        ],
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: message, url }) }],
+        content: [
+          { type: 'text' as const, text: JSON.stringify({ ok: false, error: message, url }) },
+        ],
         isError: true,
       };
     }

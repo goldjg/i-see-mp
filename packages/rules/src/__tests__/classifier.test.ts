@@ -10,7 +10,10 @@ describe('classifyTool — safe-mcp fixtures', () => {
   });
 
   it('classifies write_file correctly', () => {
-    const result = classifyTool({ name: 'write_file', description: 'Write content to a local file' });
+    const result = classifyTool({
+      name: 'write_file',
+      description: 'Write content to a local file',
+    });
     expect(result.capabilities).toContain(Capability.WRITE_LOCAL_FILE);
     expect(result.riskScore).toBeGreaterThanOrEqual(55);
   });
@@ -27,7 +30,10 @@ describe('classifyTool — safe-mcp fixtures', () => {
     const result = classifyTool({
       name: 'query_database',
       description: 'Run a SQL query against a database',
-      inputSchema: { type: 'object', properties: { query: { type: 'string' }, connectionString: { type: 'string' } } },
+      inputSchema: {
+        type: 'object',
+        properties: { query: { type: 'string' }, connectionString: { type: 'string' } },
+      },
     });
     expect(result.capabilities).toContain(Capability.QUERY_DATABASE);
   });
@@ -36,7 +42,10 @@ describe('classifyTool — safe-mcp fixtures', () => {
     const result = classifyTool({
       name: 'send_http_request',
       description: 'Make an HTTP request to a URL',
-      inputSchema: { type: 'object', properties: { url: { type: 'string' }, method: { type: 'string' } } },
+      inputSchema: {
+        type: 'object',
+        properties: { url: { type: 'string' }, method: { type: 'string' } },
+      },
     });
     expect(result.capabilities).toContain(Capability.SEND_HTTP);
     expect(result.capabilities).toContain(Capability.SEND_EXTERNAL);
@@ -103,7 +112,10 @@ describe('classifyTool — GitHub MCP shaped tools (precise)', () => {
     const result = classifyTool({
       name: 'get_file_contents',
       description: 'Get the contents of a file from a GitHub repository',
-      inputSchema: { type: 'object', properties: { path: { type: 'string' }, repo: { type: 'string' } } },
+      inputSchema: {
+        type: 'object',
+        properties: { path: { type: 'string' }, repo: { type: 'string' } },
+      },
     });
     expect(result.capabilities).toContain(Capability.READ_REMOTE_DATA);
     expect(result.capabilities).not.toContain(Capability.READ_LOCAL_FILE);

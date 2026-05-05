@@ -110,9 +110,7 @@ describe('TestRunsRepo', () => {
     collections.create('col-T', new Date().toISOString());
     const repo = createTestRunsRepo(db);
     const run = makeRun('tr-pi', 'col-T', {
-      baselineToolCalls: [
-        { step: 1, toolName: 'issue_read', input: {}, output: {} },
-      ],
+      baselineToolCalls: [{ step: 1, toolName: 'issue_read', input: {}, output: {} }],
       injectedToolCalls: [
         { step: 1, toolName: 'issue_read', input: {}, output: {} },
         { step: 2, toolName: 'send_http_request', input: {}, output: {} },

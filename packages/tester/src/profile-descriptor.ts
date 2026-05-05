@@ -1,4 +1,10 @@
-import { Capability, PathStatus, ValidationMode, type EvidenceType, type TestProfile } from '@iseemp/core';
+import {
+  Capability,
+  PathStatus,
+  ValidationMode,
+  type EvidenceType,
+  type TestProfile,
+} from '@iseemp/core';
 import type { TesterProfile } from './runner.js';
 import { getKnownPairTrust } from './trust-expectations.js';
 
@@ -64,7 +70,11 @@ export const FILESYSTEM_ONLY_PROFILE: ProfileDescriptor = {
   expectedFindings: [],
   expectedEvidence: ['capabilityObserved'],
   allowedStatuses: [PathStatus.STATIC_POSSIBLE, PathStatus.TESTED_INCONCLUSIVE],
-  forbiddenStatuses: [PathStatus.TESTED_CONFIRMED, PathStatus.TRUST_BOUNDARY_CONFIRMED, PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED],
+  forbiddenStatuses: [
+    PathStatus.TESTED_CONFIRMED,
+    PathStatus.TRUST_BOUNDARY_CONFIRMED,
+    PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED,
+  ],
   destructive: false,
   requiresCredentials: false,
   safeForE2E: true,
@@ -82,8 +92,17 @@ export const FILESYSTEM_FETCH_PROFILE: ProfileDescriptor = {
   requiredCapabilities: [Capability.READ_LOCAL_FILE, Capability.SEND_HTTP],
   validationMode: ValidationMode.TRUST_BOUNDARY,
   expectedFindings: [],
-  expectedEvidence: ['capabilityObserved', 'canaryObserved', 'sinkInvocationObserved', 'trustTransitionObserved'],
-  allowedStatuses: [PathStatus.TESTED_CONFIRMED, PathStatus.TESTED_INCONCLUSIVE, PathStatus.TRUST_BOUNDARY_CONFIRMED],
+  expectedEvidence: [
+    'capabilityObserved',
+    'canaryObserved',
+    'sinkInvocationObserved',
+    'trustTransitionObserved',
+  ],
+  allowedStatuses: [
+    PathStatus.TESTED_CONFIRMED,
+    PathStatus.TESTED_INCONCLUSIVE,
+    PathStatus.TRUST_BOUNDARY_CONFIRMED,
+  ],
   forbiddenStatuses: [PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED],
   destructive: false,
   requiresCredentials: false,
@@ -103,11 +122,24 @@ export const FILESYSTEM_FETCH_GITHUB_PROFILE: ProfileDescriptor = {
   profileId: 'filesystem-fetch-github',
   profileType: 'safe',
   applicableServers: ['^filesystem$', '^fetch$', '^github$'],
-  requiredCapabilities: [Capability.READ_LOCAL_FILE, Capability.SEND_HTTP, Capability.READ_REMOTE_DATA],
+  requiredCapabilities: [
+    Capability.READ_LOCAL_FILE,
+    Capability.SEND_HTTP,
+    Capability.READ_REMOTE_DATA,
+  ],
   validationMode: ValidationMode.COMPOSITE,
   expectedFindings: [],
-  expectedEvidence: ['capabilityObserved', 'canaryObserved', 'sinkInvocationObserved', 'trustTransitionObserved'],
-  allowedStatuses: [PathStatus.TESTED_CONFIRMED, PathStatus.TESTED_INCONCLUSIVE, PathStatus.TRUST_BOUNDARY_CONFIRMED],
+  expectedEvidence: [
+    'capabilityObserved',
+    'canaryObserved',
+    'sinkInvocationObserved',
+    'trustTransitionObserved',
+  ],
+  allowedStatuses: [
+    PathStatus.TESTED_CONFIRMED,
+    PathStatus.TESTED_INCONCLUSIVE,
+    PathStatus.TRUST_BOUNDARY_CONFIRMED,
+  ],
   forbiddenStatuses: [PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED],
   destructive: false,
   requiresCredentials: false,
@@ -135,8 +167,17 @@ export const GITHUB_SAFE_CANARY_DESCRIPTOR: ProfileDescriptor = {
   requiredCapabilities: [Capability.READ_REMOTE_DATA],
   validationMode: ValidationMode.DATAFLOW_CANARY,
   expectedFindings: [],
-  expectedEvidence: ['capabilityObserved', 'canaryObserved', 'sinkInvocationObserved', 'mutationObserved'],
-  allowedStatuses: [PathStatus.TESTED_CONFIRMED, PathStatus.TESTED_REJECTED, PathStatus.TESTED_INCONCLUSIVE],
+  expectedEvidence: [
+    'capabilityObserved',
+    'canaryObserved',
+    'sinkInvocationObserved',
+    'mutationObserved',
+  ],
+  allowedStatuses: [
+    PathStatus.TESTED_CONFIRMED,
+    PathStatus.TESTED_REJECTED,
+    PathStatus.TESTED_INCONCLUSIVE,
+  ],
   forbiddenStatuses: [],
   destructive: false,
   requiresCredentials: true,
@@ -155,7 +196,11 @@ export const PROMPT_INJECTION_GITHUB_DESCRIPTOR: ProfileDescriptor = {
   validationMode: ValidationMode.COERCION_CANARY,
   expectedFindings: [],
   expectedEvidence: ['baselineTrace', 'injectedTrace', 'behaviouralDeviation'],
-  allowedStatuses: [PathStatus.TESTED_CONFIRMED, PathStatus.TESTED_INCONCLUSIVE, PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED],
+  allowedStatuses: [
+    PathStatus.TESTED_CONFIRMED,
+    PathStatus.TESTED_INCONCLUSIVE,
+    PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED,
+  ],
   forbiddenStatuses: [],
   destructive: false,
   requiresCredentials: true,
@@ -173,7 +218,11 @@ export const PROMPT_INJECTION_FETCH_DESCRIPTOR: ProfileDescriptor = {
   validationMode: ValidationMode.COERCION_CANARY,
   expectedFindings: [],
   expectedEvidence: ['baselineTrace', 'injectedTrace', 'behaviouralDeviation'],
-  allowedStatuses: [PathStatus.TESTED_CONFIRMED, PathStatus.TESTED_INCONCLUSIVE, PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED],
+  allowedStatuses: [
+    PathStatus.TESTED_CONFIRMED,
+    PathStatus.TESTED_INCONCLUSIVE,
+    PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED,
+  ],
   forbiddenStatuses: [],
   destructive: false,
   requiresCredentials: false,
@@ -193,7 +242,11 @@ export const SAFE_PROFILE_DESCRIPTOR: ProfileDescriptor = {
   validationMode: ValidationMode.DATAFLOW_CANARY,
   expectedFindings: [],
   expectedEvidence: ['capabilityObserved', 'canaryObserved', 'sinkInvocationObserved'],
-  allowedStatuses: [PathStatus.TESTED_CONFIRMED, PathStatus.TESTED_REJECTED, PathStatus.TESTED_INCONCLUSIVE],
+  allowedStatuses: [
+    PathStatus.TESTED_CONFIRMED,
+    PathStatus.TESTED_REJECTED,
+    PathStatus.TESTED_INCONCLUSIVE,
+  ],
   forbiddenStatuses: [],
   destructive: false,
   requiresCredentials: false,
@@ -211,7 +264,11 @@ export const DEMO_CONFIRM_DESCRIPTOR: ProfileDescriptor = {
   validationMode: ValidationMode.DATAFLOW_CANARY,
   expectedFindings: [],
   expectedEvidence: ['capabilityObserved', 'canaryObserved', 'sinkInvocationObserved'],
-  allowedStatuses: [PathStatus.TESTED_CONFIRMED, PathStatus.TESTED_REJECTED, PathStatus.TESTED_INCONCLUSIVE],
+  allowedStatuses: [
+    PathStatus.TESTED_CONFIRMED,
+    PathStatus.TESTED_REJECTED,
+    PathStatus.TESTED_INCONCLUSIVE,
+  ],
   forbiddenStatuses: [],
   destructive: false,
   requiresCredentials: false,
@@ -275,7 +332,10 @@ function hasRequiredServers(servers: TopologyServer[], patterns: string[]): bool
   });
 }
 
-function hasRequiredCapabilities(tools: TopologyTool[], requiredCapabilities: Capability[]): boolean {
+function hasRequiredCapabilities(
+  tools: TopologyTool[],
+  requiredCapabilities: Capability[],
+): boolean {
   if (requiredCapabilities.length === 0) return true;
   const observed = new Set<string>();
   for (const tool of tools) {

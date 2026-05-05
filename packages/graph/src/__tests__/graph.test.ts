@@ -72,7 +72,10 @@ const tool3 = {
   name: 'issue_read',
   description: null,
   input_schema: null,
-  capabilities: JSON.stringify([Capability.READ_REMOTE_DATA, Capability.UNTRUSTED_CONTENT_EXPOSURE]),
+  capabilities: JSON.stringify([
+    Capability.READ_REMOTE_DATA,
+    Capability.UNTRUSTED_CONTENT_EXPOSURE,
+  ]),
   source_role: JSON.stringify(['DATA_SOURCE', 'INSTRUCTION_SOURCE']),
   is_untrusted: 1,
   is_instruction_capable: 1,
@@ -84,47 +87,101 @@ const tool3 = {
 
 describe('buildGraph', () => {
   it('creates agent node', () => {
-    const { nodes } = buildGraph({ collectionId: 'col1', servers: [server1], tools: [], resources: [], prompts: [] });
+    const { nodes } = buildGraph({
+      collectionId: 'col1',
+      servers: [server1],
+      tools: [],
+      resources: [],
+      prompts: [],
+    });
     expect(nodes.some((n) => n.type === NodeType.AGENT)).toBe(true);
   });
 
   it('creates server nodes', () => {
-    const { nodes } = buildGraph({ collectionId: 'col1', servers: [server1, server2], tools: [], resources: [], prompts: [] });
+    const { nodes } = buildGraph({
+      collectionId: 'col1',
+      servers: [server1, server2],
+      tools: [],
+      resources: [],
+      prompts: [],
+    });
     expect(nodes.filter((n) => n.type === NodeType.MCP_SERVER)).toHaveLength(2);
   });
 
   it('creates tool nodes', () => {
-    const { nodes } = buildGraph({ collectionId: 'col1', servers: [server1], tools: [tool1], resources: [], prompts: [] });
+    const { nodes } = buildGraph({
+      collectionId: 'col1',
+      servers: [server1],
+      tools: [tool1],
+      resources: [],
+      prompts: [],
+    });
     expect(nodes.some((n) => n.type === NodeType.TOOL && n.label === 'run_shell')).toBe(true);
   });
 
   it('creates trust boundary for remote server', () => {
-    const { nodes } = buildGraph({ collectionId: 'col1', servers: [server2], tools: [], resources: [], prompts: [] });
+    const { nodes } = buildGraph({
+      collectionId: 'col1',
+      servers: [server2],
+      tools: [],
+      resources: [],
+      prompts: [],
+    });
     expect(nodes.some((n) => n.type === NodeType.TRUST_BOUNDARY)).toBe(true);
   });
 
   it('does NOT create trust boundary for local server', () => {
-    const { nodes } = buildGraph({ collectionId: 'col1', servers: [server1], tools: [], resources: [], prompts: [] });
+    const { nodes } = buildGraph({
+      collectionId: 'col1',
+      servers: [server1],
+      tools: [],
+      resources: [],
+      prompts: [],
+    });
     expect(nodes.some((n) => n.type === NodeType.TRUST_BOUNDARY)).toBe(false);
   });
 
   it('creates sensitive_data node for READ_SECRET tool', () => {
-    const { nodes } = buildGraph({ collectionId: 'col1', servers: [server2], tools: [tool2], resources: [], prompts: [] });
+    const { nodes } = buildGraph({
+      collectionId: 'col1',
+      servers: [server2],
+      tools: [tool2],
+      resources: [],
+      prompts: [],
+    });
     expect(nodes.some((n) => n.type === NodeType.SENSITIVE_DATA)).toBe(true);
   });
 
   it('creates can_call edge from agent to server', () => {
-    const { edges } = buildGraph({ collectionId: 'col1', servers: [server1], tools: [], resources: [], prompts: [] });
+    const { edges } = buildGraph({
+      collectionId: 'col1',
+      servers: [server1],
+      tools: [],
+      resources: [],
+      prompts: [],
+    });
     expect(edges.some((e) => e.type === EdgeType.CAN_CALL)).toBe(true);
   });
 
   it('creates exposes edge from server to tool', () => {
-    const { edges } = buildGraph({ collectionId: 'col1', servers: [server1], tools: [tool1], resources: [], prompts: [] });
+    const { edges } = buildGraph({
+      collectionId: 'col1',
+      servers: [server1],
+      tools: [tool1],
+      resources: [],
+      prompts: [],
+    });
     expect(edges.some((e) => e.type === EdgeType.EXPOSES)).toBe(true);
   });
 
   it('creates crosses_boundary edge for remote tool', () => {
-    const { edges } = buildGraph({ collectionId: 'col1', servers: [server2], tools: [tool2], resources: [], prompts: [] });
+    const { edges } = buildGraph({
+      collectionId: 'col1',
+      servers: [server2],
+      tools: [tool2],
+      resources: [],
+      prompts: [],
+    });
     expect(edges.some((e) => e.type === EdgeType.CROSSES_BOUNDARY)).toBe(true);
   });
 
@@ -143,19 +200,37 @@ describe('buildGraph', () => {
 
 describe('findAttackPaths', () => {
   it('finds path to sensitive data', () => {
-    const { nodes, edges } = buildGraph({ collectionId: 'col1', servers: [server2], tools: [tool2], resources: [], prompts: [] });
+    const { nodes, edges } = buildGraph({
+      collectionId: 'col1',
+      servers: [server2],
+      tools: [tool2],
+      resources: [],
+      prompts: [],
+    });
     const paths = findAttackPaths(nodes, edges);
     expect(paths.some((p) => p.description.includes('sensitive data'))).toBe(true);
   });
 
   it('finds path to code execution tool', () => {
-    const { nodes, edges } = buildGraph({ collectionId: 'col1', servers: [server1], tools: [tool1], resources: [], prompts: [] });
+    const { nodes, edges } = buildGraph({
+      collectionId: 'col1',
+      servers: [server1],
+      tools: [tool1],
+      resources: [],
+      prompts: [],
+    });
     const paths = findAttackPaths(nodes, edges);
     expect(paths.some((p) => p.description.includes('code-execution'))).toBe(true);
   });
 
   it('finds path through trust boundary', () => {
-    const { nodes, edges } = buildGraph({ collectionId: 'col1', servers: [server2], tools: [], resources: [], prompts: [] });
+    const { nodes, edges } = buildGraph({
+      collectionId: 'col1',
+      servers: [server2],
+      tools: [],
+      resources: [],
+      prompts: [],
+    });
     const paths = findAttackPaths(nodes, edges);
     expect(paths.some((p) => p.description.includes('trust boundary'))).toBe(true);
   });

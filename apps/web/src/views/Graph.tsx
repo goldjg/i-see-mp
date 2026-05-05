@@ -114,11 +114,12 @@ export function Graph({
             source: e.source,
             target: e.target,
             type: e.type,
-            trifectaActive: hasTrifectaFocus && (activeNodeIds.has(e.source) || activeNodeIds.has(e.target))
-              ? 1
-              : hasTrifectaFocus
-                ? 0
-                : 1,
+            trifectaActive:
+              hasTrifectaFocus && (activeNodeIds.has(e.source) || activeNodeIds.has(e.target))
+                ? 1
+                : hasTrifectaFocus
+                  ? 0
+                  : 1,
             pathActive: isPathActive ? (pathEdgeIds.has(e.id) ? 1 : 0) : 1,
           },
         })),
@@ -127,31 +128,35 @@ export function Graph({
         {
           selector: 'node',
           style: {
-            'background-color': (ele: cytoscape.NodeSingular) => NODE_COLORS[ele.data('type') as string] ?? '#94a3b8',
-            'label': 'data(label)',
-            'color': '#fff',
+            'background-color': (ele: cytoscape.NodeSingular) =>
+              NODE_COLORS[ele.data('type') as string] ?? '#94a3b8',
+            label: 'data(label)',
+            color: '#fff',
             'text-outline-color': '#1e293b',
             'text-outline-width': 2,
             'font-size': 10,
             'text-wrap': 'wrap',
             'text-max-width': '110px',
-            'shape': (ele: cytoscape.NodeSingular) => (NODE_SHAPES[ele.data('type') as string] ?? 'ellipse') as cytoscape.Css.NodeShape,
-            'width': (ele: cytoscape.NodeSingular) => Math.max(40, (ele.data('riskScore') as number) * 0.6),
-            'height': (ele: cytoscape.NodeSingular) => Math.max(30, (ele.data('riskScore') as number) * 0.4),
+            shape: (ele: cytoscape.NodeSingular) =>
+              (NODE_SHAPES[ele.data('type') as string] ?? 'ellipse') as cytoscape.Css.NodeShape,
+            width: (ele: cytoscape.NodeSingular) =>
+              Math.max(40, (ele.data('riskScore') as number) * 0.6),
+            height: (ele: cytoscape.NodeSingular) =>
+              Math.max(30, (ele.data('riskScore') as number) * 0.4),
           },
         },
         {
           selector: 'edge',
           style: {
-            'label': 'data(type)',
+            label: 'data(type)',
             'font-size': 8,
-            'color': '#94a3b8',
+            color: '#94a3b8',
             'text-outline-width': 0,
             'curve-style': 'bezier',
             'target-arrow-shape': 'triangle',
             'line-color': '#475569',
             'target-arrow-color': '#475569',
-            'width': 1,
+            width: 1,
           },
         },
         {
@@ -160,7 +165,7 @@ export function Graph({
             'line-color': '#f97316',
             'target-arrow-color': '#f97316',
             'line-style': 'dashed',
-            'width': 2,
+            width: 2,
           },
         },
         {
@@ -176,7 +181,7 @@ export function Graph({
             'line-color': '#22c55e',
             'target-arrow-color': '#22c55e',
             'line-style': 'dashed',
-            'width': 2,
+            width: 2,
           },
         },
         {
@@ -185,7 +190,7 @@ export function Graph({
             'line-color': '#0ea5e9',
             'target-arrow-color': '#0ea5e9',
             'line-style': 'dashed',
-            'width': 2,
+            width: 2,
           },
         },
         ...(hasTrifectaFocus
@@ -237,7 +242,7 @@ export function Graph({
                 style: {
                   'line-color': '#0ea5e9',
                   'target-arrow-color': '#0ea5e9',
-                  'width': 2.5,
+                  width: 2.5,
                 },
               },
             ]
@@ -339,11 +344,19 @@ export function Graph({
       <div className="graph-filters">
         <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
           <option value="">All types</option>
-          {allTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+          {allTypes.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
         </select>
         <select value={filterCap} onChange={(e) => setFilterCap(e.target.value)}>
           <option value="">All capabilities</option>
-          {allCaps.map((c) => <option key={c} value={c}>{c}</option>)}
+          {allCaps.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
         </select>
         <select
           className="graph-trifecta-filter"
@@ -354,7 +367,15 @@ export function Graph({
           <option value="trifecta">Trifecta paths (complete + partial)</option>
           <option value="complete_only">Complete paths only</option>
         </select>
-        <button onClick={() => { setFilterType(''); setFilterCap(''); setTrifectaFilter('all'); }}>Reset filters</button>
+        <button
+          onClick={() => {
+            setFilterType('');
+            setFilterCap('');
+            setTrifectaFilter('all');
+          }}
+        >
+          Reset filters
+        </button>
         <button onClick={() => zoomBy(1.2)}>Zoom in</button>
         <button onClick={() => zoomBy(1 / 1.2)}>Zoom out</button>
         <button onClick={resetView}>Reset view</button>
@@ -368,22 +389,36 @@ export function Graph({
         ((trifectaFilter === 'trifecta' && (trifectaNodeIds?.size ?? 0) === 0) ||
           (trifectaFilter === 'complete_only' && (completeNodeIds?.size ?? 0) === 0)) && (
           <p className="graph-trifecta-empty">No trifecta findings — filter has no effect.</p>
-      )}
+        )}
       <div className="graph-container">
         <div ref={containerRef} className="cytoscape-canvas" />
         <div className="graph-legend">
-          <div><span className="legend-line legend-dataflow" /> Data exfiltration path</div>
-          <div><span className="legend-line legend-instruction" /> Prompt injection candidate</div>
-          <div><span className="legend-line legend-prompt-confirmed" /> Prompt injection confirmed</div>
-          <div><span className="legend-line legend-trust" /> Trust boundary confirmed</div>
+          <div>
+            <span className="legend-line legend-dataflow" /> Data exfiltration path
+          </div>
+          <div>
+            <span className="legend-line legend-instruction" /> Prompt injection candidate
+          </div>
+          <div>
+            <span className="legend-line legend-prompt-confirmed" /> Prompt injection confirmed
+          </div>
+          <div>
+            <span className="legend-line legend-trust" /> Trust boundary confirmed
+          </div>
         </div>
         {selected && (
           <div className="node-detail-panel">
             <h3>{selected.label}</h3>
-            <p><strong>Type:</strong> {selected.type}</p>
-            <p><strong>Risk Score:</strong> {selected.riskScore}</p>
+            <p>
+              <strong>Type:</strong> {selected.type}
+            </p>
+            <p>
+              <strong>Risk Score:</strong> {selected.riskScore}
+            </p>
             {selected.capabilities.length > 0 && (
-              <p><strong>Capabilities:</strong> {selected.capabilities.join(', ')}</p>
+              <p>
+                <strong>Capabilities:</strong> {selected.capabilities.join(', ')}
+              </p>
             )}
             <button onClick={() => setSelected(null)}>✕ Close</button>
           </div>

@@ -41,14 +41,29 @@ function makeTool(id: string, serverId: string, caps: Capability[]) {
 describe('runFindingsRules — UNVERIFIED_SERVER', () => {
   it('fires for every server', () => {
     const server = makeServer('srv1');
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [],
+      collectionId: 'col1',
+    });
     expect(findings.some((f) => f.category === RiskCategory.UNVERIFIED_SERVER)).toBe(true);
   });
 
   it('is LOW severity for an unverified server with only low-impact tools', () => {
     const server = makeServer('srv1');
-    const tool = makeTool('t1', 'srv1', [Capability.QUERY_REMOTE_SYSTEM, Capability.READ_REMOTE_DATA]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const tool = makeTool('t1', 'srv1', [
+      Capability.QUERY_REMOTE_SYSTEM,
+      Capability.READ_REMOTE_DATA,
+    ]);
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.UNVERIFIED_SERVER);
     expect(f?.severity).toBe('low');
   });
@@ -59,7 +74,13 @@ describe('runFindingsRules — UNVERIFIED_SERVER', () => {
       command: 'docker',
       args: JSON.stringify(['run', '--rm', 'ghcr.io/github/github-mcp-server']),
     };
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.id === `finding:col1:unverified:${server.id}`);
     expect(f?.severity).toBe('low');
     expect(f?.description).toContain('matched by known identity pattern');
@@ -104,13 +125,25 @@ describe('isKnownVerifiedServer', () => {
 describe('runFindingsRules — TRUST_BOUNDARY_CROSSING', () => {
   it('fires for remote server URL', () => {
     const server = makeServer('srv1', 'https://api.example.com/mcp');
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [],
+      collectionId: 'col1',
+    });
     expect(findings.some((f) => f.category === RiskCategory.TRUST_BOUNDARY_CROSSING)).toBe(true);
   });
 
   it('does NOT fire for localhost server', () => {
     const server = makeServer('srv1', 'http://localhost:3000/mcp');
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [],
+      collectionId: 'col1',
+    });
     expect(findings.some((f) => f.category === RiskCategory.TRUST_BOUNDARY_CROSSING)).toBe(false);
   });
 });
@@ -119,7 +152,13 @@ describe('runFindingsRules — CODE_EXECUTION', () => {
   it('fires for RUN_SHELL tool with high severity (no chain)', () => {
     const server = makeServer('srv1');
     const tool = makeTool('t1', 'srv1', [Capability.RUN_SHELL]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.CODE_EXECUTION);
     expect(f).toBeDefined();
     expect(['high', 'critical']).toContain(f?.severity);
@@ -128,7 +167,13 @@ describe('runFindingsRules — CODE_EXECUTION', () => {
   it('fires for EXECUTE_CODE tool with high/critical severity', () => {
     const server = makeServer('srv1');
     const tool = makeTool('t1', 'srv1', [Capability.EXECUTE_CODE]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.CODE_EXECUTION);
     expect(f).toBeDefined();
     expect(['high', 'critical']).toContain(f?.severity);
@@ -137,14 +182,29 @@ describe('runFindingsRules — CODE_EXECUTION', () => {
   it('does NOT fire for plain QUERY_REMOTE_SYSTEM tool', () => {
     const server = makeServer('srv1');
     const tool = makeTool('t1', 'srv1', [Capability.QUERY_REMOTE_SYSTEM]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     expect(findings.some((f) => f.category === RiskCategory.CODE_EXECUTION)).toBe(false);
   });
 
   it('does NOT fire for MUTATE_ISSUE_OR_PR tool', () => {
     const server = makeServer('srv1');
-    const tool = makeTool('t1', 'srv1', [Capability.MUTATE_ISSUE_OR_PR, Capability.MUTATE_REMOTE_STATE]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const tool = makeTool('t1', 'srv1', [
+      Capability.MUTATE_ISSUE_OR_PR,
+      Capability.MUTATE_REMOTE_STATE,
+    ]);
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     expect(findings.some((f) => f.category === RiskCategory.CODE_EXECUTION)).toBe(false);
   });
 });
@@ -153,7 +213,13 @@ describe('runFindingsRules — SENSITIVE_DATA_EXPOSURE (sensitivity tiers)', () 
   it('fires HIGH for READ_SECRET_HIGH tool', () => {
     const server = makeServer('srv1');
     const tool = makeTool('t1', 'srv1', [Capability.READ_SECRET_HIGH]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.SENSITIVE_DATA_EXPOSURE);
     expect(f?.severity).toBe('high');
   });
@@ -161,7 +227,13 @@ describe('runFindingsRules — SENSITIVE_DATA_EXPOSURE (sensitivity tiers)', () 
   it('fires HIGH for legacy READ_SECRET tool', () => {
     const server = makeServer('srv1');
     const tool = makeTool('t1', 'srv1', [Capability.READ_SECRET]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.SENSITIVE_DATA_EXPOSURE);
     expect(f?.severity).toBe('high');
   });
@@ -169,7 +241,13 @@ describe('runFindingsRules — SENSITIVE_DATA_EXPOSURE (sensitivity tiers)', () 
   it('fires MEDIUM for READ_SENSITIVE_MEDIUM tool with non-alarmist title', () => {
     const server = makeServer('srv1');
     const tool = makeTool('t1', 'srv1', [Capability.READ_SENSITIVE_MEDIUM]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.SENSITIVE_DATA_EXPOSURE);
     expect(f).toBeDefined();
     expect(f?.severity).toBe('medium');
@@ -181,7 +259,13 @@ describe('runFindingsRules — SENSITIVE_DATA_EXPOSURE (sensitivity tiers)', () 
   it('does NOT fire SENSITIVE_DATA_EXPOSURE for READ_METADATA_LOW alone', () => {
     const server = makeServer('srv1');
     const tool = makeTool('t1', 'srv1', [Capability.READ_METADATA_LOW]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     expect(findings.some((f) => f.category === RiskCategory.SENSITIVE_DATA_EXPOSURE)).toBe(false);
     // None of the findings should be high or critical for a metadata-only tool
     expect(findings.some((f) => f.severity === 'critical' || f.severity === 'high')).toBe(false);
@@ -191,8 +275,17 @@ describe('runFindingsRules — SENSITIVE_DATA_EXPOSURE (sensitivity tiers)', () 
 describe('runFindingsRules — PRIVILEGED_MUTATION (remote)', () => {
   it('fires MEDIUM for MUTATE_ISSUE_OR_PR tool with precise title', () => {
     const server = makeServer('srv1', 'https://api.github.com/mcp');
-    const tool = makeTool('t1', 'srv1', [Capability.MUTATE_ISSUE_OR_PR, Capability.MUTATE_REMOTE_STATE]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const tool = makeTool('t1', 'srv1', [
+      Capability.MUTATE_ISSUE_OR_PR,
+      Capability.MUTATE_REMOTE_STATE,
+    ]);
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.PRIVILEGED_MUTATION);
     expect(f).toBeDefined();
     expect(f?.severity).toBe('medium');
@@ -204,15 +297,32 @@ describe('runFindingsRules — PRIVILEGED_MUTATION (remote)', () => {
 describe('runFindingsRules — OVERBROAD_TOOL', () => {
   it('fires for a tool with 4+ capabilities', () => {
     const server = makeServer('srv1');
-    const tool = makeTool('t1', 'srv1', [Capability.READ_LOCAL_FILE, Capability.WRITE_LOCAL_FILE, Capability.SEND_HTTP, Capability.QUERY_DATABASE]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const tool = makeTool('t1', 'srv1', [
+      Capability.READ_LOCAL_FILE,
+      Capability.WRITE_LOCAL_FILE,
+      Capability.SEND_HTTP,
+      Capability.QUERY_DATABASE,
+    ]);
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     expect(findings.some((f) => f.category === RiskCategory.OVERBROAD_TOOL)).toBe(true);
   });
 
   it('does NOT fire for a tool with 2 capabilities', () => {
     const server = makeServer('srv1');
     const tool = makeTool('t1', 'srv1', [Capability.READ_LOCAL_FILE, Capability.WRITE_LOCAL_FILE]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     expect(findings.some((f) => f.category === RiskCategory.OVERBROAD_TOOL)).toBe(false);
   });
 });
@@ -222,7 +332,13 @@ describe('runFindingsRules — DATA_EXFILTRATION (paths)', () => {
     const server = makeServer('srv1', 'https://api.github.com/mcp');
     const t1 = makeTool('t1', 'srv1', [Capability.READ_SECRET_HIGH]);
     const t2 = makeTool('t2', 'srv1', [Capability.SEND_EXTERNAL, Capability.SEND_HTTP]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [t1, t2], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [t1, t2],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.DATA_EXFILTRATION);
     expect(f).toBeDefined();
     expect(f?.severity).toBe('high');
@@ -235,7 +351,13 @@ describe('runFindingsRules — DATA_EXFILTRATION (paths)', () => {
     const server = makeServer('srv1');
     const t1 = makeTool('t1', 'srv1', [Capability.READ_LOCAL_FILE]);
     const t2 = makeTool('t2', 'srv1', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [t1, t2], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [t1, t2],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.DATA_EXFILTRATION);
     expect(f).toBeDefined();
     expect(['high', 'critical']).toContain(f?.severity);
@@ -245,7 +367,13 @@ describe('runFindingsRules — DATA_EXFILTRATION (paths)', () => {
     const server = makeServer('srv1', 'https://api.github.com/mcp');
     const t1 = makeTool('t1', 'srv1', [Capability.READ_SENSITIVE_MEDIUM]);
     const t2 = makeTool('t2', 'srv1', [Capability.SEND_HTTP, Capability.SEND_EXTERNAL]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [t1, t2], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [t1, t2],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.DATA_EXFILTRATION);
     expect(f).toBeDefined();
     expect(f?.severity).toBe('medium');
@@ -256,7 +384,13 @@ describe('runFindingsRules — DATA_EXFILTRATION (paths)', () => {
   it('does NOT fire DATA_EXFILTRATION when only READ_SECRET tool (no sink)', () => {
     const server = makeServer('srv1');
     const t1 = makeTool('t1', 'srv1', [Capability.READ_SECRET]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [t1], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [t1],
+      collectionId: 'col1',
+    });
     expect(findings.some((f) => f.category === RiskCategory.DATA_EXFILTRATION)).toBe(false);
   });
 });
@@ -359,7 +493,13 @@ describe('runFindingsRules — Finding schema enrichment', () => {
   it('includes confidence, staticPossible/observed/tested flags on findings', () => {
     const server = makeServer('srv1');
     const tool = makeTool('t1', 'srv1', [Capability.RUN_SHELL]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [tool], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [tool],
+      collectionId: 'col1',
+    });
     const f = findings.find((x) => x.category === RiskCategory.CODE_EXECUTION);
     expect(f?.confidence).toBeDefined();
     expect(f?.staticPossible).toBe(true);
@@ -373,7 +513,13 @@ describe('runFindingsRules — trifecta enrichment regression', () => {
     const server = makeServer('srv1', 'https://api.github.com/mcp');
     const t1 = makeTool('t1', 'srv1', [Capability.READ_SECRET_HIGH]);
     const t2 = makeTool('t2', 'srv1', [Capability.SEND_EXTERNAL, Capability.SEND_HTTP]);
-    const findings = runFindingsRules({ nodes: [], edges: [], servers: [server], tools: [t1, t2], collectionId: 'col1' });
+    const findings = runFindingsRules({
+      nodes: [],
+      edges: [],
+      servers: [server],
+      tools: [t1, t2],
+      collectionId: 'col1',
+    });
 
     const byCategory = findings.reduce<Record<string, number>>((acc, f) => {
       acc[f.category] = (acc[f.category] ?? 0) + 1;
@@ -398,7 +544,10 @@ describe('runFindingsRules — trifecta enrichment regression', () => {
 describe('deduplicateFindings', () => {
   it('suppresses remote_query finding when higher-signal mutation finding exists on same server/tool', () => {
     const server = makeServer('srv1', 'https://api.github.com/mcp');
-    const tool = makeTool('t1', 'srv1', [Capability.MUTATE_REMOTE_STATE, Capability.QUERY_REMOTE_SYSTEM]);
+    const tool = makeTool('t1', 'srv1', [
+      Capability.MUTATE_REMOTE_STATE,
+      Capability.QUERY_REMOTE_SYSTEM,
+    ]);
     const findings = runFindingsRules({
       nodes: [],
       edges: [],
@@ -431,7 +580,10 @@ describe('deduplicateFindings', () => {
 
   it('preserves low-signal UNVERIFIED_SERVER finding when only safe read tool exists', () => {
     const server = makeServer('srv1');
-    const tool = makeTool('t1', 'srv1', [Capability.QUERY_REMOTE_SYSTEM, Capability.READ_REMOTE_DATA]);
+    const tool = makeTool('t1', 'srv1', [
+      Capability.QUERY_REMOTE_SYSTEM,
+      Capability.READ_REMOTE_DATA,
+    ]);
     const findings = runFindingsRules({
       nodes: [],
       edges: [],
