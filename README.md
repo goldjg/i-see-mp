@@ -382,9 +382,27 @@ These screenshots were generated via Playwright.
 
 ![Findings](docs/screenshots/findings.png)
 
+### Findings — all expanded (with trifecta classification guide)
+
+All finding cards expanded and trifecta classification guide open, including test evidence and tool-call details for the CONFIRMED lethal trifecta finding.
+
+![Findings expanded](docs/screenshots/findings-expanded.png)
+
+### Graph — highlighted path
+
+Graph view after clicking **Show on graph →** on the top CONFIRMED finding, with the affected path nodes highlighted.
+
+![Graph highlighted](docs/screenshots/graph-highlighted.png)
+
 ### Logs
 
 ![Logs](docs/screenshots/logs.png)
+
+### Logs — filtered to finding (with expanded detail rows)
+
+Logs view after clicking **Show logs →** on the CONFIRMED finding, with all available detail rows expanded.
+
+![Logs finding](docs/screenshots/logs-finding.png)
 
 ## Architecture
 

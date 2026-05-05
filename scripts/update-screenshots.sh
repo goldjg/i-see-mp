@@ -165,6 +165,55 @@ await waitForContent('.findings-view');
 await page.waitForTimeout(600);
 await page.screenshot({ path: `${outDir}/findings.png`, fullPage: false });
 
+// ----- Findings expanded -----
+console.log('  📸 Findings expanded...');
+// Open TrifectaLegend
+const legendSummary = await page.$('details.trifecta-legend > summary');
+if (legendSummary) await legendSummary.click();
+await page.waitForTimeout(300);
+// Expand every finding card
+const headers = await page.$$('.finding-header');
+for (const h of headers) { await h.click(); await page.waitForTimeout(200); }
+// Wait for evidence to load (async)
+await page.waitForTimeout(2500);
+// Open all inner <details> (Plan, tool calls, etc.)
+await page.evaluate(function() {
+  document.querySelectorAll('.finding-body details').forEach(function(d) { d.open = true; });
+});
+await page.waitForTimeout(400);
+await page.screenshot({ path: `${outDir}/findings-expanded.png`, fullPage: true });
+
+// ----- Graph — highlighted path from top finding -----
+console.log('  📸 Graph highlighted...');
+const showGraphBtn = await page.$('.show-on-graph-btn');
+if (showGraphBtn) {
+  await showGraphBtn.click();
+  await waitForContent('.graph-container');
+  await page.waitForTimeout(4000);
+  await page.screenshot({ path: `${outDir}/graph-highlighted.png`, fullPage: false });
+}
+
+// ----- Logs — filtered to top finding -----
+console.log('  📸 Logs (finding)...');
+// Go back to Findings and expand the first (CONFIRMED) card to reach Show logs
+await clickNav('Findings');
+await waitForContent('.findings-view');
+await page.waitForTimeout(600);
+const firstHeader = await page.$('.finding-header');
+if (firstHeader) { await firstHeader.click(); await page.waitForTimeout(2500); }
+const showLogsBtn = await page.$('.show-logs-btn');
+if (showLogsBtn) {
+  await showLogsBtn.click();
+  await waitForContent('.logs-view');
+  await page.waitForTimeout(1500);
+  // Expand all details in logs table
+  await page.evaluate(function() {
+    document.querySelectorAll('.logs-table details').forEach(function(d) { d.open = true; });
+  });
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${outDir}/logs-finding.png`, fullPage: true });
+}
+
 // ----- Logs -----
 console.log('  📸 Logs...');
 await clickNav('Logs');
@@ -176,5 +225,5 @@ await browser.close();
 console.log('  ✅ All screenshots saved.');
 NODE_SCRIPT
 
-echo "✅ Screenshots updated in docs/screenshots/"
+echo "✅ Screenshots updated in docs/screenshots/ (8 files)"
 ls -lh "${REPO_ROOT}/docs/screenshots/"
