@@ -30,7 +30,7 @@ vi.mock('../../api.js', () => ({
 }));
 
 describe('Findings logs integration', () => {
-  it('calls onShowLogs with finding context when show logs is clicked', async () => {
+  it('calls onShowLogs with collection and test run context when available', async () => {
     const onShowLogs = vi.fn();
     render(<Findings onShowLogs={onShowLogs} />);
 
@@ -45,7 +45,6 @@ describe('Findings logs integration', () => {
     expect(onShowLogs).toHaveBeenCalledTimes(1);
     expect(onShowLogs).toHaveBeenCalledWith({
       collectionId: 'col-1',
-      findingId: 'finding-1',
       testRunId: 'tr-1',
     });
   });

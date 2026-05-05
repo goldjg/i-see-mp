@@ -493,13 +493,13 @@ export function Findings({
             {onShowLogs && (
               <button
                 className="show-logs-btn"
-                onClick={() =>
+                onClick={() => {
+                  const primaryTestRunId = f.testRunIds?.[0];
                   onShowLogs({
                     collectionId: f.collectionId,
-                    findingId: f.id,
-                    testRunId: f.testRunIds?.[0],
-                  })
-                }
+                    ...(primaryTestRunId ? { testRunId: primaryTestRunId } : { findingId: f.id }),
+                  });
+                }}
               >
                 Show logs →
               </button>
