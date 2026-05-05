@@ -382,7 +382,9 @@ These screenshots were generated via Playwright.
 
 ![Findings](docs/screenshots/findings.png)
 
-<!-- TODO: add docs/screenshots/logs.png once captured -->
+### Logs
+
+![Logs](docs/screenshots/logs.png)
 
 ## Architecture
 
