@@ -1,0 +1,19 @@
+
+{
+
+  "mcpServers": {
+
+    "dv-mcp": {
+
+      "transport": "stdio",
+
+      "command": "node",
+
+      "args": ["examples/dv-mcp/dist/index.js"]
+
+    }
+
+  }
+
+}
+
