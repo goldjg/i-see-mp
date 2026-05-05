@@ -279,6 +279,7 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   // Conservative: only classify tools that commonly surface attacker-controlled content
   // (issues/PRs/comments/discussions/external web fetch) as UNTRUSTED_CONTENT_EXPOSURE.
   const untrustedContentPatterns = [
+    'dv_get_untrusted_prompt',
     'issue_read',
     'get_issue_comments',
     'list_issues',
@@ -394,6 +395,7 @@ export function classifyTool(tool: McpTool): ClassificationResult {
   // ---------- HTTP / network ----------
   if (
     matchesAny(name, [
+      'dv_send_external',
       'http_request',
       'send_request',
       'web_request',

@@ -13,6 +13,7 @@ export type TrustZone = (typeof TrustZone)[keyof typeof TrustZone];
 
 export const SERVER_TRUST_MAP: Record<string, TrustZone> = {
   filesystem: TrustZone.LOCAL,
+  'dv-mcp': TrustZone.LOCAL,
   fetch: TrustZone.EXTERNAL,
   github: TrustZone.CONTROLLED_SAAS,
 };

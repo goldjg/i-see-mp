@@ -233,6 +233,22 @@ export const PROMPT_INJECTION_DB_DESCRIPTOR: ProfileDescriptor = {
   safeForE2E: false,
 };
 
+export const DV_LETHAL_TRIFECTA_DESCRIPTOR: ProfileDescriptor = {
+  profileId: 'dv-lethal-trifecta',
+  profileType: 'dv-lethal-trifecta',
+  applicableServers: ['^dv-mcp$'],
+  requiredCapabilities: [Capability.UNTRUSTED_CONTENT_EXPOSURE, Capability.SEND_EXTERNAL],
+  validationMode: ValidationMode.COERCION_CANARY,
+  expectedFindings: [],
+  expectedEvidence: ['capabilityObserved', 'canaryObserved', 'sinkInvocationObserved'],
+  allowedStatuses: [PathStatus.TESTED_CONFIRMED, PathStatus.TESTED_INCONCLUSIVE],
+  forbiddenStatuses: [],
+  destructive: false,
+  requiresCredentials: false,
+  safeForE2E: true,
+  expectedTrustTransitions: [],
+};
+
 export const PROFILE_REGISTRY = new Map<TesterProfile, ProfileDescriptor>([
   ['safe', SAFE_PROFILE_DESCRIPTOR],
   ['demo-confirm', DEMO_CONFIRM_DESCRIPTOR],
@@ -240,6 +256,7 @@ export const PROFILE_REGISTRY = new Map<TesterProfile, ProfileDescriptor>([
   ['prompt-injection-github', PROMPT_INJECTION_GITHUB_DESCRIPTOR],
   ['prompt-injection-fetch', PROMPT_INJECTION_FETCH_DESCRIPTOR],
   ['prompt-injection-db', PROMPT_INJECTION_DB_DESCRIPTOR],
+  ['dv-lethal-trifecta', DV_LETHAL_TRIFECTA_DESCRIPTOR],
 ]);
 
 export const E2E_PROFILE_DESCRIPTORS: ProfileDescriptor[] = [

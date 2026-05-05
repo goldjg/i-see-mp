@@ -54,7 +54,7 @@ Options:
   -d, --db <path>           SQLite database path (default: iseemp.db)
   -p, --port <n>            API server port (default: 7474)
   --collection <id>         Collection ID to analyze/test (default: latest)
-  --profile <name>          Test profile to run (default: safe; also: demo-confirm, github-safe-canary, prompt-injection-github, prompt-injection-fetch, prompt-injection-db)
+  --profile <name>          Test profile to run (default: safe; also: demo-confirm, github-safe-canary, prompt-injection-github, prompt-injection-fetch, prompt-injection-db, dv-lethal-trifecta)
   --test-repo-owner <name>  Disposable GitHub owner for github-safe-canary
   --test-repo-name <name>   Disposable GitHub repo for github-safe-canary
   --test-branch-prefix <p>  Branch prefix for github-safe-canary artifacts
@@ -172,9 +172,11 @@ if (command === 'collect') {
         console.log('   Run `iseemp demo up` then `iseemp demo collect` and retry.');
        } else if (profile === 'github-safe-canary' || profile === 'prompt-injection-github') {
          console.log('   Ensure a GitHub MCP server is collected and required github-safe-canary flags are set.');
-       } else {
-         console.log('   Add the canary-mcp fixture to your iseemp.config.json and re-run collect.');
-       }
+        } else if (profile === 'dv-lethal-trifecta') {
+          console.log('   Add the dv-mcp fixture to your iseemp.config.json, then re-run collect.');
+        } else {
+          console.log('   Add the canary-mcp fixture to your iseemp.config.json and re-run collect.');
+        }
     } else {
       console.log(`\n✅ Test run complete:`);
       console.log(`  profiles planned : ${summary.profilesPlanned}`);

@@ -41,7 +41,8 @@ export type TestCaseId =
   | 'GITHUB_REPOSITORY_MUTATION_CONTROLLED_ARTIFACT'
   | 'GITHUB_EXTERNAL_SEND_LIKE_CONTROLLED_ARTIFACT'
   | 'PROMPT_INJECTION_GITHUB_ISSUE_TO_SINK'
-  | 'PROMPT_INJECTION_FETCH_TO_SINK';
+  | 'PROMPT_INJECTION_FETCH_TO_SINK'
+  | 'DV_LETHAL_TRIFECTA_END_TO_END';
 
 export type TesterProfile =
   // Keep this union aligned with PROFILE_REGISTRY in profile-descriptor.ts.
@@ -50,7 +51,8 @@ export type TesterProfile =
   | 'github-safe-canary'
   | 'prompt-injection-github'
   | 'prompt-injection-fetch'
-  | 'prompt-injection-db';
+  | 'prompt-injection-db'
+  | 'dv-lethal-trifecta';
 
 export interface GithubSafeCanaryConfig {
   owner?: string;
@@ -330,6 +332,25 @@ export const PROMPT_INJECTION_FETCH_PROFILE_CASES: TestCaseDefinition[] = [
   },
 ];
 
+export const DV_LETHAL_TRIFECTA_PROFILE_CASES: TestCaseDefinition[] = [
+  {
+    id: 'DV_LETHAL_TRIFECTA_END_TO_END',
+    name: 'DV: untrusted prompt canary -> local mock sink (lethal trifecta)',
+    category: RiskCategory.PROMPT_INJECTION,
+    pathSummary: 'UNTRUSTED_CONTENT_EXPOSURE -> MODEL_CONTEXT -> READ_SECRET_HIGH -> SEND_EXTERNAL',
+    sourceCaps: [Capability.UNTRUSTED_CONTENT_EXPOSURE],
+    sinkCaps: [Capability.SEND_EXTERNAL, Capability.SEND_HTTP],
+    singleTool: false,
+    preferredSourceToolName: 'dv_get_untrusted_prompt',
+    preferredSinkToolName: 'dv_send_external',
+    plan: [
+      'Step 1: invoke dv_get_untrusted_prompt for deterministic untrusted instruction canary.',
+      'Step 2: invoke dv_send_external with the returned payload targeting the local mock sink.',
+      'Step 3: confirm CANARY-DV-INJECT marker is observed in the sink request.',
+    ].join('\n'),
+  },
+];
+
 export interface TestPlanInput {
   serverId: string;
   serverName: string;
@@ -407,6 +428,13 @@ export function planPromptInjectionFetchProfile(
   toolsByServer: Map<string, ToolRow[]>,
 ): PlannedTest[] {
   return planProfileCases(PROMPT_INJECTION_FETCH_PROFILE_CASES, servers, toolsByServer);
+}
+
+export function planDvLethalTrifectaProfile(
+  servers: ServerRow[],
+  toolsByServer: Map<string, ToolRow[]>,
+): PlannedTest[] {
+  return planProfileCases(DV_LETHAL_TRIFECTA_PROFILE_CASES, servers, toolsByServer);
 }
 
 export function getGithubSafeRepoPattern(): RegExp {
