@@ -30,10 +30,9 @@ export async function analyze(options: {
   const edgesRepo = createEdgesRepo(db);
   const findingsRepo = createFindingsRepo(db);
 
-  const col =
-    options.collectionId
-      ? collections.findById(options.collectionId)
-      : collections.latest();
+  const col = options.collectionId
+    ? collections.findById(options.collectionId)
+    : collections.latest();
 
   if (!col) {
     throw new Error('No collection found. Run iseemp collect first.');

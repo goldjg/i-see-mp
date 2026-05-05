@@ -6,7 +6,8 @@
  * lengths) so reviewers can still see the *shape* of the call, but we replace
  * any value whose key looks credential-like with a placeholder.
  */
-const SECRET_KEY_RE = /(secret|password|token|credential|api[_-]?key|authorization|cookie|private[_-]?key)/i;
+const SECRET_KEY_RE =
+  /(secret|password|token|credential|api[_-]?key|authorization|cookie|private[_-]?key)/i;
 
 const PLACEHOLDER = '[redacted]';
 

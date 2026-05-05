@@ -257,9 +257,7 @@ describe('FindingsRepo', () => {
       injection_confirmed: 1,
       trust_boundary_confirmed: 1,
       trust_boundary_exploit_confirmed: 1,
-      baseline_plan: JSON.stringify([
-        { step: 1, toolName: 'issue_read', input: {}, output: {} },
-      ]),
+      baseline_plan: JSON.stringify([{ step: 1, toolName: 'issue_read', input: {}, output: {} }]),
     });
 
     const finding = repo.findById('f-cross');

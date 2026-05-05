@@ -90,7 +90,8 @@ export function findAttackPaths(nodes: GraphNode[], edges: GraphEdge[]): AttackP
   const execNodes = nodes.filter(
     (n) =>
       n.type === NodeType.TOOL &&
-      (n.capabilities.includes(Capability.RUN_SHELL) || n.capabilities.includes(Capability.EXECUTE_CODE)),
+      (n.capabilities.includes(Capability.RUN_SHELL) ||
+        n.capabilities.includes(Capability.EXECUTE_CODE)),
   );
   for (const target of execNodes) {
     const path = bfsPath(agentNode.id, (n) => n.id === target.id, adj, byId);

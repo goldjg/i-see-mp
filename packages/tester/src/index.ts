@@ -13,7 +13,14 @@ import {
 } from '@iseemp/storage';
 import type { ServerRow, ToolRow } from '@iseemp/storage';
 import type { Finding, TestRun, Evidence } from '@iseemp/core';
-import { Confidence, PathStatus, RiskCategory, TestOutcome, TestStatus, ValidationMode } from '@iseemp/core';
+import {
+  Confidence,
+  PathStatus,
+  RiskCategory,
+  TestOutcome,
+  TestStatus,
+  ValidationMode,
+} from '@iseemp/core';
 import { startMockSink } from './sink.js';
 import {
   planSafeProfile,
@@ -36,7 +43,11 @@ import {
   type PlannedTest,
 } from './runner.js';
 import { connectServer, callTool, type ConnectedServer } from './mcp-runtime.js';
-import { PROFILE_REGISTRY, getProfileDescriptor, type ProfileDescriptor } from './profile-descriptor.js';
+import {
+  PROFILE_REGISTRY,
+  getProfileDescriptor,
+  type ProfileDescriptor,
+} from './profile-descriptor.js';
 
 // Score 3+ indicates at least one medium-strength behavioral signal from the
 // deviation model (beyond sequence-only noise), so classify as possible.
@@ -121,10 +132,18 @@ export function summarizeRunsForCli(testRuns: TestRun[]): {
   ).length;
   const behaviouralDeviation = testRuns.filter((r) => r.deviationDetected === true).length;
   const skippedReasons = Array.from(
-    new Set(skippedRuns.map((r) => r.notes).filter((n): n is string => typeof n === 'string' && n.length > 0)),
+    new Set(
+      skippedRuns
+        .map((r) => r.notes)
+        .filter((n): n is string => typeof n === 'string' && n.length > 0),
+    ),
   );
   const failedReasons = Array.from(
-    new Set(failedRuns.map((r) => r.notes).filter((n): n is string => typeof n === 'string' && n.length > 0)),
+    new Set(
+      failedRuns
+        .map((r) => r.notes)
+        .filter((n): n is string => typeof n === 'string' && n.length > 0),
+    ),
   );
   return {
     profilesPlanned,
@@ -189,7 +208,10 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     toolsByServer.set(t.server_id, arr);
   }
 
-  const planners: Record<TesterProfile, (srv: ServerRow[], map: Map<string, ToolRow[]>) => PlannedTest[]> = {
+  const planners: Record<
+    TesterProfile,
+    (srv: ServerRow[], map: Map<string, ToolRow[]>) => PlannedTest[]
+  > = {
     safe: planSafeProfile,
     'demo-confirm': planDemoConfirmProfile,
     'github-safe-canary': planGithubSafeCanaryProfile,
@@ -198,17 +220,19 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     'prompt-injection-db': planSafeProfile,
     'dv-lethal-trifecta': planDvLethalTrifectaProfile,
   };
-  const applicableServerPatterns = descriptor.applicableServers.map((pattern) => new RegExp(pattern, 'i'));
+  const applicableServerPatterns = descriptor.applicableServers.map(
+    (pattern) => new RegExp(pattern, 'i'),
+  );
   const serverMatchesApplicability = (serverName: string): boolean => {
     if (applicableServerPatterns.length === 0) return true;
     return applicableServerPatterns.some((pattern) => pattern.test(serverName));
   };
   const applicableServerIds = new Set(
-    servers
-      .filter((server) => serverMatchesApplicability(server.name))
-      .map((server) => server.id),
+    servers.filter((server) => serverMatchesApplicability(server.name)).map((server) => server.id),
   );
-  const planned = planners[profile](servers, toolsByServer).filter((test) => applicableServerIds.has(test.serverId));
+  const planned = planners[profile](servers, toolsByServer).filter((test) =>
+    applicableServerIds.has(test.serverId),
+  );
   log(db, {
     level: 'info',
     phase: 'test',
@@ -341,13 +365,13 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
                 testRunId: `testrun:promptinj:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
                 config: options.githubSafeCanary!,
               })
-          : profile === 'prompt-injection-fetch'
-            ? await executePromptInjectionFetchPlannedTest(
-                ctx,
-                p,
-                `testrun:promptinjfetch:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
-              )
-          : await executePlannedTest(ctx, p);
+            : profile === 'prompt-injection-fetch'
+              ? await executePromptInjectionFetchPlannedTest(
+                  ctx,
+                  p,
+                  `testrun:promptinjfetch:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
+                )
+              : await executePlannedTest(ctx, p);
       allTestRuns.push(executed.testRun);
       allEvidence.push(...executed.evidence);
       log(db, {
@@ -525,9 +549,7 @@ async function ensureConnection(
     try {
       const parsed = JSON.parse(server.env) as Record<string, string>;
       // Stored env is redacted; pass through known non-redacted values only.
-      env = Object.fromEntries(
-        Object.entries(parsed).filter(([, v]) => v && v !== '[redacted]'),
-      );
+      env = Object.fromEntries(Object.entries(parsed).filter(([, v]) => v && v !== '[redacted]'));
       if (Object.keys(env).length === 0) env = undefined;
     } catch {
       env = undefined;
@@ -555,7 +577,9 @@ async function ensureConnection(
     connected.set(planned.serverId, conn);
     return conn;
   } catch (err) {
-    console.warn(`⚠️  Skipping server "${server.name}": ${err instanceof Error ? err.message : String(err)}`);
+    console.warn(
+      `⚠️  Skipping server "${server.name}": ${err instanceof Error ? err.message : String(err)}`,
+    );
     return undefined;
   }
 }
@@ -594,10 +618,7 @@ export function applyTestResultsToFindings(
   }
 }
 
-export function matchRunsToFinding(
-  finding: Finding,
-  testRuns: TestRun[],
-): TestRun[] {
+export function matchRunsToFinding(finding: Finding, testRuns: TestRun[]): TestRun[] {
   if (finding.candidatePathId) {
     const deterministic = testRuns.filter(
       (run) => run.candidatePathId && run.candidatePathId === finding.candidatePathId,
@@ -616,7 +637,8 @@ export function matchRunsToFinding(
   const out: TestRun[] = [];
   for (const run of testRuns) {
     const serverMatches =
-      targetServerIds.length === 0 || (run.serverId ? targetServerIds.includes(run.serverId) : false);
+      targetServerIds.length === 0 ||
+      (run.serverId ? targetServerIds.includes(run.serverId) : false);
     const toolMatches =
       targetToolIds.length === 0 ||
       (run.sourceToolId ? targetToolIds.includes(run.sourceToolId) : false) ||
@@ -684,7 +706,9 @@ export function applyRunsToFinding(
   const confirmed = runs.find((r) => r.outcome === TestOutcome.TESTED_CONFIRMED);
   const blocked = runs.find((r) => r.pathStatus === PathStatus.INJECTION_INFLUENCE_BLOCKED);
   const rejected = runs.find((r) => r.outcome === TestOutcome.TESTED_REJECTED);
-  const inconclusive = runs.find((r) => r.outcome === TestOutcome.TESTED_INCONCLUSIVE || r.outcome === TestOutcome.TEST_ERROR);
+  const inconclusive = runs.find(
+    (r) => r.outcome === TestOutcome.TESTED_INCONCLUSIVE || r.outcome === TestOutcome.TEST_ERROR,
+  );
   const skipped = runs.find((r) => r.outcome === TestOutcome.TEST_SKIPPED);
   const baseExplanation = stripTestExplanation(finding.explanation);
   const next: Finding = {
@@ -692,19 +716,18 @@ export function applyRunsToFinding(
     testRunIds: Array.from(new Set(runs.map((r) => r.id))),
     candidatePathId: finding.candidatePathId ?? runs[0]?.candidatePathId,
     baselinePlan:
-      runs.find((r) => (r.baselineToolCalls?.length ?? 0) > 0)?.baselineToolCalls ?? finding.baselinePlan,
+      runs.find((r) => (r.baselineToolCalls?.length ?? 0) > 0)?.baselineToolCalls ??
+      finding.baselinePlan,
     trustBoundaryExploitConfirmed: runs.some((r) => r.trustBoundaryExploitConfirmed === true),
   };
   const resolvedDescriptor =
-    profileDescriptor ??
-    (runs[0]?.profile ? getProfileDescriptor(runs[0].profile) : undefined);
+    profileDescriptor ?? (runs[0]?.profile ? getProfileDescriptor(runs[0].profile) : undefined);
   const validationMode = resolvedDescriptor?.validationMode;
   const allowsCoercionConfirmation =
     validationMode === ValidationMode.COERCION_CANARY ||
     validationMode === ValidationMode.COMPOSITE;
   const allowsTrustBoundaryConfirmation =
-    validationMode === ValidationMode.TRUST_BOUNDARY ||
-    validationMode === ValidationMode.COMPOSITE;
+    validationMode === ValidationMode.TRUST_BOUNDARY || validationMode === ValidationMode.COMPOSITE;
 
   if (confirmed) {
     next.tested = true;
@@ -717,10 +740,11 @@ export function applyRunsToFinding(
       baseExplanation,
       'Test confirmed this path via canary observation.',
     );
-    if (allowsCoercionConfirmation && (
-      finding.category === RiskCategory.PROMPT_INJECTION ||
-      finding.lethalTrifectaStatus === 'POSSIBLE'
-    )) {
+    if (
+      allowsCoercionConfirmation &&
+      (finding.category === RiskCategory.PROMPT_INJECTION ||
+        finding.lethalTrifectaStatus === 'POSSIBLE')
+    ) {
       next.lethalTrifectaStatus = 'CONFIRMED';
       next.injectionConfirmed = true;
       next.subCategory = 'PROMPT_INJECTION_CONFIRMED';
@@ -728,7 +752,10 @@ export function applyRunsToFinding(
         const chain = run.injectionChain ?? [];
         const servers = new Set(
           chain
-            .filter((step) => step.markerPresent && typeof step.serverId === 'string' && step.serverId.length > 0)
+            .filter(
+              (step) =>
+                step.markerPresent && typeof step.serverId === 'string' && step.serverId.length > 0,
+            )
             .map((step) => step.serverId!),
         );
         return servers.size >= 2;
@@ -787,17 +814,16 @@ export function applyRunsToFinding(
       baseExplanation,
       'Test inconclusive; path not proven or disproven.',
     );
-    if (
-      finding.lethalTrifectaStatus === 'POSSIBLE'
-    ) {
+    if (finding.lethalTrifectaStatus === 'POSSIBLE') {
       next.lethalTrifectaStatus = 'POSSIBLE';
     }
     const hasDeviation = runs.some((r) => r.deviationDetected === true);
-    const maxDeviationScore = runs.reduce(
-      (max, run) => Math.max(max, run.deviationScore ?? 0),
-      0,
-    );
-    if (allowsCoercionConfirmation && hasDeviation && finding.category === RiskCategory.PROMPT_INJECTION) {
+    const maxDeviationScore = runs.reduce((max, run) => Math.max(max, run.deviationScore ?? 0), 0);
+    if (
+      allowsCoercionConfirmation &&
+      hasDeviation &&
+      finding.category === RiskCategory.PROMPT_INJECTION
+    ) {
       if (maxDeviationScore >= PROMPT_INJECTION_POSSIBLE_SCORE_THRESHOLD) {
         next.subCategory = 'PROMPT_INJECTION_POSSIBLE';
       }
@@ -806,7 +832,10 @@ export function applyRunsToFinding(
   } else if (skipped) {
     next.tested = false;
     next.observed = false;
-    next.explanation = appendExplanation(baseExplanation, 'Test skipped due to unavailable execution environment.');
+    next.explanation = appendExplanation(
+      baseExplanation,
+      'Test skipped due to unavailable execution environment.',
+    );
   }
 
   return next;

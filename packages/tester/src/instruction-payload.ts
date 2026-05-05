@@ -61,7 +61,9 @@ function buildMultiStepPayload(args: InstructionPayloadArgs): string {
   return [`ISEEMP-INJECT-STEP${step}-${args.injectMarkerUuid}/${total}`, plain].join('\n');
 }
 
-export function instructionPayloadRecordGenerator(args: InstructionPayloadArgs): InjectionPayloadRecord {
+export function instructionPayloadRecordGenerator(
+  args: InstructionPayloadArgs,
+): InjectionPayloadRecord {
   const encoding = args.encoding ?? InstructionPayloadEncoding.PLAIN;
   const surface = args.injectionSurface ?? InjectionSurface.GITHUB_ISSUE;
   const payloadText =

@@ -1,4 +1,10 @@
-import { RiskCategory, Capability, LethalTrifectaStatus, TrustBoundary, Confidence } from '@iseemp/core';
+import {
+  RiskCategory,
+  Capability,
+  LethalTrifectaStatus,
+  TrustBoundary,
+  Confidence,
+} from '@iseemp/core';
 import type { GraphNode, GraphEdge, Finding } from '@iseemp/core';
 import type { ServerRow, ToolRow } from '@iseemp/storage';
 import { applyTrifectaAnnotation, sortByTrifecta, deriveIsCrossServer } from './trifecta.js';
@@ -54,7 +60,8 @@ function isInstructionCapableTool(tool: ToolRow): boolean {
   const caps = parseCaps(tool.capabilities);
   const hasSourceRole = sourceRoles.includes('INSTRUCTION_SOURCE');
   const hasExposureCap =
-    caps.includes(Capability.UNTRUSTED_CONTENT_EXPOSURE) || caps.includes(Capability.INSTRUCTION_SOURCE);
+    caps.includes(Capability.UNTRUSTED_CONTENT_EXPOSURE) ||
+    caps.includes(Capability.INSTRUCTION_SOURCE);
   const instructionOrigin = new Set(['remote', 'user_generated', 'external_saas', 'db_row']);
   const hasInstructionOrigin = instructionOrigin.has(tool.content_origin);
   if (hasSourceRole && hasExposureCap && hasInstructionOrigin) return true;
@@ -68,7 +75,10 @@ function isNonLocalhost(url: string | null): boolean {
 }
 
 /** Determine the trust boundary for a server based on transport and URL. */
-export function inferServerTrustBoundary(server: { url: string | null; transport?: string }): TrustBoundary {
+export function inferServerTrustBoundary(server: {
+  url: string | null;
+  transport?: string;
+}): TrustBoundary {
   if (!server.url) return TrustBoundary.LOCAL;
   if (!isNonLocalhost(server.url)) return TrustBoundary.LOCAL;
   if (/github\.com|api\.github/.test(server.url)) {
@@ -144,7 +154,10 @@ const CROSS_SERVER_SOURCE_CAPS_PRIORITY: Capability[] = [
   Capability.READ_SENSITIVE_MEDIUM,
 ];
 
-const CROSS_SERVER_SINK_CAPS_PRIORITY: Capability[] = [Capability.SEND_EXTERNAL, Capability.SEND_HTTP];
+const CROSS_SERVER_SINK_CAPS_PRIORITY: Capability[] = [
+  Capability.SEND_EXTERNAL,
+  Capability.SEND_HTTP,
+];
 
 function hasAny(caps: Capability[], wanted: Capability[]): boolean {
   return wanted.some((w) => caps.includes(w));
@@ -195,7 +208,9 @@ function findingIsProtected(finding: Finding): boolean {
 }
 
 function isRemoteQueryFinding(finding: Finding): boolean {
-  return finding.id.includes(':remote_query:') && finding.category === RiskCategory.UNVERIFIED_SERVER;
+  return (
+    finding.id.includes(':remote_query:') && finding.category === RiskCategory.UNVERIFIED_SERVER
+  );
 }
 
 function isSubsumableCategory(category: Finding['category']): boolean {
@@ -228,7 +243,8 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
   }
 
   for (const target of sorted) {
-    if (suppressedIds.has(target.id) || findingIsProtected(target) || !isRemoteQueryFinding(target)) continue;
+    if (suppressedIds.has(target.id) || findingIsProtected(target) || !isRemoteQueryFinding(target))
+      continue;
     const serverId = extractServerId(target);
     const toolIds = extractToolIds(target);
     if (!serverId || toolIds.length === 0) continue;
@@ -352,7 +368,11 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
     // Rule: UNVERIFIED_SERVER. Severity depends on what the server can do.
     let unverifiedSeverity: Finding['severity'] = 'low';
     if (hasServerExec || hasServerHighSecret) unverifiedSeverity = 'medium';
-    else if (hasServerSensitiveMedium || hasServerLocalFile || hasAny(serverCapsArr, MUTATE_REMOTE_CAPS))
+    else if (
+      hasServerSensitiveMedium ||
+      hasServerLocalFile ||
+      hasAny(serverCapsArr, MUTATE_REMOTE_CAPS)
+    )
       unverifiedSeverity = 'medium';
     else if (hasServerLowOnly) unverifiedSeverity = 'low';
     else unverifiedSeverity = 'low';
@@ -368,7 +388,8 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         ? `Server "${server.name}" is matched by known identity pattern to an official MCP distribution, but this is not cryptographic verification and should still be reviewed.`
         : `Server "${server.name}" has not been verified. Its tools and capabilities cannot be fully trusted.`,
       affectedNodeIds: [`server:${server.id}`],
-      remediationHint: 'Review the server source, pin to a specific version, and validate its tool implementations.',
+      remediationHint:
+        'Review the server source, pin to a specific version, and validate its tool implementations.',
       createdAt: now,
       confidence: Confidence.MEDIUM,
       staticPossible: true,
@@ -387,7 +408,8 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         title: `Remote MCP server crosses trust boundary: ${server.name}`,
         description: `Server "${server.name}" (${server.url}) is hosted remotely (${boundary}), meaning tool calls cross a network trust boundary. Responses could be tampered with.`,
         affectedNodeIds: [`server:${server.id}`],
-        remediationHint: 'Prefer local/localhost MCP servers. For remote servers, use TLS and validate the server identity.',
+        remediationHint:
+          'Prefer local/localhost MCP servers. For remote servers, use TLS and validate the server identity.',
         createdAt: now,
         confidence: Confidence.HIGH,
         staticPossible: true,
@@ -404,7 +426,9 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
       if (caps.includes(Capability.RUN_SHELL) || caps.includes(Capability.EXECUTE_CODE)) {
         const isShell = caps.includes(Capability.RUN_SHELL);
         const sevBase: Finding['severity'] =
-          (isExternalBoundary && hasServerExternalSink) || hasServerHighSecret ? 'critical' : 'high';
+          (isExternalBoundary && hasServerExternalSink) || hasServerHighSecret
+            ? 'critical'
+            : 'high';
         findings.push({
           id: `finding:${collectionId}:code_exec:${tool.id}`,
           collectionId,
@@ -556,7 +580,8 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
             ', ',
           )}. Overbroad tools increase attack surface.`,
           affectedNodeIds: [`tool:${tool.id}`],
-          remediationHint: 'Split this tool into narrower, purpose-specific tools with minimal capability sets.',
+          remediationHint:
+            'Split this tool into narrower, purpose-specific tools with minimal capability sets.',
           createdAt: now,
           confidence: Confidence.MEDIUM,
           staticPossible: true,
@@ -569,7 +594,9 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
 
     // -------- DANGEROUS_TOOL_CHAIN: high-secret + external send (data movement path) --------
     if (hasServerHighSecret && hasServerExternalSink) {
-      const sourceTools = serverTools.filter((t) => hasAny(parseCaps(t.capabilities), HIGH_SECRET_CAPS));
+      const sourceTools = serverTools.filter((t) =>
+        hasAny(parseCaps(t.capabilities), HIGH_SECRET_CAPS),
+      );
       const sinkTools = serverTools.filter((t) =>
         hasAny(parseCaps(t.capabilities), EXTERNAL_SINK_CAPS),
       );
@@ -711,7 +738,8 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         title: `Local file exfiltration path on ${server.name}`,
         description: `Server "${server.name}" can both read local files and make external-send requests. This combination could allow exfiltrating local files across the ${boundary} trust boundary.`,
         affectedNodeIds: [`server:${server.id}`],
-        remediationHint: 'Restrict file-reading tools to read-only scopes and prevent their output from being passed to external-send tools.',
+        remediationHint:
+          'Restrict file-reading tools to read-only scopes and prevent their output from being passed to external-send tools.',
         createdAt: now,
         confidence: Confidence.MEDIUM,
         staticPossible: true,
@@ -749,9 +777,9 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
         description: `Server "${server.name}" exposes private-data access, instruction-bearing untrusted content, and external communication capabilities. This combination is a prompt-injection exploitability candidate and should be tested with deterministic canaries.`,
         affectedNodeIds: [
           `server:${server.id}`,
-          ...(instructionTools.map((t) => `tool:${t.id}`)),
-          ...(sourceTools.map((t) => `tool:${t.id}`)),
-          ...(sinkTools.map((t) => `tool:${t.id}`)),
+          ...instructionTools.map((t) => `tool:${t.id}`),
+          ...sourceTools.map((t) => `tool:${t.id}`),
+          ...sinkTools.map((t) => `tool:${t.id}`),
         ],
         remediationHint:
           'Isolate instruction-bearing tools from sensitive reads and external sinks, then run prompt-injection canary tests.',
@@ -846,12 +874,16 @@ export function runFindingsRules(context: FindingsContext): Finding[] {
       const pathSummary = `${sourceCapRepresentative} -> MODEL_CONTEXT -> ${sinkCapRepresentative} (cross-server: ${sourceCandidate.server.name} → ${sinkCandidate.server.name})`;
       const sourceServerCapsArr = Array.from(
         new Set(
-          (toolsByServer.get(sourceCandidate.server.id) ?? []).flatMap((tool) => parseCaps(tool.capabilities)),
+          (toolsByServer.get(sourceCandidate.server.id) ?? []).flatMap((tool) =>
+            parseCaps(tool.capabilities),
+          ),
         ),
       );
       const sinkServerCapsArr = Array.from(
         new Set(
-          (toolsByServer.get(sinkCandidate.server.id) ?? []).flatMap((tool) => parseCaps(tool.capabilities)),
+          (toolsByServer.get(sinkCandidate.server.id) ?? []).flatMap((tool) =>
+            parseCaps(tool.capabilities),
+          ),
         ),
       );
       const lethalCandidate =

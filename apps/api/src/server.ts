@@ -63,9 +63,7 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
 
   app.get<{ Querystring: { collectionId?: string } }>('/servers', async (req) => {
     const { collectionId } = req.query;
-    const col = collectionId
-      ? collections.findById(collectionId)
-      : collections.latest();
+    const col = collectionId ? collections.findById(collectionId) : collections.latest();
     if (!col) return [];
     return servers.findByCollection(col.id).map((s) => ({
       id: s.id,
@@ -80,13 +78,9 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
 
   app.get<{ Querystring: { collectionId?: string; serverId?: string } }>('/tools', async (req) => {
     const { collectionId, serverId } = req.query;
-    const col = collectionId
-      ? collections.findById(collectionId)
-      : collections.latest();
+    const col = collectionId ? collections.findById(collectionId) : collections.latest();
     if (!col) return [];
-    const allTools = serverId
-      ? tools.findByServer(serverId)
-      : tools.findByCollection(col.id);
+    const allTools = serverId ? tools.findByServer(serverId) : tools.findByCollection(col.id);
     return allTools.map((t) => ({
       id: t.id,
       collectionId: t.collection_id,
@@ -96,18 +90,16 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
       capabilities: JSON.parse(t.capabilities) as string[],
       sourceRole: JSON.parse(t.source_role) as string[],
       isUntrusted: t.is_untrusted === 1,
-        isInstructionCapable: t.is_instruction_capable === 1,
-        contentOrigin: t.content_origin,
-        trustZone: t.trust_zone ?? undefined,
-        riskScore: t.risk_score,
-      }));
+      isInstructionCapable: t.is_instruction_capable === 1,
+      contentOrigin: t.content_origin,
+      trustZone: t.trust_zone ?? undefined,
+      riskScore: t.risk_score,
+    }));
   });
 
   app.get<{ Querystring: { collectionId?: string } }>('/graph', async (req) => {
     const { collectionId } = req.query;
-    const col = collectionId
-      ? collections.findById(collectionId)
-      : collections.latest();
+    const col = collectionId ? collections.findById(collectionId) : collections.latest();
     if (!col) return { nodes: [], edges: [] };
 
     // Return persisted graph if available, else build on-the-fly
@@ -132,9 +124,7 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
 
   app.get<{ Querystring: { collectionId?: string } }>('/findings', async (req) => {
     const { collectionId } = req.query;
-    const col = collectionId
-      ? collections.findById(collectionId)
-      : collections.latest();
+    const col = collectionId ? collections.findById(collectionId) : collections.latest();
     if (!col) return [];
     return applyTrifectaAnalysis(findings.findByCollection(col.id));
   });
@@ -144,9 +134,7 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
     async (req) => {
       const { collectionId, findingId } = req.query;
       if (findingId) return testRuns.getByFindingId(findingId);
-      const col = collectionId
-        ? collections.findById(collectionId)
-        : collections.latest();
+      const col = collectionId ? collections.findById(collectionId) : collections.latest();
       if (!col) return [];
       return testRuns.findByCollection(col.id);
     },

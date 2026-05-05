@@ -96,11 +96,15 @@ describe('isSensitiveTrustTransition', () => {
 
   it('detects local/internal to external/user-controlled transitions', () => {
     expect(isSensitiveTrustTransition(TrustZone.LOCAL, TrustZone.EXTERNAL)).toBe(true);
-    expect(isSensitiveTrustTransition(TrustZone.INTERNAL, TrustZone.USER_CONTROLLED_SAAS)).toBe(true);
+    expect(isSensitiveTrustTransition(TrustZone.INTERNAL, TrustZone.USER_CONTROLLED_SAAS)).toBe(
+      true,
+    );
   });
 
   it('does not flag same trust class transitions', () => {
     expect(isSensitiveTrustTransition(TrustZone.LOCAL, TrustZone.INTERNAL)).toBe(false);
-    expect(isSensitiveTrustTransition(TrustZone.CONTROLLED_SAAS, TrustZone.USER_CONTROLLED_SAAS)).toBe(false);
+    expect(
+      isSensitiveTrustTransition(TrustZone.CONTROLLED_SAAS, TrustZone.USER_CONTROLLED_SAAS),
+    ).toBe(false);
   });
 });

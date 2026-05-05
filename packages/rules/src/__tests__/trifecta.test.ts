@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { Capability, LethalTrifectaStatus, RiskCategory, TrustBoundary } from '@iseemp/core';
 import type { Finding } from '@iseemp/core';
-import { classifyFindingTrifecta, applyTrifectaAnalysis, deriveIsCrossServer } from '../trifecta.js';
+import {
+  classifyFindingTrifecta,
+  applyTrifectaAnalysis,
+  deriveIsCrossServer,
+} from '../trifecta.js';
 import { deduplicateFindings } from '../findings-rules.js';
 
 const now = new Date().toISOString();
@@ -196,7 +200,11 @@ describe('applyTrifectaAnalysis ordering', () => {
   it('sorts COMPLETE before PARTIAL before CAPABILITY_ONLY', () => {
     const findings = [
       makeFinding({ id: 'c', sourceCapabilities: [], sinkCapabilities: [] }),
-      makeFinding({ id: 'b', sourceCapabilities: [Capability.READ_SECRET_HIGH], sinkCapabilities: [] }),
+      makeFinding({
+        id: 'b',
+        sourceCapabilities: [Capability.READ_SECRET_HIGH],
+        sinkCapabilities: [],
+      }),
       makeFinding({
         id: 'a',
         sourceCapabilities: [Capability.READ_SECRET_HIGH],

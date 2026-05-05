@@ -1,4 +1,5 @@
 <!-- version: 1.0.0 -->
+
 # Terraform Language Pack
 
 Use this guidance when working with Terraform configurations.

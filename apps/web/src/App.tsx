@@ -53,9 +53,11 @@ function AppContent() {
   }>({});
 
   function isCollapsibleNavActive(): boolean {
-    return getComputedStyle(document.documentElement)
-      .getPropertyValue(COLLAPSIBLE_NAV_ACTIVE_VAR)
-      .trim() === '1';
+    return (
+      getComputedStyle(document.documentElement)
+        .getPropertyValue(COLLAPSIBLE_NAV_ACTIVE_VAR)
+        .trim() === '1'
+    );
   }
 
   useEffect(() => {
@@ -228,9 +230,7 @@ function AppContent() {
           />
         )}
         {view === 'tools' && <Tools />}
-        {view === 'findings' && (
-          <Findings onShowOnGraph={showOnGraph} onShowLogs={showLogs} />
-        )}
+        {view === 'findings' && <Findings onShowOnGraph={showOnGraph} onShowLogs={showLogs} />}
         {view === 'logs' && <Logs initialFilters={logsFilters} />}
       </main>
     </div>

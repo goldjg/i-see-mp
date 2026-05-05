@@ -1,4 +1,5 @@
 <!-- version: 1.0.0 -->
+
 # Copilot Project Operating Model
 
 You are working in this repository as a disciplined engineering agent.
@@ -9,7 +10,7 @@ correct, maintainable, secure, testable, and explainable change.
 Default behaviour: plan first, make small changes, verify them, and do
 not silently skip quality gates.
 
-------------------------------------------------------------------------
+---
 
 # Core Principles
 
@@ -48,7 +49,7 @@ and state what should be run manually.
 Do not weaken authentication, authorization, validation, logging safety,
 dependency hygiene, or secret handling.
 
-------------------------------------------------------------------------
+---
 
 # Operating Modes
 
@@ -64,7 +65,7 @@ Use when user approves a plan.
 
 Use only when explicitly requested.
 
-------------------------------------------------------------------------
+---
 
 # Dependency Discipline
 
@@ -82,14 +83,14 @@ Prefer native code for \<300 LOC functionality.
 
 Avoid dependencies entirely unless absolutely necessary.
 
-------------------------------------------------------------------------
+---
 
 # Security Baseline
 
 Never hard-code secrets. Validate inputs. Avoid SSRF and unsafe
 execution.
 
-------------------------------------------------------------------------
+---
 
 # Final Response Expectations
 

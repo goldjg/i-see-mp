@@ -119,7 +119,10 @@ export function FindingBadges({ finding }: { finding: Finding }) {
       title:
         'Untrusted-content exposure + private data access + external communication are all present. This is a prompt-injection candidate path, not a confirmed exploit.',
     });
-  } else if (finding.lethalTrifectaStatus === 'COMPLETE' || finding.lethalTrifectaStatus === 'CONFIRMED') {
+  } else if (
+    finding.lethalTrifectaStatus === 'COMPLETE' ||
+    finding.lethalTrifectaStatus === 'CONFIRMED'
+  ) {
     badges.push({
       label: 'LETHAL_TRIFECTA_CONFIRMED',
       cls: 'badge-lethal-trifecta-complete',
@@ -250,7 +253,9 @@ export function TrifectaLegend() {
     <details className="trifecta-legend">
       <summary>ℹ️ Trifecta classification guide</summary>
       <div className="legend-row">
-        <span className="finding-badge badge-trifecta-complete legend-badge">TRIFECTA_COMPLETE</span>
+        <span className="finding-badge badge-trifecta-complete legend-badge">
+          TRIFECTA_COMPLETE
+        </span>
         <span className="legend-text">
           Structural source + model context + sink path is present (dataflow/exfil capability).
         </span>
@@ -262,7 +267,9 @@ export function TrifectaLegend() {
         </span>
       </div>
       <div className="legend-row">
-        <span className="finding-badge badge-trifecta-capability legend-badge">CAPABILITY_ONLY</span>
+        <span className="finding-badge badge-trifecta-capability legend-badge">
+          CAPABILITY_ONLY
+        </span>
         <span className="legend-text">
           Standalone capability exposure without a detected structural chain.
         </span>
@@ -272,7 +279,8 @@ export function TrifectaLegend() {
           LETHAL_TRIFECTA_POSSIBLE
         </span>
         <span className="legend-text">
-          Candidate prompt-injection path: private data access + untrusted content exposure + external communication.
+          Candidate prompt-injection path: private data access + untrusted content exposure +
+          external communication.
         </span>
       </div>
     </details>
@@ -330,9 +338,19 @@ function EvidenceSummary({ findingId }: { findingId: string }) {
             <span className={`finding-badge badge-path-${r.pathStatus}`}>{r.pathStatus}</span>
             <span className="evidence-run-id">{r.id}</span>
           </div>
-          {r.outcome && <p><strong>Outcome:</strong> {r.outcome}</p>}
-          <p><strong>Timestamp:</strong> {r.timestamp ?? r.startedAt}</p>
-          {r.pathSummary && <p className="evidence-path"><code>{r.pathSummary}</code></p>}
+          {r.outcome && (
+            <p>
+              <strong>Outcome:</strong> {r.outcome}
+            </p>
+          )}
+          <p>
+            <strong>Timestamp:</strong> {r.timestamp ?? r.startedAt}
+          </p>
+          {r.pathSummary && (
+            <p className="evidence-path">
+              <code>{r.pathSummary}</code>
+            </p>
+          )}
           <details>
             <summary>Plan</summary>
             <pre>{r.plan}</pre>
@@ -360,12 +378,15 @@ function EvidenceSummary({ findingId }: { findingId: string }) {
             Canary observed: <strong>{r.canaryObserved ? 'true' : 'false'}</strong>
             {r.canaryExpected && (
               <>
-                {' '}— expected marker: <code>{r.canaryExpected}</code>
+                {' '}
+                — expected marker: <code>{r.canaryExpected}</code>
               </>
             )}
           </p>
           {typeof r.deviationScore === 'number' && (
-            <p><strong>Deviation score:</strong> {r.deviationScore}</p>
+            <p>
+              <strong>Deviation score:</strong> {r.deviationScore}
+            </p>
           )}
           {r.injectionChain && r.injectionChain.length > 0 && (
             <details>
@@ -374,7 +395,8 @@ function EvidenceSummary({ findingId }: { findingId: string }) {
                 {r.injectionChain.map((step, idx) => (
                   <li key={`${step.step}-${idx}`}>
                     <code>
-                      {step.serverId ?? 'unknown-server'} → {step.toolName} (marker: {step.markerPresent ? 'yes' : 'no'})
+                      {step.serverId ?? 'unknown-server'} → {step.toolName} (marker:{' '}
+                      {step.markerPresent ? 'yes' : 'no'})
                     </code>
                   </li>
                 ))}
@@ -382,7 +404,9 @@ function EvidenceSummary({ findingId }: { findingId: string }) {
             </details>
           )}
           {r.trustBoundaryExploitConfirmed && (
-            <p><strong>Trust boundary exploit:</strong> confirmed</p>
+            <p>
+              <strong>Trust boundary exploit:</strong> confirmed
+            </p>
           )}
           {r.notes && <p className="evidence-notes">Notes: {r.notes}</p>}
         </div>
@@ -425,7 +449,11 @@ export function Findings({
     acc[sev] = findings.filter((f) => f.severity === sev);
     return acc;
   }, {});
-  const trifectaGroups: Array<{ key: 'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY'; label: string; items: Finding[] }> = [
+  const trifectaGroups: Array<{
+    key: 'COMPLETE' | 'PARTIAL' | 'CAPABILITY_ONLY';
+    label: string;
+    items: Finding[];
+  }> = [
     {
       key: 'COMPLETE',
       label: 'TRIFECTA_COMPLETE',
@@ -446,15 +474,20 @@ export function Findings({
   function renderFindingCard(f: Finding) {
     return (
       <div key={f.id} className="finding-card-full">
-        <div className="finding-header" onClick={() => setExpanded((s) => {
-          const n = new Set(s);
-          if (n.has(f.id)) {
-            n.delete(f.id);
-          } else {
-            n.add(f.id);
+        <div
+          className="finding-header"
+          onClick={() =>
+            setExpanded((s) => {
+              const n = new Set(s);
+              if (n.has(f.id)) {
+                n.delete(f.id);
+              } else {
+                n.add(f.id);
+              }
+              return n;
+            })
           }
-          return n;
-        })}>
+        >
           <span className="severity-dot" style={{ background: SEVERITY_COLOR[f.severity] }} />
           <span className="finding-title">{f.title}</span>
           <FindingBadges finding={f} />
@@ -464,20 +497,30 @@ export function Findings({
           <div className="finding-body">
             <p>{f.description}</p>
             {f.pathSummary && (
-              <p><strong>Path:</strong> <code>{f.pathSummary}</code></p>
+              <p>
+                <strong>Path:</strong> <code>{f.pathSummary}</code>
+              </p>
             )}
             {f.trustTransition && (
-              <p><strong>Trust transition:</strong> <code>{f.trustTransition}</code></p>
+              <p>
+                <strong>Trust transition:</strong> <code>{f.trustTransition}</code>
+              </p>
             )}
             {f.explanation && (
-              <p className="explanation"><strong>Explanation:</strong> {f.explanation}</p>
+              <p className="explanation">
+                <strong>Explanation:</strong> {f.explanation}
+              </p>
             )}
             <TrifectaExplanation finding={f} />
             {f.remediationHint && (
-              <p className="remediation"><strong>Remediation:</strong> {f.remediationHint}</p>
+              <p className="remediation">
+                <strong>Remediation:</strong> {f.remediationHint}
+              </p>
             )}
             {f.affectedNodeIds.length > 0 && (
-              <p><strong>Affected nodes:</strong> {f.affectedNodeIds.join(', ')}</p>
+              <p>
+                <strong>Affected nodes:</strong> {f.affectedNodeIds.join(', ')}
+              </p>
             )}
             {(f.tested || (f.testRunIds && f.testRunIds.length > 0)) && (
               <EvidenceSummary findingId={f.id} />
@@ -513,7 +556,11 @@ export function Findings({
   return (
     <div className="findings-view">
       <h1>Findings ({findings.length})</h1>
-      {findings.length === 0 && <p className="empty-state">No findings — looks clean! Run <code>iseemp analyze</code> if you haven't already.</p>}
+      {findings.length === 0 && (
+        <p className="empty-state">
+          No findings — looks clean! Run <code>iseemp analyze</code> if you haven't already.
+        </p>
+      )}
       <div className="findings-view-mode">
         <button
           className={viewMode === 'trifecta' ? 'active' : ''}
@@ -534,7 +581,9 @@ export function Findings({
           if (group.items.length === 0) return null;
           return (
             <div key={group.key} className="findings-group">
-              <h2>{group.label} ({group.items.length})</h2>
+              <h2>
+                {group.label} ({group.items.length})
+              </h2>
               {group.items.map((f) => renderFindingCard(f))}
             </div>
           );
@@ -545,7 +594,9 @@ export function Findings({
           if (group.length === 0) return null;
           return (
             <div key={sev} className="findings-group">
-              <h2 style={{ color: SEVERITY_COLOR[sev] }}>{sev.toUpperCase()} ({group.length})</h2>
+              <h2 style={{ color: SEVERITY_COLOR[sev] }}>
+                {sev.toUpperCase()} ({group.length})
+              </h2>
               {group.map((f) => renderFindingCard(f))}
             </div>
           );

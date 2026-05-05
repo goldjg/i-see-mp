@@ -23,10 +23,7 @@ export function Dashboard() {
         const latest = cols[0] ?? null;
         setCollection(latest);
         if (latest) {
-          const [f, tools] = await Promise.all([
-            api.findings(latest.id),
-            api.tools(latest.id),
-          ]);
+          const [f, tools] = await Promise.all([api.findings(latest.id), api.tools(latest.id)]);
           setFindings(f);
           const counts: Record<string, number> = {};
           for (const tool of tools) {
@@ -50,7 +47,9 @@ export function Dashboard() {
     return (
       <div className="empty-state">
         <h2>No collections yet</h2>
-        <p>Run <code>iseemp collect</code> to scan your MCP servers.</p>
+        <p>
+          Run <code>iseemp collect</code> to scan your MCP servers.
+        </p>
       </div>
     );
   }
@@ -70,26 +69,49 @@ export function Dashboard() {
     <div className="dashboard">
       <h1>Dashboard</h1>
       <div className="stat-cards">
-        <div className="stat-card"><div className="stat-value">{collection.serverCount}</div><div className="stat-label">Servers</div></div>
-        <div className="stat-card"><div className="stat-value">{collection.toolCount}</div><div className="stat-label">Tools</div></div>
-        <div className="stat-card"><div className="stat-value">{collection.resourceCount}</div><div className="stat-label">Resources</div></div>
-        <div className="stat-card"><div className="stat-value">{findings.length}</div><div className="stat-label">Findings</div></div>
-        <div className="stat-card"><div className="stat-value">{completeCount}</div><div className="stat-label">Exploitable Paths</div></div>
-        <div className="stat-card"><div className="stat-value">{promptInjectionConfirmed}</div><div className="stat-label">Prompt Injection Confirmed</div></div>
-        <div className="stat-card"><div className="stat-value">{trustBoundaryConfirmed}</div><div className="stat-label">Trust Boundary Confirmed</div></div>
+        <div className="stat-card">
+          <div className="stat-value">{collection.serverCount}</div>
+          <div className="stat-label">Servers</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{collection.toolCount}</div>
+          <div className="stat-label">Tools</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{collection.resourceCount}</div>
+          <div className="stat-label">Resources</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{findings.length}</div>
+          <div className="stat-label">Findings</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{completeCount}</div>
+          <div className="stat-label">Exploitable Paths</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{promptInjectionConfirmed}</div>
+          <div className="stat-label">Prompt Injection Confirmed</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{trustBoundaryConfirmed}</div>
+          <div className="stat-label">Trust Boundary Confirmed</div>
+        </div>
       </div>
 
       <h2>Capability Histogram</h2>
       <div className="cap-histogram">
-        {Object.entries(capMap).sort((a, b) => b[1] - a[1]).map(([cap, count]) => (
-          <div key={cap} className="cap-bar-row">
-            <span className="cap-label">{cap}</span>
-            <div className="cap-bar-bg">
-              <div className="cap-bar-fill" style={{ width: `${(count / maxCap) * 100}%` }} />
+        {Object.entries(capMap)
+          .sort((a, b) => b[1] - a[1])
+          .map(([cap, count]) => (
+            <div key={cap} className="cap-bar-row">
+              <span className="cap-label">{cap}</span>
+              <div className="cap-bar-bg">
+                <div className="cap-bar-fill" style={{ width: `${(count / maxCap) * 100}%` }} />
+              </div>
+              <span className="cap-count">{count}</span>
             </div>
-            <span className="cap-count">{count}</span>
-          </div>
-        ))}
+          ))}
       </div>
 
       <h2>Top Findings</h2>

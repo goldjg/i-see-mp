@@ -21,13 +21,13 @@ import {
   EvidenceType,
 } from './types.js';
 
-export const NodeTypeSchema = z.enum(
-  Object.values(NodeType) as [string, ...string[]],
-) as z.ZodEnum<[NodeType, ...NodeType[]]>;
+export const NodeTypeSchema = z.enum(Object.values(NodeType) as [string, ...string[]]) as z.ZodEnum<
+  [NodeType, ...NodeType[]]
+>;
 
-export const EdgeTypeSchema = z.enum(
-  Object.values(EdgeType) as [string, ...string[]],
-) as z.ZodEnum<[EdgeType, ...EdgeType[]]>;
+export const EdgeTypeSchema = z.enum(Object.values(EdgeType) as [string, ...string[]]) as z.ZodEnum<
+  [EdgeType, ...EdgeType[]]
+>;
 
 export const CapabilitySchema = z.enum(
   Object.values(Capability) as [string, ...string[]],

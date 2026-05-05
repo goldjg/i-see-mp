@@ -96,7 +96,8 @@ function extractToolResultText(res: unknown): string {
 function buildRemoteRequestInit(env: Record<string, string> | undefined): RequestInit | undefined {
   // Intentionally allow an explicit process env fallback so Docker/CI flows can keep
   // bearer tokens out of persisted config files while still authenticating remote MCP calls.
-  const token = env?.['GITHUB_PERSONAL_ACCESS_TOKEN'] ?? process.env['GITHUB_PERSONAL_ACCESS_TOKEN'];
+  const token =
+    env?.['GITHUB_PERSONAL_ACCESS_TOKEN'] ?? process.env['GITHUB_PERSONAL_ACCESS_TOKEN'];
   const authorization = env?.['Authorization'];
   if (!token && !authorization) return undefined;
   return {

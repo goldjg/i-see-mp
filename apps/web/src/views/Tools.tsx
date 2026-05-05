@@ -86,10 +86,16 @@ export function Tools() {
       <table className="tools-table">
         <thead>
           <tr>
-            <th onClick={() => handleSort('name')} className="sortable">Name {sortKey === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
-            <th onClick={() => handleSort('serverId')} className="sortable">Server {sortKey === 'serverId' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+            <th onClick={() => handleSort('name')} className="sortable">
+              Name {sortKey === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+            </th>
+            <th onClick={() => handleSort('serverId')} className="sortable">
+              Server {sortKey === 'serverId' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+            </th>
             <th>Capabilities</th>
-            <th onClick={() => handleSort('riskScore')} className="sortable">Risk {sortKey === 'riskScore' ? (sortDir === 'asc' ? '↑' : '↓') : ''}</th>
+            <th onClick={() => handleSort('riskScore')} className="sortable">
+              Risk {sortKey === 'riskScore' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -97,22 +103,30 @@ export function Tools() {
             <React.Fragment key={tool.id}>
               <tr
                 className="tool-row"
-                onClick={() => setExpanded((s) => {
-                  const n = new Set(s);
-                  if (n.has(tool.id)) {
-                    n.delete(tool.id);
-                  } else {
-                    n.add(tool.id);
-                  }
-                  return n;
-                })}
+                onClick={() =>
+                  setExpanded((s) => {
+                    const n = new Set(s);
+                    if (n.has(tool.id)) {
+                      n.delete(tool.id);
+                    } else {
+                      n.add(tool.id);
+                    }
+                    return n;
+                  })
+                }
               >
                 <td>{tool.name}</td>
-                <td><code>{tool.serverId.split(':').pop()}</code></td>
+                <td>
+                  <code>{tool.serverId.split(':').pop()}</code>
+                </td>
                 <td>
                   <div className="cap-badges">
                     {tool.capabilities.map((c) => (
-                      <span key={c} className="cap-badge" style={{ background: CAP_COLORS[c] ?? '#64748b' }}>
+                      <span
+                        key={c}
+                        className="cap-badge"
+                        style={{ background: CAP_COLORS[c] ?? '#64748b' }}
+                      >
                         {c}
                       </span>
                     ))}
@@ -120,7 +134,18 @@ export function Tools() {
                 </td>
                 <td>
                   <div className="risk-bar">
-                    <div className="risk-fill" style={{ width: `${tool.riskScore}%`, background: tool.riskScore >= 80 ? '#dc2626' : tool.riskScore >= 60 ? '#ea580c' : '#16a34a' }} />
+                    <div
+                      className="risk-fill"
+                      style={{
+                        width: `${tool.riskScore}%`,
+                        background:
+                          tool.riskScore >= 80
+                            ? '#dc2626'
+                            : tool.riskScore >= 60
+                              ? '#ea580c'
+                              : '#16a34a',
+                      }}
+                    />
                     <span>{tool.riskScore}</span>
                   </div>
                 </td>
@@ -128,7 +153,11 @@ export function Tools() {
               {expanded.has(tool.id) && (
                 <tr className="tool-detail-row">
                   <td colSpan={4}>
-                    {tool.description && <p><strong>Description:</strong> {tool.description}</p>}
+                    {tool.description && (
+                      <p>
+                        <strong>Description:</strong> {tool.description}
+                      </p>
+                    )}
                   </td>
                 </tr>
               )}

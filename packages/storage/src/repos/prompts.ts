@@ -29,9 +29,7 @@ export function createPromptsRepo(db: Database.Database) {
     },
 
     findByServer(serverId: string): PromptRow[] {
-      return db
-        .prepare(`SELECT * FROM prompts WHERE server_id=?`)
-        .all(serverId) as PromptRow[];
+      return db.prepare(`SELECT * FROM prompts WHERE server_id=?`).all(serverId) as PromptRow[];
     },
 
     findByCollection(collectionId: string): PromptRow[] {

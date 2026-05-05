@@ -137,14 +137,17 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
   const hasSource = Array.from(sourcePool).some((cap) => TRIFECTA_SOURCE_CAPS.includes(cap));
   const hasSink = Array.from(sinkPool).some((cap) => TRIFECTA_SINK_CAPS.includes(cap));
 
-  let trifectaStage: (typeof TrifectaStage)[keyof typeof TrifectaStage] = TrifectaStage.CAPABILITY_ONLY;
+  let trifectaStage: (typeof TrifectaStage)[keyof typeof TrifectaStage] =
+    TrifectaStage.CAPABILITY_ONLY;
   // CODE_EXECUTION findings can infer sink capability from the same execution capability.
   // If no explicit sink capability is present on the finding, classify as PARTIAL instead of COMPLETE.
   const inferredExecutionSinkOnly =
     finding.category === RiskCategory.CODE_EXECUTION &&
     initialSinkPool.size === 0 &&
     sinkPool.size > 0 &&
-    Array.from(sinkPool).every((cap) => cap === Capability.RUN_SHELL || cap === Capability.EXECUTE_CODE);
+    Array.from(sinkPool).every(
+      (cap) => cap === Capability.RUN_SHELL || cap === Capability.EXECUTE_CODE,
+    );
   if (hasSource && hasSink && !inferredExecutionSinkOnly) trifectaStage = TrifectaStage.COMPLETE;
   else if (hasSource || hasSink) trifectaStage = TrifectaStage.PARTIAL;
   const crossServer = deriveIsCrossServer(finding);
@@ -152,7 +155,10 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
     finding.sourceServerId,
     finding.sinkServerId,
   );
-  const derivedTrustTransition = deriveTrustTransition(finding.sourceServerId, finding.sinkServerId);
+  const derivedTrustTransition = deriveTrustTransition(
+    finding.sourceServerId,
+    finding.sinkServerId,
+  );
   const crossesTrustBoundary =
     typeof finding.crossesTrustBoundary === 'boolean'
       ? finding.crossesTrustBoundary
@@ -165,11 +171,15 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
   }
 
   const combinedPool = new Set<Capability>([...sourcePool, ...sinkPool]);
-  const hasPrivateDataAccess = Array.from(combinedPool).some((cap) => PRIVATE_DATA_CAPS.includes(cap));
+  const hasPrivateDataAccess = Array.from(combinedPool).some((cap) =>
+    PRIVATE_DATA_CAPS.includes(cap),
+  );
   const hasUntrustedContentExposure = Array.from(combinedPool).some((cap) =>
     UNTRUSTED_CONTENT_CAPS.includes(cap),
   );
-  const hasExternalCommunication = Array.from(combinedPool).some((cap) => EXTERNAL_COMM_CAPS.includes(cap));
+  const hasExternalCommunication = Array.from(combinedPool).some((cap) =>
+    EXTERNAL_COMM_CAPS.includes(cap),
+  );
   const hasLethalTrifectaIngredients =
     hasPrivateDataAccess && hasUntrustedContentExposure && hasExternalCommunication;
   const lethalFromFinding = finding.lethalTrifectaStatus as string | undefined;
@@ -188,7 +198,9 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
   const lethalTrifectaStatus =
     injectionConfirmed || lethalFromFinding === 'CONFIRMED' || lethalFromFinding === 'COMPLETE'
       ? LethalTrifectaStatus.CONFIRMED
-      : hasLethalTrifectaIngredients || lethalFromFinding === 'POSSIBLE' || lethalFromFinding === 'CANDIDATE'
+      : hasLethalTrifectaIngredients ||
+          lethalFromFinding === 'POSSIBLE' ||
+          lethalFromFinding === 'CANDIDATE'
         ? LethalTrifectaStatus.POSSIBLE
         : LethalTrifectaStatus.NONE;
 
@@ -211,8 +223,12 @@ export function classifyFindingTrifecta(finding: Finding): TrifectaClassificatio
 
   let dataflowClassification: (typeof DataflowClassification)[keyof typeof DataflowClassification] =
     DataflowClassification.NONE;
-  if (trifectaStage === TrifectaStage.COMPLETE) dataflowClassification = DataflowClassification.COMPLETE;
-  else if (trifectaStage === TrifectaStage.PARTIAL || trifectaStage === TrifectaStage.CAPABILITY_ONLY) {
+  if (trifectaStage === TrifectaStage.COMPLETE)
+    dataflowClassification = DataflowClassification.COMPLETE;
+  else if (
+    trifectaStage === TrifectaStage.PARTIAL ||
+    trifectaStage === TrifectaStage.CAPABILITY_ONLY
+  ) {
     dataflowClassification = DataflowClassification.PARTIAL;
   }
 

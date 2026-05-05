@@ -118,7 +118,8 @@ function rowToFinding(r: FindingRow): Finding {
   if (r.trust_transition) finding.trustTransition = r.trust_transition;
   if (r.explanation) finding.explanation = r.explanation;
   if (r.evidence) finding.evidence = JSON.parse(r.evidence) as string[];
-  if (r.lethal_trifecta_status) finding.lethalTrifectaStatus = r.lethal_trifecta_status as Finding['lethalTrifectaStatus'];
+  if (r.lethal_trifecta_status)
+    finding.lethalTrifectaStatus = r.lethal_trifecta_status as Finding['lethalTrifectaStatus'];
   if (r.sub_category) finding.subCategory = r.sub_category;
   if (r.injection_confirmed !== null && r.injection_confirmed !== undefined)
     finding.injectionConfirmed = r.injection_confirmed === 1;
@@ -130,7 +131,8 @@ function rowToFinding(r: FindingRow): Finding {
   ) {
     finding.trustBoundaryExploitConfirmed = r.trust_boundary_exploit_confirmed === 1;
   }
-  if (r.baseline_plan) finding.baselinePlan = JSON.parse(r.baseline_plan) as Finding['baselinePlan'];
+  if (r.baseline_plan)
+    finding.baselinePlan = JSON.parse(r.baseline_plan) as Finding['baselinePlan'];
   return finding;
 }
 
@@ -171,7 +173,11 @@ export function findingToRow(f: Finding): FindingRow {
     trust_boundary_confirmed:
       f.trustBoundaryConfirmed === undefined ? null : f.trustBoundaryConfirmed ? 1 : 0,
     trust_boundary_exploit_confirmed:
-      f.trustBoundaryExploitConfirmed === undefined ? null : f.trustBoundaryExploitConfirmed ? 1 : 0,
+      f.trustBoundaryExploitConfirmed === undefined
+        ? null
+        : f.trustBoundaryExploitConfirmed
+          ? 1
+          : 0,
     baseline_plan: f.baselinePlan ? JSON.stringify(f.baselinePlan) : null,
   };
 }
@@ -193,8 +199,10 @@ export function createFindingsRepo(db: Database.Database) {
 
     findByCollection(collectionId: string): Finding[] {
       const rows = db
-        .prepare(`SELECT * FROM findings WHERE collection_id=? ORDER BY
-          CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END`)
+        .prepare(
+          `SELECT * FROM findings WHERE collection_id=? ORDER BY
+          CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END`,
+        )
         .all(collectionId) as FindingRow[];
       return rows.map(rowToFinding);
     },

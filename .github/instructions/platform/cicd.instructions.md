@@ -1,4 +1,5 @@
 <!-- version: 1.0.0 -->
+
 # CI/CD Pack
 
 Use this guidance when working with CI/CD pipelines, GitHub Actions, Azure DevOps, GitLab CI, build scripts, release workflows, deployment automation, or repository automation.

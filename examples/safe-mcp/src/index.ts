@@ -19,7 +19,10 @@ server.tool(
 server.tool(
   'write_file',
   'Write content to a local file',
-  { path: z.string().describe('File path to write'), content: z.string().describe('Content to write') },
+  {
+    path: z.string().describe('File path to write'),
+    content: z.string().describe('Content to write'),
+  },
   async ({ path, content }) => ({
     content: [{ type: 'text' as const, text: `[mock] wrote ${content.length} bytes to ${path}` }],
   }),

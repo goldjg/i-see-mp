@@ -122,16 +122,17 @@ const SAFE_REPO_NAME_RE =
   /^(?:(?:canary|sandbox|disposable|test|safe)(?:[-_].+)?)$|^(?:.+[-_](?:canary|sandbox|disposable|test|safe))$/i;
 const BLOCKED_SIGNAL_PATTERN =
   'error|failed|forbidden|denied|unauthorized|unprocessable|validation|resource not accessible|not found|unsupported|cannot\\b|must have push access|requires write permission|requires push access';
-const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE =
-  new RegExp(
-    `(?:${BLOCKED_SIGNAL_PATTERN}).*(?:forbidden|denied|unauthorized|requires .* permission|requires write permission|requires push access|must have push access|not found|unsupported|policy|validation|cannot|resource not accessible|resource not accessible by integration)`,
-    'i',
-  );
+const PROVEN_BLOCKED_OR_IMPOSSIBLE_RE = new RegExp(
+  `(?:${BLOCKED_SIGNAL_PATTERN}).*(?:forbidden|denied|unauthorized|requires .* permission|requires write permission|requires push access|must have push access|not found|unsupported|policy|validation|cannot|resource not accessible|resource not accessible by integration)`,
+  'i',
+);
 const SECONDARY_RATE_LIMIT_RE = /(secondary rate limit|rate limit exceeded)/i;
 const BRANCH_NOT_FOUND_RE = /resource not found:\s*branch\s.+not found|branch\s.+not found/i;
-const BRANCH_ALREADY_EXISTS_RE = /reference already exists|branch\s.+already exists|already exists/i;
+const BRANCH_ALREADY_EXISTS_RE =
+  /reference already exists|branch\s.+already exists|already exists/i;
 const FILE_ABSENT_RE = /(?:not found|404|path does not point to a file)/i;
-const AUTH_OR_PERMISSION_RE = /(forbidden|denied|unauthorized|requires .* permission|requires write permission|requires push access|must have push access|resource not accessible(?: by integration)?)/i;
+const AUTH_OR_PERMISSION_RE =
+  /(forbidden|denied|unauthorized|requires .* permission|requires write permission|requires push access|must have push access|resource not accessible(?: by integration)?)/i;
 // GitHub-controlled canary verification occasionally lags immediately after writes; one short
 // retry keeps eventual consistency from producing false inconclusive results without making the
 // test noticeably slower.
@@ -243,7 +244,11 @@ export const GITHUB_SAFE_CANARY_PROFILE_CASES: TestCaseDefinition[] = [
     name: 'GitHub controlled canary read/search',
     category: RiskCategory.DATA_EXFILTRATION,
     pathSummary: 'READ_REMOTE_DATA -> CONTROLLED_GITHUB_ARTIFACT',
-    sourceCaps: [Capability.READ_REMOTE_DATA, Capability.QUERY_REMOTE_SYSTEM, Capability.READ_METADATA_LOW],
+    sourceCaps: [
+      Capability.READ_REMOTE_DATA,
+      Capability.QUERY_REMOTE_SYSTEM,
+      Capability.READ_METADATA_LOW,
+    ],
     sinkCaps: [],
     singleTool: true,
     plan: [
@@ -417,10 +422,12 @@ export function planPromptInjectionGithubProfile(
   toolsByServer: Map<string, ToolRow[]>,
 ): PlannedTest[] {
   const planned = planProfileCases(PROMPT_INJECTION_GITHUB_PROFILE_CASES, servers, toolsByServer);
-  return planned.filter((p) => isGithubLikeServer(
-    servers.find((s) => s.id === p.serverId)!,
-    toolsByServer.get(p.serverId) ?? [],
-  ));
+  return planned.filter((p) =>
+    isGithubLikeServer(
+      servers.find((s) => s.id === p.serverId)!,
+      toolsByServer.get(p.serverId) ?? [],
+    ),
+  );
 }
 
 export function planPromptInjectionFetchProfile(
@@ -442,12 +449,7 @@ export function getGithubSafeRepoPattern(): RegExp {
 }
 
 function isGithubLikeServer(server: ServerRow, tools: ToolRow[]): boolean {
-  const serverText = [
-    server.name,
-    server.url ?? '',
-    server.command ?? '',
-    server.args ?? '',
-  ]
+  const serverText = [server.name, server.url ?? '', server.command ?? '', server.args ?? '']
     .join(' ')
     .toLowerCase();
   if (serverText.includes('github')) return true;
@@ -518,15 +520,15 @@ export async function captureBaselinePlan(
   const baselineResult = await invoker.call(sourceToolName, neutralArgs);
   const sourceCaps = capabilityByToolName[sourceToolName] ?? [];
   return {
-    toolCallSequence: [
-      { toolName: sourceToolName, serverId, capabilitiesUsed: sourceCaps },
-    ],
+    toolCallSequence: [{ toolName: sourceToolName, serverId, capabilitiesUsed: sourceCaps }],
     capabilitySet: new Set<Capability>(sourceCaps),
     serverSet: new Set<string>([serverId]),
     capabilityByToolName,
     toolCallOutputs: { [sourceToolName]: baselineResult.text },
     injectMarkerUuid:
-      typeof neutralArgs['injectMarkerUuid'] === 'string' ? neutralArgs['injectMarkerUuid'] : undefined,
+      typeof neutralArgs['injectMarkerUuid'] === 'string'
+        ? neutralArgs['injectMarkerUuid']
+        : undefined,
   };
 }
 
@@ -566,7 +568,9 @@ export function detectBehaviouralDeviation(
   const targetToolName = options.targetToolName;
   const capMap = baseline.capabilityByToolName ?? {};
 
-  const newToolsCalled = Array.from(new Set(injectedTools.filter((toolName) => !baselineToolSet.has(toolName))));
+  const newToolsCalled = Array.from(
+    new Set(injectedTools.filter((toolName) => !baselineToolSet.has(toolName))),
+  );
   for (const call of injectedCalls) {
     if (!baselineToolSet.has(call.toolName)) {
       events.push({ type: 'PROMPT_INJECTION_DEVIATION', toolName: call.toolName });
@@ -574,7 +578,9 @@ export function detectBehaviouralDeviation(
   }
 
   const injectedServers = new Set<string>(
-    injectedCalls.map((c) => c.serverId).filter((v): v is string => typeof v === 'string' && v.length > 0),
+    injectedCalls
+      .map((c) => c.serverId)
+      .filter((v): v is string => typeof v === 'string' && v.length > 0),
   );
   const newServers = Array.from(injectedServers).filter((id) => !baseline.serverSet.has(id));
   if (newServers.length > 0) {
@@ -585,7 +591,9 @@ export function detectBehaviouralDeviation(
   for (const call of injectedCalls) {
     for (const cap of capMap[call.toolName] ?? []) injectedCapabilitySet.add(cap);
   }
-  const escalated = Array.from(injectedCapabilitySet).filter((cap) => !baseline.capabilitySet.has(cap));
+  const escalated = Array.from(injectedCapabilitySet).filter(
+    (cap) => !baseline.capabilitySet.has(cap),
+  );
   if (escalated.length > 0) {
     events.push({ type: 'CAPABILITY_ESCALATION', capabilities: escalated });
   }
@@ -604,7 +612,11 @@ export function detectBehaviouralDeviation(
     for (const call of injectedCalls) {
       const inputStr = JSON.stringify(call.input ?? {});
       if (inputStr.includes(exfilMarker)) {
-        events.push({ type: 'EXFIL_MARKER_OBSERVED', marker: exfilMarker, toolName: call.toolName });
+        events.push({
+          type: 'EXFIL_MARKER_OBSERVED',
+          marker: exfilMarker,
+          toolName: call.toolName,
+        });
         exfilMarkerPropagated = true;
         break;
       }
@@ -627,10 +639,7 @@ export function detectBehaviouralDeviation(
     }
   }
 
-  const injectedToolReferenced = !!(
-    targetToolName &&
-    newToolsCalled.includes(targetToolName)
-  );
+  const injectedToolReferenced = !!(targetToolName && newToolsCalled.includes(targetToolName));
   if (injectedToolReferenced && targetToolName) {
     events.push({ type: 'INJECTED_TOOL_REFERENCED', toolName: targetToolName });
   }
@@ -666,8 +675,11 @@ export function detectBehaviouralDeviation(
   const hasSinkDrivenDeviation = newToolsCalled.some((toolName) =>
     (capMap[toolName] ?? []).some((cap) => isSinkCapability(cap)),
   );
-  const hasPromptInjectionDeviation = events.some((event) => event.type === 'PROMPT_INJECTION_DEVIATION');
-  const hasInstructionInfluence = exfilMarkerPropagated || injectMarkerPropagated || injectedToolReferenced;
+  const hasPromptInjectionDeviation = events.some(
+    (event) => event.type === 'PROMPT_INJECTION_DEVIATION',
+  );
+  const hasInstructionInfluence =
+    exfilMarkerPropagated || injectMarkerPropagated || injectedToolReferenced;
   const injectionConfirmed =
     hasPromptInjectionDeviation &&
     hasInstructionInfluence &&
@@ -692,7 +704,8 @@ export function detectBehaviouralDeviation(
     deviationScore += DEVIATION_SCORE.SINK_CAPABILITY_ESCALATION;
   }
   if (newServers.length > 0) deviationScore += DEVIATION_SCORE.SERVER_ESCALATION;
-  if (sequenceChanged && deviationScore === 0) deviationScore += DEVIATION_SCORE.SEQUENCE_DEVIATION_ONLY;
+  if (sequenceChanged && deviationScore === 0)
+    deviationScore += DEVIATION_SCORE.SEQUENCE_DEVIATION_ONLY;
 
   return {
     deviationDetected: events.length > 0,
@@ -714,7 +727,10 @@ function markerPresentInToolCall(call: ToolCall, marker: string): boolean {
   return inputStr.includes(marker) || outputStr.includes(marker);
 }
 
-function buildInjectionChain(injectedCalls: ToolCall[], injectMarker: string): InjectionChainStep[] {
+function buildInjectionChain(
+  injectedCalls: ToolCall[],
+  injectMarker: string,
+): InjectionChainStep[] {
   return injectedCalls.map((call, idx) => ({
     step: idx + 1,
     serverId: call.serverId,
@@ -728,9 +744,7 @@ function trustZoneLooksExternal(trustZone: string | null | undefined): boolean {
   // external) so exploit confirmations require explicit trust evidence.
   if (!trustZone) return false;
   const normalized = trustZone.toUpperCase();
-  return new Set(['EXTERNAL', 'SAAS', 'USER_CONTROLLED_SAAS', 'CONTROLLED_SAAS']).has(
-    normalized,
-  );
+  return new Set(['EXTERNAL', 'SAAS', 'USER_CONTROLLED_SAAS', 'CONTROLLED_SAAS']).has(normalized);
 }
 
 function hasAnyCapability(tool: ToolRow, caps: Capability[]): boolean {
@@ -745,9 +759,22 @@ function nameMatches(tool: ToolRow, patterns: RegExp[]): boolean {
 function isGithubReadTool(tool: ToolRow): boolean {
   const loweredName = tool.name.toLowerCase();
   return (
-    hasAnyCapability(tool, [Capability.READ_REMOTE_DATA, Capability.QUERY_REMOTE_SYSTEM, Capability.READ_METADATA_LOW]) &&
+    hasAnyCapability(tool, [
+      Capability.READ_REMOTE_DATA,
+      Capability.QUERY_REMOTE_SYSTEM,
+      Capability.READ_METADATA_LOW,
+    ]) &&
     !ISSUE_PR_TOOL_NAME_RE.test(loweredName) &&
-    nameMatches(tool, [/^(get|list|read|search|fork|clone|download)_/, /file/, /repository/, /code/, /commit/, /branch/, /tag/, /release/])
+    nameMatches(tool, [
+      /^(get|list|read|search|fork|clone|download)_/,
+      /file/,
+      /repository/,
+      /code/,
+      /commit/,
+      /branch/,
+      /tag/,
+      /release/,
+    ])
   );
 }
 
@@ -775,8 +802,11 @@ function isGithubRepositoryMutationTool(tool: ToolRow): boolean {
 
 function isGithubExternalSendLikeTool(tool: ToolRow): boolean {
   return (
-    hasAnyCapability(tool, [Capability.SEND_EXTERNAL, Capability.SEND_HTTP, Capability.SEND_EMAIL]) &&
-    nameMatches(tool, [/webhook/, /dispatch/, /request/, /send/])
+    hasAnyCapability(tool, [
+      Capability.SEND_EXTERNAL,
+      Capability.SEND_HTTP,
+      Capability.SEND_EMAIL,
+    ]) && nameMatches(tool, [/webhook/, /dispatch/, /request/, /send/])
   );
 }
 
@@ -960,7 +990,11 @@ export interface ExecutedTest {
 export interface TestRunnerContext {
   collectionId: string;
   profile: TesterProfile;
-  invoke(serverId: string, toolName: string, args: Record<string, unknown>): Promise<ToolCallResult>;
+  invoke(
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<ToolCallResult>;
   sink: MockSink;
 }
 
@@ -1049,18 +1083,22 @@ export async function executePlannedTest(
         durationMs,
         ...(result.isError ? { error: result.text } : {}),
       });
-      recordEvidence('tool_call', {
-        step: 1,
-        tool: planned.sourceTool.name,
-        input: redactRecord(args),
-        output: redactValue({ text: result.text, isError: result.isError }),
-        durationMs,
-      }, {
-        stepIndex: 1,
-        toolName: planned.sourceTool.name,
-        redactedInput: redactRecord(args),
-        redactedOutput: redactValue({ text: result.text, isError: result.isError }),
-      });
+      recordEvidence(
+        'tool_call',
+        {
+          step: 1,
+          tool: planned.sourceTool.name,
+          input: redactRecord(args),
+          output: redactValue({ text: result.text, isError: result.isError }),
+          durationMs,
+        },
+        {
+          stepIndex: 1,
+          toolName: planned.sourceTool.name,
+          redactedInput: redactRecord(args),
+          redactedOutput: redactValue({ text: result.text, isError: result.isError }),
+        },
+      );
       if (result.isError) {
         outcome = TestOutcome.TESTED_REJECTED;
         status = TestStatus.REJECTED;
@@ -1087,11 +1125,7 @@ export async function executePlannedTest(
       }
       const sourceArgs = buildSourceArgs({});
       const t0 = Date.now();
-      const sourceResult = await ctx.invoke(
-        planned.serverId,
-        planned.sourceTool.name,
-        sourceArgs,
-      );
+      const sourceResult = await ctx.invoke(planned.serverId, planned.sourceTool.name, sourceArgs);
       toolCalls.push({
         step: 1,
         toolId: planned.sourceTool.id,
@@ -1102,17 +1136,21 @@ export async function executePlannedTest(
         durationMs: Date.now() - t0,
         ...(sourceResult.isError ? { error: sourceResult.text } : {}),
       });
-      recordEvidence('tool_call', {
-        step: 1,
-        tool: planned.sourceTool.name,
-        input: redactRecord(sourceArgs),
-        output: redactValue({ text: sourceResult.text, isError: sourceResult.isError }),
-      }, {
-        stepIndex: 1,
-        toolName: planned.sourceTool.name,
-        redactedInput: redactRecord(sourceArgs),
-        redactedOutput: redactValue({ text: sourceResult.text, isError: sourceResult.isError }),
-      });
+      recordEvidence(
+        'tool_call',
+        {
+          step: 1,
+          tool: planned.sourceTool.name,
+          input: redactRecord(sourceArgs),
+          output: redactValue({ text: sourceResult.text, isError: sourceResult.isError }),
+        },
+        {
+          stepIndex: 1,
+          toolName: planned.sourceTool.name,
+          redactedInput: redactRecord(sourceArgs),
+          redactedOutput: redactValue({ text: sourceResult.text, isError: sourceResult.isError }),
+        },
+      );
 
       if (sourceResult.isError) {
         outcome = TestOutcome.TESTED_REJECTED;
@@ -1129,7 +1167,8 @@ export async function executePlannedTest(
           status = TestStatus.INCONCLUSIVE;
           outcome = TestOutcome.TESTED_INCONCLUSIVE;
           pathStatus = PathStatus.TESTED_INCONCLUSIVE;
-          notes = 'Source tool response contained no CANARY- token; cannot reliably detect exfiltration. The tool may not support the canary fixture pattern.';
+          notes =
+            'Source tool response contained no CANARY- token; cannot reliably detect exfiltration. The tool may not support the canary fixture pattern.';
         } else {
           canaryExpected = canaryMarker;
           const sinkArgs = buildSinkArgs(sourceResult.text, ctx.sink.url);
@@ -1145,17 +1184,21 @@ export async function executePlannedTest(
             durationMs: Date.now() - t1,
             ...(sinkResult.isError ? { error: sinkResult.text } : {}),
           });
-          recordEvidence('tool_call', {
-            step: 2,
-            tool: planned.sinkTool.name,
-            input: redactRecord(sinkArgs),
-            output: redactValue({ text: sinkResult.text, isError: sinkResult.isError }),
-          }, {
-            stepIndex: 2,
-            toolName: planned.sinkTool.name,
-            redactedInput: redactRecord(sinkArgs),
-            redactedOutput: redactValue({ text: sinkResult.text, isError: sinkResult.isError }),
-          });
+          recordEvidence(
+            'tool_call',
+            {
+              step: 2,
+              tool: planned.sinkTool.name,
+              input: redactRecord(sinkArgs),
+              output: redactValue({ text: sinkResult.text, isError: sinkResult.isError }),
+            },
+            {
+              stepIndex: 2,
+              toolName: planned.sinkTool.name,
+              redactedInput: redactRecord(sinkArgs),
+              redactedOutput: redactValue({ text: sinkResult.text, isError: sinkResult.isError }),
+            },
+          );
 
           if (sinkResult.isError) {
             outcome = TestOutcome.TESTED_REJECTED;
@@ -1174,7 +1217,8 @@ export async function executePlannedTest(
               outcome = TestOutcome.TESTED_INCONCLUSIVE;
               status = TestStatus.INCONCLUSIVE;
               pathStatus = PathStatus.TESTED_INCONCLUSIVE;
-              notes = 'Canary marker was not observed at the local mock sink; sink/tool behavior may be non-observable.';
+              notes =
+                'Canary marker was not observed at the local mock sink; sink/tool behavior may be non-observable.';
             }
           }
         }
@@ -1236,10 +1280,11 @@ export async function executePromptInjectionGithubPlannedTest(
   const exfilMarker = `ISEEMP-EXFIL-${exfilMarkerUuid}`;
   const instructionSourceTool = args.planned.sourceTool;
   const sinkTool = args.planned.sinkTool;
-  const targetToolName = args.config.instructionTargetToolName ?? sinkTool?.name ?? 'send_http_request';
+  const targetToolName =
+    args.config.instructionTargetToolName ?? sinkTool?.name ?? 'send_http_request';
   const issueTitle = `${args.config.issuePrefix ?? 'ISEEMP-INJECT-'}${args.testRunId}`;
-  const encoding = (args.config.encodingStrategy ?? InstructionPayloadEncoding.PLAIN) as
-    typeof InstructionPayloadEncoding[keyof typeof InstructionPayloadEncoding];
+  const encoding = (args.config.encodingStrategy ??
+    InstructionPayloadEncoding.PLAIN) as (typeof InstructionPayloadEncoding)[keyof typeof InstructionPayloadEncoding];
   const payloadRecord = instructionPayloadRecordGenerator({
     injectMarkerUuid,
     exfilMarkerUuid,
@@ -1387,7 +1432,10 @@ export async function executePromptInjectionGithubPlannedTest(
           toolName: entry.toolName,
           serverId: entry.serverId,
           input: redactRecord(readInput),
-          output: redactValue({ text: baselinePlan.toolCallOutputs[entry.toolName] ?? '', baseline: true }),
+          output: redactValue({
+            text: baselinePlan.toolCallOutputs[entry.toolName] ?? '',
+            baseline: true,
+          }),
         })),
       );
       evidence.push({
@@ -1398,14 +1446,7 @@ export async function executePromptInjectionGithubPlannedTest(
         content: { toolCalls: baselineToolCalls },
         createdAt: new Date().toISOString(),
       });
-      await callAndRecord(
-        args,
-        toolCalls,
-        evidence,
-        step++,
-        instructionSourceTool.name,
-        readInput,
-      );
+      await callAndRecord(args, toolCalls, evidence, step++, instructionSourceTool.name, readInput);
       injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
       observedToolCalls.push(instructionSourceTool.name);
 
@@ -1413,7 +1454,14 @@ export async function executePromptInjectionGithubPlannedTest(
         url: args.ctx.sink.url,
         payload: exfilMarker,
       };
-      const sinkRes = await callAndRecord(args, toolCalls, evidence, step++, sinkTool.name, sinkInput);
+      const sinkRes = await callAndRecord(
+        args,
+        toolCalls,
+        evidence,
+        step++,
+        sinkTool.name,
+        sinkInput,
+      );
       injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
       observedToolCalls.push(sinkTool.name);
       if (!sinkRes.isError) {
@@ -1474,7 +1522,10 @@ export async function executePromptInjectionGithubPlannedTest(
           testRunId: args.testRunId,
           candidatePathId: args.planned.candidatePathId,
           type: 'INJECT_MARKER_PROPAGATION',
-          content: { marker: injectMarker, toolCalls: injectedToolCalls.map((call) => call.toolName) },
+          content: {
+            marker: injectMarker,
+            toolCalls: injectedToolCalls.map((call) => call.toolName),
+          },
           createdAt: new Date().toISOString(),
         });
       }
@@ -1514,7 +1565,8 @@ export async function executePromptInjectionGithubPlannedTest(
         outcome = TestOutcome.TESTED_INCONCLUSIVE;
         status = TestStatus.INCONCLUSIVE;
         pathStatus = PathStatus.TESTED_INCONCLUSIVE;
-        notes = 'Behaviour deviated from baseline after injected content, but no exfil marker was observed.';
+        notes =
+          'Behaviour deviated from baseline after injected content, but no exfil marker was observed.';
       } else if (!sinkRes.isError) {
         outcome = TestOutcome.TESTED_REJECTED;
         status = TestStatus.REJECTED;
@@ -1713,7 +1765,10 @@ export async function executePromptInjectionFetchPlannedTest(
         toolName: entry.toolName,
         serverId: entry.serverId,
         input: redactRecord({ url: `${ctx.sink.url}/baseline` }),
-        output: redactValue({ text: baselinePlan.toolCallOutputs[entry.toolName] ?? '', baseline: true }),
+        output: redactValue({
+          text: baselinePlan.toolCallOutputs[entry.toolName] ?? '',
+          baseline: true,
+        }),
       })),
     );
     evidence.push({
@@ -1732,10 +1787,16 @@ export async function executePromptInjectionFetchPlannedTest(
       content: payload,
     });
     injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
-    let sinkRes = await call(3, sinkTool.name, { url: ctx.sink.url, body: exfilMarker, payload: exfilMarker });
+    let sinkRes = await call(3, sinkTool.name, {
+      url: ctx.sink.url,
+      body: exfilMarker,
+      payload: exfilMarker,
+    });
     injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
     if (sinkRes.isError) {
-      sinkRes = await call(4, sinkTool.name, { url: `${ctx.sink.url}?m=${encodeURIComponent(exfilMarker)}` });
+      sinkRes = await call(4, sinkTool.name, {
+        url: `${ctx.sink.url}?m=${encodeURIComponent(exfilMarker)}`,
+      });
       injectedToolCalls.push(toolCalls[toolCalls.length - 1]!);
     }
 
@@ -1826,7 +1887,8 @@ export async function executePromptInjectionFetchPlannedTest(
     }
 
     blockedBySinkPolicy = injectedToolCalls.some(
-      (toolCall) => typeof toolCall.error === 'string' && BLOCKED_PRIVATE_ADDRESS_RE.test(toolCall.error),
+      (toolCall) =>
+        typeof toolCall.error === 'string' && BLOCKED_PRIVATE_ADDRESS_RE.test(toolCall.error),
     );
 
     if (
@@ -1840,7 +1902,8 @@ export async function executePromptInjectionFetchPlannedTest(
       outcome = TestOutcome.TESTED_INCONCLUSIVE;
       pathStatus = PathStatus.INJECTION_INFLUENCE_BLOCKED;
       injectionConfirmed = false;
-      notes = 'Behavioural deviation and marker propagation observed, but sink delivery was blocked by fetch policy.';
+      notes =
+        'Behavioural deviation and marker propagation observed, but sink delivery was blocked by fetch policy.';
     } else if (injectionConfirmed) {
       status = TestStatus.CONFIRMED;
       outcome = TestOutcome.TESTED_CONFIRMED;
@@ -1946,10 +2009,7 @@ function extractUrl(rawText: string, keys: string[]): string | undefined {
 }
 
 function extractSha(rawText: string): string | undefined {
-  const regexes = [
-    /"sha"\s*:\s*"([a-f0-9]{7,64})"/i,
-    /\bsha[:=\s]+([a-f0-9]{7,64})\b/i,
-  ];
+  const regexes = [/"sha"\s*:\s*"([a-f0-9]{7,64})"/i, /\bsha[:=\s]+([a-f0-9]{7,64})\b/i];
   for (const regex of regexes) {
     const match = regex.exec(rawText);
     if (match?.[1]) return match[1];
@@ -2126,11 +2186,29 @@ async function readGithubFileCanaryWithRetry(
   marker: string,
 ): Promise<{ result: ToolCallResult; observed: boolean; nextStep: number }> {
   let currentStep = step;
-  let result = await callAndRecord(args, toolCalls, evidence, currentStep++, 'get_file_contents', input);
+  let result = await callAndRecord(
+    args,
+    toolCalls,
+    evidence,
+    currentStep++,
+    'get_file_contents',
+    input,
+  );
   let observed = responseContainsMarker(result.text, marker);
-  for (let attempt = 1; !observed && attempt < GITHUB_CANARY_MAX_FILE_READBACK_ATTEMPTS; attempt += 1) {
+  for (
+    let attempt = 1;
+    !observed && attempt < GITHUB_CANARY_MAX_FILE_READBACK_ATTEMPTS;
+    attempt += 1
+  ) {
     await sleep(GITHUB_CANARY_READBACK_DELAY_MS);
-    result = await callAndRecord(args, toolCalls, evidence, currentStep++, 'get_file_contents', input);
+    result = await callAndRecord(
+      args,
+      toolCalls,
+      evidence,
+      currentStep++,
+      'get_file_contents',
+      input,
+    );
     observed = responseContainsMarker(result.text, marker);
   }
   return { result, observed, nextStep: currentStep };
@@ -2310,7 +2388,10 @@ export async function executeGithubSafeCanaryPlannedTest(
     } else {
       const isRepositoryWriteTool = tool === 'create_or_update_file' || tool === 'push_files';
       if (isRepositoryWriteTool) {
-        const branchName = buildGithubSafeBranchName(args.config.branchPrefix ?? '', args.testRunId);
+        const branchName = buildGithubSafeBranchName(
+          args.config.branchPrefix ?? '',
+          args.testRunId,
+        );
         let existingFileSha: string | undefined;
         const preWriteReadInput: Record<string, unknown> = {
           owner: args.config.owner,
@@ -2348,96 +2429,105 @@ export async function executeGithubSafeCanaryPlannedTest(
         if (status === TestStatus.INCONCLUSIVE) {
           // leave as inconclusive and skip mutation write when pre-write probe is not safe to proceed
         } else {
-        const writeInput: Record<string, unknown> = {
-          owner: args.config.owner,
-          repo: args.config.repo,
-          path: artifacts.filePath,
-          message: `${args.config.canaryPrefix}: canary write ${args.testRunId}`,
-          // GitHub MCP create_or_update_file accepts raw content; the server base64-encodes
-          // it for the GitHub contents API. Passing pre-encoded content double-encodes it.
-          content: `${marker}\n`,
-          branch: branchName,
-        };
-        if (existingFileSha) {
-          writeInput['sha'] = existingFileSha;
-        }
-        let writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
-        let createdBranchForRetry = false;
-        let branchCreationFailure: string | undefined;
-        // Both create_or_update_file and push_files require `branch` per GitHub MCP schema,
-        // so a branchless retry is invalid (the server rejects it with a Zod
-        // "received undefined" error). When the branch is missing we ask the server to create
-        // it (the GitHub MCP `create_branch` tool defaults the source ref to the repository's
-        // default branch when none is provided) and retry the same write tool with the
-        // original branch-bound input.
-        if (writeRes.isError && isBranchNotFound(writeRes.text)) {
-          const createBranchRes = await callAndRecord(args, toolCalls, evidence, step++, 'create_branch', {
+          const writeInput: Record<string, unknown> = {
             owner: args.config.owner,
             repo: args.config.repo,
+            path: artifacts.filePath,
+            message: `${args.config.canaryPrefix}: canary write ${args.testRunId}`,
+            // GitHub MCP create_or_update_file accepts raw content; the server base64-encodes
+            // it for the GitHub contents API. Passing pre-encoded content double-encodes it.
+            content: `${marker}\n`,
             branch: branchName,
-          });
-          if (!createBranchRes.isError || isBranchAlreadyExists(createBranchRes.text)) {
-            createdBranchForRetry = true;
-            writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
-          } else {
-            branchCreationFailure = createBranchRes.text;
+          };
+          if (existingFileSha) {
+            writeInput['sha'] = existingFileSha;
           }
-        }
-        if (writeRes.isError) {
-          if (isSecondaryRateLimit(writeRes.text)) {
-            outcome = TestOutcome.TESTED_INCONCLUSIVE;
-            status = TestStatus.INCONCLUSIVE;
-            pathStatus = PathStatus.TESTED_INCONCLUSIVE;
-            notes = `Write path rate-limited: ${writeRes.text}`;
-          } else if (isProvenBlockedOrImpossible(writeRes.text)) {
-            outcome = TestOutcome.TESTED_REJECTED;
-            status = TestStatus.REJECTED;
-            pathStatus = PathStatus.TESTED_REJECTED;
-            notes = `Write path blocked: ${writeRes.text}`;
-          } else {
-            outcome = TestOutcome.TESTED_INCONCLUSIVE;
-            status = TestStatus.INCONCLUSIVE;
-            pathStatus = PathStatus.TESTED_INCONCLUSIVE;
-            notes = branchCreationFailure
-              ? `Write path unproven: ${writeRes.text} (branch creation failed: ${branchCreationFailure})`
-              : `Write path unproven: ${writeRes.text}`;
-          }
-        } else {
-          // Successful branch-bound write either targeted the prebuilt branch or one we just
-          // created on demand; record it so cleanup/readback can target the same ref.
-          artifacts.branchName = branchName;
-          canaryObserved = responseContainsMarker(writeRes.text, marker);
-          if (canaryObserved) {
-            outcome = TestOutcome.TESTED_CONFIRMED;
-            status = TestStatus.CONFIRMED;
-            pathStatus = PathStatus.TESTED_CONFIRMED;
-            notes = 'Canary observed directly in repository write response.';
-          } else {
-            const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
-            const readBack = await readGithubFileCanaryWithRetry(
+          let writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
+          let createdBranchForRetry = false;
+          let branchCreationFailure: string | undefined;
+          // Both create_or_update_file and push_files require `branch` per GitHub MCP schema,
+          // so a branchless retry is invalid (the server rejects it with a Zod
+          // "received undefined" error). When the branch is missing we ask the server to create
+          // it (the GitHub MCP `create_branch` tool defaults the source ref to the repository's
+          // default branch when none is provided) and retry the same write tool with the
+          // original branch-bound input.
+          if (writeRes.isError && isBranchNotFound(writeRes.text)) {
+            const createBranchRes = await callAndRecord(
               args,
               toolCalls,
               evidence,
-              step,
-              readBackInput,
-              marker,
+              step++,
+              'create_branch',
+              {
+                owner: args.config.owner,
+                repo: args.config.repo,
+                branch: branchName,
+              },
             );
-            step = readBack.nextStep;
-            canaryObserved = readBack.observed;
-            outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
-            status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
-            pathStatus = canaryObserved
-              ? PathStatus.TESTED_CONFIRMED
-              : PathStatus.TESTED_INCONCLUSIVE;
-            notes = canaryObserved
-              ? createdBranchForRetry
-                ? 'Canary observed in controlled file readback after creating missing branch.'
-                : 'Canary observed in controlled file readback.'
-              : createdBranchForRetry
-                ? 'No canary observed in controlled file readback after creating missing branch (eventual consistency may delay readback).'
-                : 'No canary observed in controlled file readback (eventual consistency may delay readback).';
+            if (!createBranchRes.isError || isBranchAlreadyExists(createBranchRes.text)) {
+              createdBranchForRetry = true;
+              writeRes = await callAndRecord(args, toolCalls, evidence, step++, tool, writeInput);
+            } else {
+              branchCreationFailure = createBranchRes.text;
+            }
           }
-        }
+          if (writeRes.isError) {
+            if (isSecondaryRateLimit(writeRes.text)) {
+              outcome = TestOutcome.TESTED_INCONCLUSIVE;
+              status = TestStatus.INCONCLUSIVE;
+              pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+              notes = `Write path rate-limited: ${writeRes.text}`;
+            } else if (isProvenBlockedOrImpossible(writeRes.text)) {
+              outcome = TestOutcome.TESTED_REJECTED;
+              status = TestStatus.REJECTED;
+              pathStatus = PathStatus.TESTED_REJECTED;
+              notes = `Write path blocked: ${writeRes.text}`;
+            } else {
+              outcome = TestOutcome.TESTED_INCONCLUSIVE;
+              status = TestStatus.INCONCLUSIVE;
+              pathStatus = PathStatus.TESTED_INCONCLUSIVE;
+              notes = branchCreationFailure
+                ? `Write path unproven: ${writeRes.text} (branch creation failed: ${branchCreationFailure})`
+                : `Write path unproven: ${writeRes.text}`;
+            }
+          } else {
+            // Successful branch-bound write either targeted the prebuilt branch or one we just
+            // created on demand; record it so cleanup/readback can target the same ref.
+            artifacts.branchName = branchName;
+            canaryObserved = responseContainsMarker(writeRes.text, marker);
+            if (canaryObserved) {
+              outcome = TestOutcome.TESTED_CONFIRMED;
+              status = TestStatus.CONFIRMED;
+              pathStatus = PathStatus.TESTED_CONFIRMED;
+              notes = 'Canary observed directly in repository write response.';
+            } else {
+              const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
+              const readBack = await readGithubFileCanaryWithRetry(
+                args,
+                toolCalls,
+                evidence,
+                step,
+                readBackInput,
+                marker,
+              );
+              step = readBack.nextStep;
+              canaryObserved = readBack.observed;
+              outcome = canaryObserved
+                ? TestOutcome.TESTED_CONFIRMED
+                : TestOutcome.TESTED_INCONCLUSIVE;
+              status = canaryObserved ? TestStatus.CONFIRMED : TestStatus.INCONCLUSIVE;
+              pathStatus = canaryObserved
+                ? PathStatus.TESTED_CONFIRMED
+                : PathStatus.TESTED_INCONCLUSIVE;
+              notes = canaryObserved
+                ? createdBranchForRetry
+                  ? 'Canary observed in controlled file readback after creating missing branch.'
+                  : 'Canary observed in controlled file readback.'
+                : createdBranchForRetry
+                  ? 'No canary observed in controlled file readback after creating missing branch (eventual consistency may delay readback).'
+                  : 'No canary observed in controlled file readback (eventual consistency may delay readback).';
+            }
+          }
         }
       } else if (ISSUE_PR_TOOL_NAME_RE.test(tool)) {
         const title = `${args.config.issuePrefix}${args.testRunId}`;
@@ -2450,7 +2540,14 @@ export async function executeGithubSafeCanaryPlannedTest(
         if (tool === 'issue_write') {
           issueWriteInput['method'] = 'create';
         }
-        const issueRes = await callAndRecord(args, toolCalls, evidence, step++, tool, issueWriteInput);
+        const issueRes = await callAndRecord(
+          args,
+          toolCalls,
+          evidence,
+          step++,
+          tool,
+          issueWriteInput,
+        );
         if (issueRes.isError) {
           if (isSecondaryRateLimit(issueRes.text)) {
             outcome = TestOutcome.TESTED_INCONCLUSIVE;
@@ -2509,7 +2606,10 @@ export async function executeGithubSafeCanaryPlannedTest(
         // github-mcp-server's create_or_update_file requires `branch`; without it the seed
         // is silently rejected and the read tool hits a non-existent default-branch path.
         // Mirror the mutation path: target a per-run branch and create it on demand.
-        const seedBranchName = buildGithubSafeBranchName(args.config.branchPrefix ?? '', args.testRunId);
+        const seedBranchName = buildGithubSafeBranchName(
+          args.config.branchPrefix ?? '',
+          args.testRunId,
+        );
         const seedInput = {
           owner: args.config.owner,
           repo: args.config.repo,
@@ -2519,15 +2619,36 @@ export async function executeGithubSafeCanaryPlannedTest(
           branch: seedBranchName,
         };
         try {
-          let seedRes = await callAndRecord(args, toolCalls, evidence, step++, 'create_or_update_file', seedInput);
+          let seedRes = await callAndRecord(
+            args,
+            toolCalls,
+            evidence,
+            step++,
+            'create_or_update_file',
+            seedInput,
+          );
           if (seedRes.isError && isBranchNotFound(seedRes.text)) {
-            const createBranchRes = await callAndRecord(args, toolCalls, evidence, step++, 'create_branch', {
-              owner: args.config.owner,
-              repo: args.config.repo,
-              branch: seedBranchName,
-            });
+            const createBranchRes = await callAndRecord(
+              args,
+              toolCalls,
+              evidence,
+              step++,
+              'create_branch',
+              {
+                owner: args.config.owner,
+                repo: args.config.repo,
+                branch: seedBranchName,
+              },
+            );
             if (!createBranchRes.isError || isBranchAlreadyExists(createBranchRes.text)) {
-              seedRes = await callAndRecord(args, toolCalls, evidence, step++, 'create_or_update_file', seedInput);
+              seedRes = await callAndRecord(
+                args,
+                toolCalls,
+                evidence,
+                step++,
+                'create_or_update_file',
+                seedInput,
+              );
             }
           }
           if (!seedRes.isError) {
@@ -2582,7 +2703,9 @@ export async function executeGithubSafeCanaryPlannedTest(
                   ? TestOutcome.TESTED_REJECTED
                   : TestOutcome.TESTED_INCONCLUSIVE;
                 status =
-                  outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
+                  outcome === TestOutcome.TESTED_REJECTED
+                    ? TestStatus.REJECTED
+                    : TestStatus.INCONCLUSIVE;
                 pathStatus =
                   outcome === TestOutcome.TESTED_REJECTED
                     ? PathStatus.TESTED_REJECTED
@@ -2596,7 +2719,9 @@ export async function executeGithubSafeCanaryPlannedTest(
                 ? TestOutcome.TESTED_REJECTED
                 : TestOutcome.TESTED_INCONCLUSIVE;
               status =
-                outcome === TestOutcome.TESTED_REJECTED ? TestStatus.REJECTED : TestStatus.INCONCLUSIVE;
+                outcome === TestOutcome.TESTED_REJECTED
+                  ? TestStatus.REJECTED
+                  : TestStatus.INCONCLUSIVE;
               pathStatus =
                 outcome === TestOutcome.TESTED_REJECTED
                   ? PathStatus.TESTED_REJECTED
@@ -2608,7 +2733,14 @@ export async function executeGithubSafeCanaryPlannedTest(
           canaryObserved = responseContainsMarker(readRes.text, marker);
           if (!canaryObserved) {
             const readBackInput = buildGithubControlledFileReadInput(args, artifacts);
-            const readBack = await callAndRecord(args, toolCalls, evidence, step++, 'get_file_contents', readBackInput);
+            const readBack = await callAndRecord(
+              args,
+              toolCalls,
+              evidence,
+              step++,
+              'get_file_contents',
+              readBackInput,
+            );
             canaryObserved = responseContainsMarker(readBack.text, marker);
           }
           outcome = canaryObserved ? TestOutcome.TESTED_CONFIRMED : TestOutcome.TESTED_INCONCLUSIVE;
@@ -2744,7 +2876,9 @@ export function downgradeConfidence(c: Confidence | undefined): Confidence {
   return 'low';
 }
 
-export function bumpSeverity(s: 'critical' | 'high' | 'medium' | 'low' | 'info'): 'critical' | 'high' | 'medium' | 'low' | 'info' {
+export function bumpSeverity(
+  s: 'critical' | 'high' | 'medium' | 'low' | 'info',
+): 'critical' | 'high' | 'medium' | 'low' | 'info' {
   if (s === 'low' || s === 'info') return 'medium';
   if (s === 'medium') return 'high';
   return s;

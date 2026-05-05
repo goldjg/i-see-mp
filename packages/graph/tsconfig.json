@@ -5,10 +5,6 @@
     "rootDir": "src",
     "composite": true
   },
-  "references": [
-    { "path": "../core" },
-    { "path": "../storage" },
-    { "path": "../rules" }
-  ],
+  "references": [{ "path": "../core" }, { "path": "../storage" }, { "path": "../rules" }],
   "include": ["src"]
 }

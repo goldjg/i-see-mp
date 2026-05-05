@@ -67,9 +67,9 @@ const PLACEHOLDERS = '?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?';
 
 function rowToTestRun(r: TestRunRow): TestRun {
   const outcome = (r.outcome ??
-    (r.path_status === PathStatus.TESTED_CONFIRMED
-      || r.path_status === PathStatus.TRUST_BOUNDARY_CONFIRMED
-      || r.path_status === PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED
+    (r.path_status === PathStatus.TESTED_CONFIRMED ||
+    r.path_status === PathStatus.TRUST_BOUNDARY_CONFIRMED ||
+    r.path_status === PathStatus.TRUST_BOUNDARY_EXPLOIT_CONFIRMED
       ? 'TESTED_CONFIRMED'
       : r.path_status === PathStatus.TESTED_REJECTED
         ? 'TESTED_REJECTED'
@@ -93,7 +93,9 @@ function rowToTestRun(r: TestRunRow): TestRun {
     deviationDetected: r.deviation_detected === 1,
     deviationScore: r.deviation_score ?? undefined,
     injectionConfirmed: r.injection_confirmed === 1,
-    injectionChain: r.injection_chain ? JSON.parse(r.injection_chain) as TestRun['injectionChain'] : undefined,
+    injectionChain: r.injection_chain
+      ? (JSON.parse(r.injection_chain) as TestRun['injectionChain'])
+      : undefined,
     trustBoundaryExploitConfirmed: r.trust_boundary_exploit_confirmed === 1,
     canaryObserved: r.canary_observed === 1,
     outcome,
@@ -191,7 +193,9 @@ export function createTestRunsRepo(db: Database.Database) {
       tx(rows);
     },
     findById(id: string): TestRun | undefined {
-      const row = db.prepare(`SELECT * FROM test_runs WHERE id=?`).get(id) as TestRunRow | undefined;
+      const row = db.prepare(`SELECT * FROM test_runs WHERE id=?`).get(id) as
+        | TestRunRow
+        | undefined;
       return row ? rowToTestRun(row) : undefined;
     },
     findByCollection(collectionId: string): TestRun[] {
@@ -238,9 +242,7 @@ export function createTestRunsRepo(db: Database.Database) {
       if (ids.length === 0) return [];
       const placeholders = ids.map(() => '?').join(',');
       const byIdRows = db
-        .prepare(
-          `SELECT * FROM test_runs WHERE id IN (${placeholders}) ORDER BY started_at DESC`,
-        )
+        .prepare(`SELECT * FROM test_runs WHERE id IN (${placeholders}) ORDER BY started_at DESC`)
         .all(...ids) as TestRunRow[];
       return byIdRows.map(rowToTestRun);
     },

@@ -43,15 +43,11 @@ export function createToolsRepo(db: Database.Database) {
     },
 
     findByServer(serverId: string): ToolRow[] {
-      return db
-        .prepare(`SELECT * FROM tools WHERE server_id=?`)
-        .all(serverId) as ToolRow[];
+      return db.prepare(`SELECT * FROM tools WHERE server_id=?`).all(serverId) as ToolRow[];
     },
 
     findByCollection(collectionId: string): ToolRow[] {
-      return db
-        .prepare(`SELECT * FROM tools WHERE collection_id=?`)
-        .all(collectionId) as ToolRow[];
+      return db.prepare(`SELECT * FROM tools WHERE collection_id=?`).all(collectionId) as ToolRow[];
     },
 
     findById(id: string): ToolRow | undefined {

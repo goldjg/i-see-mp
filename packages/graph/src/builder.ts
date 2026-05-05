@@ -103,13 +103,11 @@ export function buildGraph(context: BuildContext): GraphResult {
 
   for (const server of servers) {
     const serverNodeId = `server:${server.id}`;
-      const serverTools = tools.filter((t) => t.server_id === server.id);
-      const serverBoundary = inferTrustBoundary(server.url);
-      const allCaps = serverTools.flatMap((t) => parseCaps(t.capabilities));
+    const serverTools = tools.filter((t) => t.server_id === server.id);
+    const serverBoundary = inferTrustBoundary(server.url);
+    const allCaps = serverTools.flatMap((t) => parseCaps(t.capabilities));
     const uniqueCaps = [...new Set(allCaps)];
-    const maxRisk = serverTools.length > 0
-      ? Math.max(...serverTools.map((t) => t.risk_score))
-      : 0;
+    const maxRisk = serverTools.length > 0 ? Math.max(...serverTools.map((t) => t.risk_score)) : 0;
 
     nodes.push({
       id: serverNodeId,
@@ -134,17 +132,17 @@ export function buildGraph(context: BuildContext): GraphResult {
     });
 
     // Server crosses boundary
-      if (isNonLocalhost(server.url) && hasRemoteServer) {
-        edges.push({
-          id: edgeId(EdgeType.CROSSES_BOUNDARY, serverNodeId, trustBoundaryId),
-          source: serverNodeId,
-          target: trustBoundaryId,
-          type: EdgeType.CROSSES_BOUNDARY,
-          metadata: {
-            trustTransition: `${TrustBoundary.LOCAL} → ${serverBoundary}`,
-          },
-        });
-      }
+    if (isNonLocalhost(server.url) && hasRemoteServer) {
+      edges.push({
+        id: edgeId(EdgeType.CROSSES_BOUNDARY, serverNodeId, trustBoundaryId),
+        source: serverNodeId,
+        target: trustBoundaryId,
+        type: EdgeType.CROSSES_BOUNDARY,
+        metadata: {
+          trustTransition: `${TrustBoundary.LOCAL} → ${serverBoundary}`,
+        },
+      });
+    }
 
     // Tool nodes
     for (const tool of serverTools) {
@@ -163,7 +161,9 @@ export function buildGraph(context: BuildContext): GraphResult {
         trustBoundary: toolBoundary,
         metadata: {
           description: tool.description ?? undefined,
-          inputSchema: tool.input_schema ? (JSON.parse(tool.input_schema) as Record<string, unknown>) : undefined,
+          inputSchema: tool.input_schema
+            ? (JSON.parse(tool.input_schema) as Record<string, unknown>)
+            : undefined,
           sourceRole,
           isUntrusted: tool.is_untrusted === 1,
           isInstructionCapable: tool.is_instruction_capable === 1,
@@ -231,7 +231,9 @@ export function buildGraph(context: BuildContext): GraphResult {
           });
           hasDataSource = true;
         }
-        const edgeType = caps.includes(Capability.WRITE_LOCAL_FILE) ? EdgeType.CAN_WRITE : EdgeType.CAN_READ;
+        const edgeType = caps.includes(Capability.WRITE_LOCAL_FILE)
+          ? EdgeType.CAN_WRITE
+          : EdgeType.CAN_READ;
         edges.push({
           id: edgeId(edgeType, toolNodeId, dataSourceId),
           source: toolNodeId,

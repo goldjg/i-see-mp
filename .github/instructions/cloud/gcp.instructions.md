@@ -1,4 +1,5 @@
 <!-- version: 1.0.0 -->
+
 # Google Cloud Platform Pack
 
 Use this guidance when working with Google Cloud Platform resources, IAM, service accounts, APIs, infrastructure, CI/CD, or application code.

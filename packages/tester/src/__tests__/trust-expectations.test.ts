@@ -94,9 +94,9 @@ describe('trust expectations', () => {
   });
 
   it('LOCAL→CONTROLLED_SAAS is not a trust-boundary crossing', () => {
-    expect(
-      derivesExpectedTrustBoundaryCrossing(TRUST_ZONE.LOCAL, TRUST_ZONE.CONTROLLED_SAAS),
-    ).toBe(false);
+    expect(derivesExpectedTrustBoundaryCrossing(TRUST_ZONE.LOCAL, TRUST_ZONE.CONTROLLED_SAAS)).toBe(
+      false,
+    );
   });
 
   it('filesystem-fetch profile expected trust transitions match central model', () => {
