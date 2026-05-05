@@ -61,6 +61,8 @@ done
 
 echo "▶ Building dv-mcp fixture..."
 "${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T "$SERVICE" \
+  corepack pnpm --filter dv-mcp install --frozen-lockfile
+"${DC[@]}" -f docker-compose.yml -f "$COMPOSE_OVERRIDE" exec -T "$SERVICE" \
   corepack pnpm --filter dv-mcp build
 
 echo "▶ Writing dv-mcp MCP config..."
