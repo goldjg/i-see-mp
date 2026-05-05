@@ -20,6 +20,17 @@ vi.mock('../../api.js', () => ({
         trifectaStage: 'COMPLETE',
         testRunIds: ['tr-1'],
       },
+      {
+        id: 'finding-2',
+        collectionId: 'col-1',
+        category: 'DATA_EXFILTRATION',
+        severity: 'medium',
+        title: 'Finding two',
+        description: 'Desc',
+        affectedNodeIds: ['node-2'],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        trifectaStage: 'PARTIAL',
+      },
     ]),
     testRuns: vi.fn(async () => []),
     testRun: vi.fn(async () => {
@@ -30,7 +41,7 @@ vi.mock('../../api.js', () => ({
 }));
 
 describe('Findings logs integration', () => {
-  it('calls onShowLogs with finding context when show logs is clicked', async () => {
+  it('calls onShowLogs with collection and test run context when available', async () => {
     const onShowLogs = vi.fn();
     render(<Findings onShowLogs={onShowLogs} />);
 
@@ -45,8 +56,25 @@ describe('Findings logs integration', () => {
     expect(onShowLogs).toHaveBeenCalledTimes(1);
     expect(onShowLogs).toHaveBeenCalledWith({
       collectionId: 'col-1',
-      findingId: 'finding-1',
       testRunId: 'tr-1',
+    });
+  });
+
+  it('calls onShowLogs with collection only when no test run exists', async () => {
+    const onShowLogs = vi.fn();
+    render(<Findings onShowLogs={onShowLogs} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Finding two')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('Finding two'));
+    const showLogsButton = await screen.findByRole('button', { name: 'Show logs →' });
+    fireEvent.click(showLogsButton);
+
+    expect(onShowLogs).toHaveBeenCalledTimes(1);
+    expect(onShowLogs).toHaveBeenCalledWith({
+      collectionId: 'col-1',
     });
   });
 });

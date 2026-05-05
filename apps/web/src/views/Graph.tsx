@@ -32,13 +32,18 @@ export function Graph({
   onSelectNode,
   trifectaNodeIds,
   completeNodeIds,
+  activePathNodeIds,
+  onClearPath,
 }: {
   onSelectNode?: (nodeId: string) => void;
   trifectaNodeIds?: Set<string>;
   completeNodeIds?: Set<string>;
+  activePathNodeIds?: string[];
+  onClearPath?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
+  const lastFitPathKeyRef = useRef<string>('');
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [selected, setSelected] = useState<GraphNode | null>(null);
@@ -73,6 +78,15 @@ export function Graph({
     const filteredEdges = edges.filter(
       (e) => filteredNodeIds.has(e.source) && filteredNodeIds.has(e.target),
     );
+    const pathNodeSet = new Set(activePathNodeIds ?? []);
+    const isPathActive = pathNodeSet.size > 0;
+    const pathEdgeIds = new Set(
+      isPathActive
+        ? filteredEdges
+            .filter((e) => pathNodeSet.has(e.source) && pathNodeSet.has(e.target))
+            .map((e) => e.id)
+        : [],
+    );
     const activeNodeIds =
       trifectaFilter === 'trifecta'
         ? (trifectaNodeIds ?? new Set<string>())
@@ -91,6 +105,7 @@ export function Graph({
             type: n.type,
             riskScore: n.riskScore,
             trifectaActive: hasTrifectaFocus ? (activeNodeIds.has(n.id) ? 1 : 0) : 1,
+            pathActive: isPathActive ? (pathNodeSet.has(n.id) ? 1 : 0) : 1,
           },
         })),
         ...filteredEdges.map((e) => ({
@@ -104,6 +119,7 @@ export function Graph({
               : hasTrifectaFocus
                 ? 0
                 : 1,
+            pathActive: isPathActive ? (pathEdgeIds.has(e.id) ? 1 : 0) : 1,
           },
         })),
       ],
@@ -195,6 +211,37 @@ export function Graph({
               },
             ]
           : []),
+        ...(isPathActive
+          ? [
+              {
+                selector: 'node[pathActive = 0]',
+                style: {
+                  opacity: 0.15,
+                },
+              },
+              {
+                selector: 'edge[pathActive = 0]',
+                style: {
+                  opacity: 0.08,
+                },
+              },
+              {
+                selector: 'node[pathActive = 1]',
+                style: {
+                  'border-width': 2,
+                  'border-color': '#0ea5e9',
+                },
+              },
+              {
+                selector: 'edge[pathActive = 1]',
+                style: {
+                  'line-color': '#0ea5e9',
+                  'target-arrow-color': '#0ea5e9',
+                  'width': 2.5,
+                },
+              },
+            ]
+          : []),
         {
           selector: 'node:selected',
           style: {
@@ -223,19 +270,50 @@ export function Graph({
       wheelSensitivity: 0.2,
     });
 
-    cy.on('tap', 'node', (evt) => {
+    const onNodeTap = (evt: cytoscape.EventObject) => {
       const nodeId = evt.target.id() as string;
       const node = nodes.find((n) => n.id === nodeId) ?? null;
       setSelected(node);
       onSelectNode?.(nodeId);
-    });
+    };
+    const onCanvasTap = (evt: cytoscape.EventObject) => {
+      if (evt.target === cy) {
+        onClearPath?.();
+      }
+    };
+    cy.on('tap', 'node', onNodeTap);
+    cy.on('tap', onCanvasTap);
 
     cyRef.current = cy;
+    const activePathKey = [...pathNodeSet].sort().join('|');
+    if (isPathActive && activePathKey !== lastFitPathKeyRef.current) {
+      const pathNodes = cy.nodes('[pathActive = 1]');
+      if (pathNodes.length > 0) {
+        cy.fit(pathNodes, 70);
+      }
+      lastFitPathKeyRef.current = activePathKey;
+    }
+    if (!isPathActive) {
+      lastFitPathKeyRef.current = '';
+    }
     return () => {
+      cy.off('tap', 'node', onNodeTap);
+      cy.off('tap', onCanvasTap);
       cy.destroy();
       cyRef.current = null;
     };
-  }, [nodes, edges, filterType, filterCap, trifectaFilter, trifectaNodeIds, completeNodeIds, onSelectNode]);
+  }, [
+    nodes,
+    edges,
+    filterType,
+    filterCap,
+    trifectaFilter,
+    trifectaNodeIds,
+    completeNodeIds,
+    activePathNodeIds,
+    onSelectNode,
+    onClearPath,
+  ]);
 
   const allTypes = [...new Set(nodes.map((n) => n.type))];
   const allCaps = [...new Set(nodes.flatMap((n) => n.capabilities))];
@@ -254,6 +332,7 @@ export function Graph({
     cy.fit(undefined, 70);
     cy.center();
   };
+  const isPathActive = (activePathNodeIds?.length ?? 0) > 0;
 
   return (
     <div className="graph-view">
@@ -279,6 +358,11 @@ export function Graph({
         <button onClick={() => zoomBy(1.2)}>Zoom in</button>
         <button onClick={() => zoomBy(1 / 1.2)}>Zoom out</button>
         <button onClick={resetView}>Reset view</button>
+        {isPathActive && (
+          <button className="graph-path-clear-btn" onClick={onClearPath}>
+            ✕ Clear path
+          </button>
+        )}
       </div>
       {trifectaFilter !== 'all' &&
         ((trifectaFilter === 'trifecta' && (trifectaNodeIds?.size ?? 0) === 0) ||
