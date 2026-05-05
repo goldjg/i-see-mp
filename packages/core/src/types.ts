@@ -140,6 +140,7 @@ export const TestProfile = {
   PROMPT_INJECTION_GITHUB: 'prompt-injection-github',
   PROMPT_INJECTION_FETCH: 'prompt-injection-fetch',
   PROMPT_INJECTION_DB: 'prompt-injection-db',
+  DV_LETHAL_TRIFECTA: 'dv-lethal-trifecta',
 } as const;
 export type TestProfile = (typeof TestProfile)[keyof typeof TestProfile];
 

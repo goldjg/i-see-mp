@@ -21,6 +21,7 @@ import {
   planGithubSafeCanaryProfile,
   planPromptInjectionGithubProfile,
   planPromptInjectionFetchProfile,
+  planDvLethalTrifectaProfile,
   assessGithubSafeCanaryRefusal,
   executePlannedTest,
   executeGithubSafeCanaryPlannedTest,
@@ -195,6 +196,7 @@ export async function runTests(options: TestOptions): Promise<TestSummary> {
     'prompt-injection-github': planPromptInjectionGithubProfile,
     'prompt-injection-fetch': planPromptInjectionFetchProfile,
     'prompt-injection-db': planSafeProfile,
+    'dv-lethal-trifecta': planDvLethalTrifectaProfile,
   };
   const applicableServerPatterns = descriptor.applicableServers.map((pattern) => new RegExp(pattern, 'i'));
   const serverMatchesApplicability = (serverName: string): boolean => {
@@ -643,7 +645,8 @@ function categoryMatches(category: string, testCaseId: string): boolean {
   if (
     category === RiskCategory.PROMPT_INJECTION &&
     (testCaseId === 'PROMPT_INJECTION_GITHUB_ISSUE_TO_SINK' ||
-      testCaseId === 'PROMPT_INJECTION_FETCH_TO_SINK')
+      testCaseId === 'PROMPT_INJECTION_FETCH_TO_SINK' ||
+      testCaseId === 'DV_LETHAL_TRIFECTA_END_TO_END')
   ) {
     return true;
   }
