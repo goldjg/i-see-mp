@@ -497,7 +497,7 @@ export function Findings({
                   const primaryTestRunId = f.testRunIds?.[0];
                   onShowLogs({
                     collectionId: f.collectionId,
-                    ...(primaryTestRunId ? { testRunId: primaryTestRunId } : { findingId: f.id }),
+                    ...(primaryTestRunId ? { testRunId: primaryTestRunId } : {}),
                   });
                 }}
               >
