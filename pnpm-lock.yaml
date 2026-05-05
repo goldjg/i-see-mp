@@ -127,6 +127,19 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  examples/dv-mcp:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   examples/safe-mcp:
     dependencies:
       '@modelcontextprotocol/sdk':
