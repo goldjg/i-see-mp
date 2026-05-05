@@ -16,6 +16,7 @@ COPY examples ./examples
 RUN node -e "const fs=require('fs');const p='./packages/cli/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));if(j.scripts){delete j.scripts.prepare;}fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n');"
 RUN pnpm install --frozen-lockfile
 RUN pnpm exec tsc -b tsconfig.json --force
+RUN pnpm --filter @iseemp/cli build && test -f /app/packages/cli/dist/index.js
 RUN pnpm --filter @iseemp/web build
 RUN pnpm --filter demo-mcp-server build
 
