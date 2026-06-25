@@ -23,7 +23,7 @@ export interface ClassificationResult {
   isUntrusted: boolean;
   isInstructionCapable: boolean;
   contentOrigin: ContentOrigin;
-  /** Structured evidence for each capability assignment — empty only for UNKNOWN fallback tools. */
+  /** Structured evidence for each capability assignment, including UNKNOWN fallback classification. */
   evidence: ClassificationEvidence[];
 }
 

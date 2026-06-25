@@ -97,6 +97,110 @@ describe('API routes', () => {
     vi.restoreAllMocks();
   });
 
+  it('GET /tools returns classificationEvidence when valid JSON is present', async () => {
+    const db = createMemoryDb();
+    vi.spyOn(storage, 'getDb').mockReturnValue(db);
+
+    const colRepo = createCollectionsRepo(db);
+    const srvRepo = createServersRepo(db);
+    const toolRepo = createToolsRepo(db);
+    const now = new Date().toISOString();
+
+    colRepo.create('col-ev', now);
+    colRepo.complete('col-ev', { serverCount: 1, toolCount: 1, resourceCount: 0, promptCount: 0 });
+    srvRepo.upsert({
+      id: 'srv-ev',
+      collection_id: 'col-ev',
+      name: 'EvidenceServer',
+      url: null,
+      command: 'node',
+      args: null,
+      env: null,
+      transport: 'stdio',
+      is_verified: 0,
+      created_at: now,
+    });
+    const evidenceData = [{ capability: 'READ_LOCAL_FILE', source: 'name', matched: 'read_file', reason: 'matched name' }];
+    toolRepo.upsert({
+      id: 'tool-ev',
+      collection_id: 'col-ev',
+      server_id: 'srv-ev',
+      name: 'read_file',
+      description: 'Reads a file',
+      input_schema: null,
+      capabilities: JSON.stringify([Capability.READ_LOCAL_FILE]),
+      source_role: JSON.stringify(['DATA_SOURCE']),
+      is_untrusted: 0,
+      is_instruction_capable: 0,
+      content_origin: 'local',
+      trust_zone: null,
+      risk_score: 30,
+      classification_evidence: JSON.stringify(evidenceData),
+      created_at: now,
+    });
+
+    const app = buildServer();
+    const res = await app.inject({ method: 'GET', url: '/tools' });
+    expect(res.statusCode).toBe(200);
+    const tools = JSON.parse(res.body) as Array<{ name: string; classificationEvidence?: unknown[] }>;
+    const tool = tools.find((t) => t.name === 'read_file');
+    expect(tool).toBeDefined();
+    expect(Array.isArray(tool?.classificationEvidence)).toBe(true);
+    expect(tool?.classificationEvidence).toHaveLength(1);
+    vi.restoreAllMocks();
+  });
+
+  it('GET /tools omits classificationEvidence when classification_evidence is invalid JSON', async () => {
+    const db = createMemoryDb();
+    vi.spyOn(storage, 'getDb').mockReturnValue(db);
+
+    const colRepo = createCollectionsRepo(db);
+    const srvRepo = createServersRepo(db);
+    const toolRepo = createToolsRepo(db);
+    const now = new Date().toISOString();
+
+    colRepo.create('col-bad', now);
+    colRepo.complete('col-bad', { serverCount: 1, toolCount: 1, resourceCount: 0, promptCount: 0 });
+    srvRepo.upsert({
+      id: 'srv-bad',
+      collection_id: 'col-bad',
+      name: 'BadServer',
+      url: null,
+      command: 'node',
+      args: null,
+      env: null,
+      transport: 'stdio',
+      is_verified: 0,
+      created_at: now,
+    });
+    toolRepo.upsert({
+      id: 'tool-bad',
+      collection_id: 'col-bad',
+      server_id: 'srv-bad',
+      name: 'bad_tool',
+      description: 'Tool with bad evidence',
+      input_schema: null,
+      capabilities: JSON.stringify([Capability.UNKNOWN]),
+      source_role: JSON.stringify([]),
+      is_untrusted: 0,
+      is_instruction_capable: 0,
+      content_origin: 'local',
+      trust_zone: null,
+      risk_score: 10,
+      classification_evidence: 'not valid json {{{',
+      created_at: now,
+    });
+
+    const app = buildServer();
+    const res = await app.inject({ method: 'GET', url: '/tools' });
+    expect(res.statusCode).toBe(200);
+    const tools = JSON.parse(res.body) as Array<{ name: string; classificationEvidence?: unknown[] }>;
+    const tool = tools.find((t) => t.name === 'bad_tool');
+    expect(tool).toBeDefined();
+    expect(tool?.classificationEvidence).toBeUndefined();
+    vi.restoreAllMocks();
+  });
+
   it('GET /findings returns empty when no findings', async () => {
     const db = createMemoryDb();
     vi.spyOn(storage, 'getDb').mockReturnValue(db);
