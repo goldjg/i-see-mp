@@ -34,6 +34,7 @@ function makeTool(id: string, serverId: string, caps: Capability[]) {
     content_origin: 'local',
     trust_zone: null,
     risk_score: 50,
+    classification_evidence: null,
     created_at: now,
   };
 }

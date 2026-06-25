@@ -1,6 +1,21 @@
 import { Capability, ContentOrigin, SourceRole } from '@iseemp/core';
 import type { McpTool } from '@iseemp/core';
 
+/**
+ * A single piece of deterministic evidence explaining why a capability was assigned.
+ * Only positive matches that caused a capability to be added are recorded.
+ */
+export interface ClassificationEvidence {
+  /** The capability that was assigned. */
+  capability: Capability;
+  /** Where the signal that triggered the assignment came from. */
+  source: 'name' | 'description' | 'schema' | 'derived' | 'combined';
+  /** The specific pattern, token, or value that matched. */
+  matched: string;
+  /** Human-readable explanation of why the match implies the capability. */
+  reason: string;
+}
+
 export interface ClassificationResult {
   capabilities: Capability[];
   riskScore: number;
@@ -8,6 +23,8 @@ export interface ClassificationResult {
   isUntrusted: boolean;
   isInstructionCapable: boolean;
   contentOrigin: ContentOrigin;
+  /** Structured evidence for each capability assignment — empty only for UNKNOWN fallback tools. */
+  evidence: ClassificationEvidence[];
 }
 
 // Higher score = more dangerous. Used to derive a numeric risk score per tool.
@@ -44,14 +61,21 @@ function matchesAny(text: string, patterns: string[]): boolean {
   return patterns.some((p) => text.includes(p));
 }
 
-/** Match whole-word-ish — pattern must appear as an isolated token, not as a substring of another word. */
-function matchesToken(text: string, tokens: string[]): boolean {
-  return tokens.some((t) => {
-    const re = new RegExp(
-      `(^|[^a-z0-9])${t.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}([^a-z0-9]|$)`,
-    );
-    return re.test(text);
-  });
+/** Like matchesAny but returns the first matching pattern, or null. */
+function findMatch(text: string, patterns: string[]): string | null {
+  return patterns.find((p) => text.includes(p)) ?? null;
+}
+
+/** Like matchesToken but returns the first matching token, or null. */
+function findTokenMatch(text: string, tokens: string[]): string | null {
+  return (
+    tokens.find((t) => {
+      const re = new RegExp(
+        `(^|[^a-z0-9])${t.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}([^a-z0-9]|$)`,
+      );
+      return re.test(text);
+    }) ?? null
+  );
 }
 
 function getSchemaParams(tool: McpTool): string[] {
@@ -81,6 +105,26 @@ function isRemoteSaasContext(text: string): boolean {
 
 export function classifyTool(tool: McpTool): ClassificationResult {
   const caps = new Set<Capability>();
+  const evidenceList: ClassificationEvidence[] = [];
+
+  /**
+   * Add a capability and record evidence for it.
+   * Evidence is only recorded the first time a given capability is added, so
+   * the entry reflects the primary signal that caused the assignment.
+   */
+  function addCap(
+    cap: Capability,
+    source: ClassificationEvidence['source'],
+    matched: string,
+    reason: string,
+  ): void {
+    const isNew = !caps.has(cap);
+    caps.add(cap);
+    if (isNew) {
+      evidenceList.push({ capability: cap, source, matched, reason });
+    }
+  }
+
   const name = tool.name.toLowerCase();
   const desc = (tool.description ?? '').toLowerCase();
   const combined = `${name} ${desc}`;
@@ -104,13 +148,38 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     'system_command',
   ];
   const shellTokens = ['bash', 'shell', 'terminal', 'cmd.exe', 'powershell', 'subprocess'];
-  if (
-    matchesAny(name, shellNamePatterns) ||
-    matchesToken(combined, shellTokens) ||
-    /\bexecutes?\s+(a\s+)?(shell|bash|terminal|os|system)\s+command/.test(combined) ||
-    /\brun(s)?\s+(a\s+)?(shell|bash|terminal|os|system)\s+command/.test(combined)
-  ) {
-    caps.add(Capability.RUN_SHELL);
+  {
+    const matchedName = findMatch(name, shellNamePatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.RUN_SHELL,
+        'name',
+        matchedName,
+        'tool name matches shell execution pattern',
+      );
+    } else {
+      const matchedToken = findTokenMatch(combined, shellTokens);
+      if (matchedToken !== null) {
+        addCap(
+          Capability.RUN_SHELL,
+          'combined',
+          matchedToken,
+          'name/description contains shell execution keyword',
+        );
+      } else {
+        const m =
+          /\bexecutes?\s+(a\s+)?(shell|bash|terminal|os|system)\s+command/.exec(combined) ??
+          /\brun(s)?\s+(a\s+)?(shell|bash|terminal|os|system)\s+command/.exec(combined);
+        if (m) {
+          addCap(
+            Capability.RUN_SHELL,
+            'combined',
+            m[0],
+            'description indicates shell command execution',
+          );
+        }
+      }
+    }
   }
 
   // ---------- Code execution (narrow) ----------
@@ -136,17 +205,42 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     'eval_expression',
   ];
   const codeExecTokens = ['eval', 'repl', 'interpreter'];
-  if (
-    matchesAny(name, codeExecNamePatterns) ||
-    matchesToken(combined, codeExecTokens) ||
-    /\b(execute|run|evaluate|interpret)s?\s+(arbitrary\s+)?(python|javascript|typescript|node|js|ruby|code)\b/.test(
-      combined,
-    ) ||
-    /\b(python|javascript|node|js|ruby)\s+(code|script)\s+(execution|interpreter|repl)/.test(
-      combined,
-    )
-  ) {
-    caps.add(Capability.EXECUTE_CODE);
+  {
+    const matchedName = findMatch(name, codeExecNamePatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.EXECUTE_CODE,
+        'name',
+        matchedName,
+        'tool name matches code execution pattern',
+      );
+    } else {
+      const matchedToken = findTokenMatch(combined, codeExecTokens);
+      if (matchedToken !== null) {
+        addCap(
+          Capability.EXECUTE_CODE,
+          'combined',
+          matchedToken,
+          'name/description contains code execution keyword',
+        );
+      } else {
+        const m =
+          /\b(execute|run|evaluate|interpret)s?\s+(arbitrary\s+)?(python|javascript|typescript|node|js|ruby|code)\b/.exec(
+            combined,
+          ) ??
+          /\b(python|javascript|node|js|ruby)\s+(code|script)\s+(execution|interpreter|repl)/.exec(
+            combined,
+          );
+        if (m) {
+          addCap(
+            Capability.EXECUTE_CODE,
+            'combined',
+            m[0],
+            'description indicates code execution in an interpreter or sandbox',
+          );
+        }
+      }
+    }
   }
 
   // ---------- Sensitive credentials / secrets ----------
@@ -175,11 +269,29 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     'dotenv',
     '.env',
   ];
-  if (matchesToken(combined, credentialTokens)) {
-    caps.add(Capability.READ_CREDENTIAL_HIGH);
-    caps.add(Capability.READ_SECRET_HIGH);
-    // Keep legacy READ_SECRET in the output for back-compat consumers
-    caps.add(Capability.READ_SECRET);
+  {
+    const matchedToken = findTokenMatch(combined, credentialTokens);
+    if (matchedToken !== null) {
+      addCap(
+        Capability.READ_CREDENTIAL_HIGH,
+        'combined',
+        matchedToken,
+        'name/description contains credential/secret term indicating high-sensitivity credential read',
+      );
+      addCap(
+        Capability.READ_SECRET_HIGH,
+        'combined',
+        matchedToken,
+        'name/description contains credential/secret term indicating high-sensitivity secret read',
+      );
+      // Keep legacy READ_SECRET in the output for back-compat consumers
+      addCap(
+        Capability.READ_SECRET,
+        'combined',
+        matchedToken,
+        'legacy alias for READ_SECRET_HIGH; retained for backwards compatibility',
+      );
+    }
   }
 
   // ---------- Sensitive (medium) — team / org / collaborator metadata ----------
@@ -198,8 +310,16 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     'list_members',
     'list_organisation_members',
   ];
-  if (matchesAny(name, sensitiveMediumPatterns)) {
-    caps.add(Capability.READ_SENSITIVE_MEDIUM);
+  {
+    const matchedName = findMatch(name, sensitiveMediumPatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.READ_SENSITIVE_MEDIUM,
+        'name',
+        matchedName,
+        'tool name matches org/team membership read pattern',
+      );
+    }
   }
 
   // ---------- Low-sensitivity public metadata ----------
@@ -215,8 +335,16 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     'get_label',
     'list_branches',
   ];
-  if (matchesAny(name, lowMetadataPatterns)) {
-    caps.add(Capability.READ_METADATA_LOW);
+  {
+    const matchedName = findMatch(name, lowMetadataPatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.READ_METADATA_LOW,
+        'name',
+        matchedName,
+        'tool name matches public metadata read pattern (releases, tags, labels, branches)',
+      );
+    }
   }
 
   // ---------- Repository mutation (write to repo contents/structure) ----------
@@ -237,9 +365,22 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     'create_tag',
     'create_release',
   ];
-  if (matchesAny(name, mutateRepoPatterns)) {
-    caps.add(Capability.MUTATE_REPOSITORY);
-    caps.add(Capability.MUTATE_REMOTE_STATE);
+  {
+    const matchedName = findMatch(name, mutateRepoPatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.MUTATE_REPOSITORY,
+        'name',
+        matchedName,
+        'tool name matches repository mutation pattern',
+      );
+      addCap(
+        Capability.MUTATE_REMOTE_STATE,
+        'name',
+        matchedName,
+        'repository mutation implies remote state change',
+      );
+    }
   }
 
   // ---------- Issue / PR / Comment / Review mutation ----------
@@ -271,14 +412,40 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     'assign_issue',
     'unassign_issue',
   ];
-  if (matchesAny(name, mutateIssuePrPatterns)) {
-    caps.add(Capability.MUTATE_ISSUE_OR_PR);
-    caps.add(Capability.MUTATE_REMOTE_STATE);
+  {
+    const matchedName = findMatch(name, mutateIssuePrPatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.MUTATE_ISSUE_OR_PR,
+        'name',
+        matchedName,
+        'tool name matches issue/PR mutation pattern',
+      );
+      addCap(
+        Capability.MUTATE_REMOTE_STATE,
+        'name',
+        matchedName,
+        'issue/PR mutation implies remote state change',
+      );
+    }
   }
 
-  if (matchesAny(name, ['issue_read', 'pull_request_read'])) {
-    caps.add(Capability.QUERY_REMOTE_SYSTEM);
-    caps.add(Capability.READ_REMOTE_DATA);
+  {
+    const matchedName = findMatch(name, ['issue_read', 'pull_request_read']);
+    if (matchedName !== null) {
+      addCap(
+        Capability.QUERY_REMOTE_SYSTEM,
+        'name',
+        matchedName,
+        'tool reads issues/PRs implying remote system query',
+      );
+      addCap(
+        Capability.READ_REMOTE_DATA,
+        'name',
+        matchedName,
+        'tool reads issues/PRs implying remote data access',
+      );
+    }
   }
 
   // ---------- Untrusted content exposure ----------
@@ -303,13 +470,38 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     'http_get',
     'retrieve_url',
   ];
-  if (matchesAny(name, untrustedContentPatterns)) {
-    caps.add(Capability.UNTRUSTED_CONTENT_EXPOSURE);
-    caps.add(Capability.INSTRUCTION_SOURCE);
+  {
+    const matchedName = findMatch(name, untrustedContentPatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.UNTRUSTED_CONTENT_EXPOSURE,
+        'name',
+        matchedName,
+        'tool name matches pattern that commonly surfaces attacker-controlled content',
+      );
+      addCap(
+        Capability.INSTRUCTION_SOURCE,
+        'name',
+        matchedName,
+        'tool can carry untrusted instructions into the agent context',
+      );
+    }
   }
 
-  if (matchesAny(name, ['mutate_remote_state', 'update_remote_state', 'modify_remote_state'])) {
-    caps.add(Capability.MUTATE_REMOTE_STATE);
+  {
+    const matchedName = findMatch(name, [
+      'mutate_remote_state',
+      'update_remote_state',
+      'modify_remote_state',
+    ]);
+    if (matchedName !== null) {
+      addCap(
+        Capability.MUTATE_REMOTE_STATE,
+        'name',
+        matchedName,
+        'tool name explicitly indicates remote state mutation',
+      );
+    }
   }
 
   // ---------- Generic remote-mutation hints ----------
@@ -318,17 +510,37 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     remoteSaas &&
     !caps.has(Capability.MUTATE_REPOSITORY) &&
     !caps.has(Capability.MUTATE_ISSUE_OR_PR) &&
-    !caps.has(Capability.MUTATE_REMOTE_STATE) &&
-    /(^|_)(write|update|create|delete|merge|patch|publish)(_|$)/.test(name)
+    !caps.has(Capability.MUTATE_REMOTE_STATE)
   ) {
-    caps.add(Capability.MUTATE_REMOTE_STATE);
+    const m = /(^|_)(write|update|create|delete|merge|patch|publish)(_|$)/.exec(name);
+    if (m) {
+      addCap(
+        Capability.MUTATE_REMOTE_STATE,
+        'combined',
+        m[0],
+        'SaaS context with mutation verb in tool name implies remote state mutation',
+      );
+    }
   }
 
   // ---------- Query / search remote system ----------
   // search_*, list_*, get_* on remote SaaS → query+read remote data, NOT execute.
-  if (remoteSaas && /(^|_)(search|list|get)(_|$)/.test(name)) {
-    caps.add(Capability.QUERY_REMOTE_SYSTEM);
-    caps.add(Capability.READ_REMOTE_DATA);
+  if (remoteSaas) {
+    const m = /(^|_)(search|list|get)(_|$)/.exec(name);
+    if (m) {
+      addCap(
+        Capability.QUERY_REMOTE_SYSTEM,
+        'combined',
+        m[0],
+        'SaaS context with search/list/get verb in tool name implies remote system query',
+      );
+      addCap(
+        Capability.READ_REMOTE_DATA,
+        'combined',
+        m[0],
+        'SaaS context with search/list/get verb in tool name implies remote data access',
+      );
+    }
   }
   // Even outside known SaaS, search_* implies remote query
   const knownLocalSearchPatterns = ['search_files', 'search_directory'];
@@ -339,8 +551,18 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     !caps.has(Capability.READ_LOCAL_FILE) &&
     !caps.has(Capability.READ_METADATA_LOW)
   ) {
-    caps.add(Capability.QUERY_REMOTE_SYSTEM);
-    caps.add(Capability.READ_REMOTE_DATA);
+    addCap(
+      Capability.QUERY_REMOTE_SYSTEM,
+      'name',
+      name,
+      'search/query prefix on tool name implies remote system query',
+    );
+    addCap(
+      Capability.READ_REMOTE_DATA,
+      'name',
+      name,
+      'search/query prefix on tool name implies remote data access',
+    );
   }
 
   // ---------- File reads ----------
@@ -360,10 +582,22 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     'read_local',
   ];
   const localFileTokens = ['filesystem', 'file system', 'local file', 'local disk'];
-  const isLocalFileRead =
-    matchesAny(name, localFileNamePatterns) || matchesToken(combined, localFileTokens);
-  if (isLocalFileRead && !remoteSaas) {
-    caps.add(Capability.READ_LOCAL_FILE);
+  {
+    const matchedLocalName = findMatch(name, localFileNamePatterns);
+    const matchedLocalToken = matchedLocalName === null ? findTokenMatch(combined, localFileTokens) : null;
+    const isLocalFileRead = matchedLocalName !== null || matchedLocalToken !== null;
+    if (isLocalFileRead && !remoteSaas) {
+      const src = matchedLocalName !== null ? 'name' : 'combined';
+      const matched = (matchedLocalName ?? matchedLocalToken)!;
+      addCap(
+        Capability.READ_LOCAL_FILE,
+        src as ClassificationEvidence['source'],
+        matched,
+        src === 'name'
+          ? 'tool name matches local file read pattern'
+          : 'name/description indicates local filesystem access',
+      );
+    }
   }
 
   // get_file_contents from remote SaaS → READ_REMOTE_DATA, not local file
@@ -373,15 +607,25 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     /^get_content$/.test(name)
   ) {
     if (remoteSaas) {
-      caps.add(Capability.READ_REMOTE_DATA);
+      addCap(
+        Capability.READ_REMOTE_DATA,
+        'name',
+        name,
+        'get_file_contents in SaaS context indicates remote repository file read',
+      );
     } else {
-      caps.add(Capability.READ_LOCAL_FILE);
+      addCap(
+        Capability.READ_LOCAL_FILE,
+        'name',
+        name,
+        'get_file_contents without SaaS context indicates local file read',
+      );
     }
   }
 
   // ---------- File writes ----------
-  if (
-    matchesAny(name, [
+  {
+    const fileWritePatterns = [
       'write_file',
       'edit_file',
       'save_file',
@@ -396,15 +640,21 @@ export function classifyTool(tool: McpTool): ClassificationResult {
       'mkdir',
       'create_directory',
       'rmdir',
-    ]) &&
-    !remoteSaas
-  ) {
-    caps.add(Capability.WRITE_LOCAL_FILE);
+    ];
+    const matchedName = findMatch(name, fileWritePatterns);
+    if (matchedName !== null && !remoteSaas) {
+      addCap(
+        Capability.WRITE_LOCAL_FILE,
+        'name',
+        matchedName,
+        'tool name matches local file write pattern',
+      );
+    }
   }
 
   // ---------- HTTP / network ----------
-  if (
-    matchesAny(name, [
+  {
+    const httpNamePatterns = [
       'dv_send_external',
       'http_request',
       'send_request',
@@ -412,39 +662,106 @@ export function classifyTool(tool: McpTool): ClassificationResult {
       'webhook',
       'fetch_url',
       'curl',
-    ]) ||
-    matchesToken(combined, ['http', 'https', 'fetch', 'webhook'])
-  ) {
-    caps.add(Capability.SEND_HTTP);
+    ];
+    const httpTokens = ['http', 'https', 'fetch', 'webhook'];
+    const matchedName = findMatch(name, httpNamePatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.SEND_HTTP,
+        'name',
+        matchedName,
+        'tool name matches HTTP/network request pattern',
+      );
+    } else {
+      const matchedToken = findTokenMatch(combined, httpTokens);
+      if (matchedToken !== null) {
+        addCap(
+          Capability.SEND_HTTP,
+          'combined',
+          matchedToken,
+          'name/description contains HTTP/network keyword',
+        );
+      }
+    }
   }
 
   // SEND_EXTERNAL: explicit external send (webhooks, email, generic outbound HTTP that crosses
   // a trust boundary). For now we infer it whenever SEND_HTTP is present and there's no clear
   // indication the destination is internal-only.
   if (caps.has(Capability.SEND_HTTP)) {
-    caps.add(Capability.SEND_EXTERNAL);
+    addCap(
+      Capability.SEND_EXTERNAL,
+      'derived',
+      'SEND_HTTP',
+      'SEND_EXTERNAL inferred from SEND_HTTP; outbound HTTP requests cross trust boundary by default',
+    );
   }
 
   // ---------- Email ----------
-  if (
-    matchesAny(name, ['send_email', 'send_mail']) ||
-    matchesToken(combined, ['smtp', 'sendgrid', 'mailgun'])
-  ) {
-    caps.add(Capability.SEND_EMAIL);
-    caps.add(Capability.SEND_EXTERNAL);
+  {
+    const emailNamePatterns = ['send_email', 'send_mail'];
+    const emailTokens = ['smtp', 'sendgrid', 'mailgun'];
+    const matchedName = findMatch(name, emailNamePatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.SEND_EMAIL,
+        'name',
+        matchedName,
+        'tool name matches email send pattern',
+      );
+      addCap(
+        Capability.SEND_EXTERNAL,
+        'name',
+        matchedName,
+        'email send implies external communication',
+      );
+    } else {
+      const matchedToken = findTokenMatch(combined, emailTokens);
+      if (matchedToken !== null) {
+        addCap(
+          Capability.SEND_EMAIL,
+          'combined',
+          matchedToken,
+          'name/description contains email provider keyword',
+        );
+        addCap(
+          Capability.SEND_EXTERNAL,
+          'combined',
+          matchedToken,
+          'email provider keyword implies external communication',
+        );
+      }
+    }
   }
 
   // ---------- Database ----------
-  if (
-    matchesAny(name, ['query_database', 'db_query', 'run_query', 'sql_query']) ||
-    matchesToken(combined, ['sqlite', 'postgres', 'mysql', 'mongodb', 'sql'])
-  ) {
-    caps.add(Capability.QUERY_DATABASE);
+  {
+    const dbNamePatterns = ['query_database', 'db_query', 'run_query', 'sql_query'];
+    const dbTokens = ['sqlite', 'postgres', 'mysql', 'mongodb', 'sql'];
+    const matchedName = findMatch(name, dbNamePatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.QUERY_DATABASE,
+        'name',
+        matchedName,
+        'tool name matches database query pattern',
+      );
+    } else {
+      const matchedToken = findTokenMatch(combined, dbTokens);
+      if (matchedToken !== null) {
+        addCap(
+          Capability.QUERY_DATABASE,
+          'combined',
+          matchedToken,
+          'name/description contains database system keyword',
+        );
+      }
+    }
   }
 
   // ---------- Identity / IAM ----------
-  if (
-    matchesAny(name, [
+  {
+    const iamNamePatterns = [
       'assume_role',
       'create_user',
       'delete_user',
@@ -453,15 +770,32 @@ export function classifyTool(tool: McpTool): ClassificationResult {
       'create_role',
       'attach_policy',
       'detach_policy',
-    ]) ||
-    matchesToken(combined, ['iam', 'rbac', 'acl'])
-  ) {
-    caps.add(Capability.MUTATE_IDENTITY);
+    ];
+    const iamTokens = ['iam', 'rbac', 'acl'];
+    const matchedName = findMatch(name, iamNamePatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.MUTATE_IDENTITY,
+        'name',
+        matchedName,
+        'tool name matches identity/IAM mutation pattern',
+      );
+    } else {
+      const matchedToken = findTokenMatch(combined, iamTokens);
+      if (matchedToken !== null) {
+        addCap(
+          Capability.MUTATE_IDENTITY,
+          'combined',
+          matchedToken,
+          'name/description contains IAM/access control keyword',
+        );
+      }
+    }
   }
 
   // ---------- Cloud resources ----------
-  if (
-    matchesToken(combined, [
+  {
+    const cloudTokens = [
       'aws',
       'azure',
       'gcp',
@@ -472,45 +806,103 @@ export function classifyTool(tool: McpTool): ClassificationResult {
       'terraform',
       'kubernetes',
       'k8s',
-    ])
-  ) {
-    caps.add(Capability.MUTATE_CLOUD_RESOURCE);
+    ];
+    const matchedToken = findTokenMatch(combined, cloudTokens);
+    if (matchedToken !== null) {
+      addCap(
+        Capability.MUTATE_CLOUD_RESOURCE,
+        'combined',
+        matchedToken,
+        'name/description contains cloud provider keyword',
+      );
+    }
   }
 
   // ---------- Export / data exfil ----------
-  if (matchesAny(name, ['export_all', 'bulk_export', 'data_export', 'dump_all', 'backup_all'])) {
-    caps.add(Capability.EXPORT_DATA);
+  {
+    const exportPatterns = ['export_all', 'bulk_export', 'data_export', 'dump_all', 'backup_all'];
+    const matchedName = findMatch(name, exportPatterns);
+    if (matchedName !== null) {
+      addCap(
+        Capability.EXPORT_DATA,
+        'name',
+        matchedName,
+        'tool name matches bulk data export pattern',
+      );
+    }
   }
 
   // ---------- Schema parameter hints ----------
-  if (
-    (params.includes('path') ||
-      params.includes('filepath') ||
-      params.includes('file_path') ||
-      params.includes('filename')) &&
-    !remoteSaas &&
-    !caps.has(Capability.WRITE_LOCAL_FILE) &&
-    !caps.has(Capability.READ_REMOTE_DATA)
-  ) {
-    caps.add(Capability.READ_LOCAL_FILE);
-  }
-  if (params.some((p) => p === 'url' || p === 'endpoint' || p === 'uri' || p === 'base_url')) {
-    if (!caps.has(Capability.SEND_HTTP)) {
-      caps.add(Capability.READ_REMOTE_DATA);
-    } else if (matchesAny(combined, ['fetch', 'get', 'read', 'retrieve', 'load', 'download'])) {
-      caps.add(Capability.READ_REMOTE_DATA);
+  {
+    const matchedPathParam = params.find(
+      (p) => p === 'path' || p === 'filepath' || p === 'file_path' || p === 'filename',
+    );
+    if (
+      matchedPathParam !== undefined &&
+      !remoteSaas &&
+      !caps.has(Capability.WRITE_LOCAL_FILE) &&
+      !caps.has(Capability.READ_REMOTE_DATA)
+    ) {
+      addCap(
+        Capability.READ_LOCAL_FILE,
+        'schema',
+        matchedPathParam,
+        'schema has path parameter suggesting local filesystem access',
+      );
     }
-  }
-  if (params.some((p) => p === 'query' || p === 'sql') && /sql|database|db/.test(combined)) {
-    caps.add(Capability.QUERY_DATABASE);
-  }
-  if (params.some((p) => p === 'command' || p === 'cmd' || p === 'shell')) {
-    caps.add(Capability.RUN_SHELL);
+
+    const matchedUrlParam = params.find(
+      (p) => p === 'url' || p === 'endpoint' || p === 'uri' || p === 'base_url',
+    );
+    if (matchedUrlParam !== undefined) {
+      if (!caps.has(Capability.SEND_HTTP)) {
+        addCap(
+          Capability.READ_REMOTE_DATA,
+          'schema',
+          matchedUrlParam,
+          'schema has URL parameter suggesting remote data access',
+        );
+      } else if (matchesAny(combined, ['fetch', 'get', 'read', 'retrieve', 'load', 'download'])) {
+        addCap(
+          Capability.READ_REMOTE_DATA,
+          'schema',
+          matchedUrlParam,
+          'schema has URL parameter with fetch/read context suggesting remote data read',
+        );
+      }
+    }
+
+    const matchedSqlParam = params.find((p) => p === 'query' || p === 'sql');
+    if (matchedSqlParam !== undefined && /sql|database|db/.test(combined)) {
+      addCap(
+        Capability.QUERY_DATABASE,
+        'schema',
+        matchedSqlParam,
+        'schema has query/SQL parameter in database context',
+      );
+    }
+
+    const matchedCommandParam = params.find(
+      (p) => p === 'command' || p === 'cmd' || p === 'shell',
+    );
+    if (matchedCommandParam !== undefined) {
+      addCap(
+        Capability.RUN_SHELL,
+        'schema',
+        matchedCommandParam,
+        'schema has command parameter suggesting shell execution',
+      );
+    }
   }
 
   // ---------- Fallback ----------
   if (caps.size === 0) {
-    caps.add(Capability.UNKNOWN);
+    addCap(
+      Capability.UNKNOWN,
+      'combined',
+      name,
+      'no classification pattern matched; capability unknown',
+    );
   }
 
   const capsArray = Array.from(caps);
@@ -574,5 +966,6 @@ export function classifyTool(tool: McpTool): ClassificationResult {
     isUntrusted,
     isInstructionCapable,
     contentOrigin,
+    evidence: evidenceList,
   };
 }

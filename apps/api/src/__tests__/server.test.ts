@@ -85,6 +85,7 @@ describe('API routes', () => {
       content_origin: 'local',
       trust_zone: null,
       risk_score: 30,
+      classification_evidence: null,
       created_at: now,
     });
 

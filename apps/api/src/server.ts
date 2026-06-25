@@ -94,6 +94,9 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
       contentOrigin: t.content_origin,
       trustZone: t.trust_zone ?? undefined,
       riskScore: t.risk_score,
+      classificationEvidence: t.classification_evidence
+        ? (JSON.parse(t.classification_evidence) as unknown[])
+        : undefined,
     }));
   });
 

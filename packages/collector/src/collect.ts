@@ -164,6 +164,7 @@ export async function collect(options: {
         content_origin: classification.contentOrigin,
         trust_zone: null,
         risk_score: classification.riskScore,
+        classification_evidence: JSON.stringify(classification.evidence),
         created_at: now,
       });
       totalTools++;

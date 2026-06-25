@@ -37,6 +37,7 @@ function tool(id: string, name: string, caps: Capability[]): ToolRow {
     content_origin: 'local',
     trust_zone: null,
     risk_score: 50,
+    classification_evidence: null,
     created_at: new Date().toISOString(),
   };
 }
