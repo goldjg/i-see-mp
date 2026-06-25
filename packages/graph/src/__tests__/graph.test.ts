@@ -45,6 +45,7 @@ const tool1 = {
   content_origin: 'local',
   trust_zone: null,
   risk_score: 90,
+  classification_evidence: null,
   created_at: now,
 };
 
@@ -62,6 +63,7 @@ const tool2 = {
   content_origin: 'external_saas',
   trust_zone: null,
   risk_score: 80,
+  classification_evidence: null,
   created_at: now,
 };
 
@@ -82,6 +84,7 @@ const tool3 = {
   content_origin: 'user_generated',
   trust_zone: null,
   risk_score: 60,
+  classification_evidence: null,
   created_at: now,
 };
 
@@ -250,6 +253,7 @@ describe('findAttackPaths', () => {
       content_origin: 'external_saas',
       trust_zone: null,
       risk_score: 65,
+      classification_evidence: null,
       created_at: now,
     };
     const { nodes } = buildGraph({

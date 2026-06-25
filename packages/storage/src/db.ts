@@ -35,6 +35,7 @@ const TOOLS_NEW_COLUMNS: Array<[string, string]> = [
   ['is_instruction_capable', 'INTEGER NOT NULL DEFAULT 0'],
   ['content_origin', `TEXT NOT NULL DEFAULT 'local'`],
   ['trust_zone', 'TEXT'],
+  ['classification_evidence', 'TEXT'],
 ];
 
 const TEST_RUNS_NEW_COLUMNS: Array<[string, string]> = [

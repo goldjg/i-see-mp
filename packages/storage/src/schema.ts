@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS tools (
   content_origin TEXT NOT NULL DEFAULT 'local',
   trust_zone TEXT,
   risk_score INTEGER NOT NULL DEFAULT 0,
+  classification_evidence TEXT,
   created_at TEXT NOT NULL
 );
 

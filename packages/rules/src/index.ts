@@ -1,5 +1,5 @@
 export { classifyTool } from './classifier.js';
-export type { ClassificationResult } from './classifier.js';
+export type { ClassificationResult, ClassificationEvidence } from './classifier.js';
 export {
   runFindingsRules,
   deduplicateFindings,

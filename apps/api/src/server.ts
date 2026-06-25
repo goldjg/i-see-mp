@@ -17,6 +17,16 @@ import {
 import { buildGraph } from '@iseemp/graph';
 import { applyTrifectaAnalysis } from '@iseemp/rules';
 
+function parseJsonArrayOrUndefined(value: string | null): unknown[] | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function buildServer(options: { dbPath?: string; staticDir?: string } = {}) {
   const app = Fastify({ logger: false });
 
@@ -94,6 +104,7 @@ export function buildServer(options: { dbPath?: string; staticDir?: string } = {
       contentOrigin: t.content_origin,
       trustZone: t.trust_zone ?? undefined,
       riskScore: t.risk_score,
+      classificationEvidence: parseJsonArrayOrUndefined(t.classification_evidence),
     }));
   });
 
