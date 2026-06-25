@@ -32,6 +32,7 @@ vi.mock('../../api.js', () => ({
         trifectaStage: 'PARTIAL',
       },
     ]),
+    tools: vi.fn(async () => []),
     testRuns: vi.fn(async () => []),
     testRun: vi.fn(async () => {
       throw new Error('not used');

@@ -674,6 +674,53 @@ h2 {
   color: #cbd5e1;
 }
 
+.classification-evidence-details {
+  margin-top: 10px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #0f172a;
+  font-size: 12px;
+}
+.classification-evidence-details > summary {
+  cursor: pointer;
+  color: #94a3b8;
+  font-weight: 600;
+}
+.classification-evidence-tool {
+  margin-top: 8px;
+}
+.classification-evidence-tool-name {
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 4px;
+}
+.classification-evidence-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.classification-evidence-table th {
+  text-align: left;
+  padding: 4px 8px;
+  background: #1e293b;
+  color: #94a3b8;
+  border-bottom: 1px solid #334155;
+}
+.classification-evidence-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #1e293b;
+  vertical-align: top;
+  color: #cbd5e1;
+}
+.classification-evidence-table tr:last-child td {
+  border-bottom: none;
+}
+.classification-evidence-table code {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
 .trifecta-explanation {
   margin: 10px 0;
   padding: 10px;

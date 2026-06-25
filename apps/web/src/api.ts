@@ -20,6 +20,13 @@ export interface Server {
   isVerified: boolean;
 }
 
+export interface ClassificationEvidence {
+  capability: string;
+  source: 'name' | 'description' | 'schema' | 'derived' | 'combined' | string;
+  matched: string;
+  reason: string;
+}
+
 export interface Tool {
   id: string;
   collectionId: string;
@@ -33,6 +40,7 @@ export interface Tool {
   contentOrigin: 'local' | 'remote' | 'user_generated' | 'external_saas' | 'db_row';
   trustZone?: string;
   riskScore: number;
+  classificationEvidence?: ClassificationEvidence[];
 }
 
 export interface GraphNode {

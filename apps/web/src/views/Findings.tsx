@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api.js';
-import type { Finding, TestRunDetail } from '../api.js';
+import type { Finding, TestRunDetail, Tool, ClassificationEvidence } from '../api.js';
 
 const SEVERITY_COLOR: Record<string, string> = {
   critical: '#dc2626',
@@ -287,6 +287,72 @@ export function TrifectaLegend() {
   );
 }
 
+export function getAffectedToolIds(affectedNodeIds: string[]): string[] {
+  return affectedNodeIds
+    .filter((id) => id.startsWith('tool:'))
+    .map((id) => id.slice('tool:'.length));
+}
+
+export function ClassificationEvidenceSection({
+  finding,
+  toolsById,
+}: {
+  finding: Finding;
+  toolsById: Map<string, Tool>;
+}) {
+  const affectedToolIds = getAffectedToolIds(finding.affectedNodeIds);
+  const affectedTools = affectedToolIds
+    .map((id) => toolsById.get(id))
+    .filter((t): t is Tool => t !== undefined);
+
+  const toolsWithEvidence = affectedTools.filter(
+    (t) => t.classificationEvidence && t.classificationEvidence.length > 0,
+  );
+
+  if (toolsWithEvidence.length === 0) {
+    const hasAffectedTools = affectedTools.length > 0;
+    if (!hasAffectedTools) return null;
+    return (
+      <p className="evidence-empty">No classification evidence recorded for affected tools.</p>
+    );
+  }
+
+  return (
+    <details className="classification-evidence-details">
+      <summary>Why these tools were classified this way</summary>
+      {toolsWithEvidence.map((tool) => (
+        <div key={tool.id} className="classification-evidence-tool">
+          <p className="classification-evidence-tool-name">{tool.name}</p>
+          <table className="classification-evidence-table">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Source</th>
+                <th>Matched</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(tool.classificationEvidence as ClassificationEvidence[]).map((ev, i) => (
+                <tr key={i}>
+                  <td>
+                    <code>{ev.capability}</code>
+                  </td>
+                  <td>{ev.source}</td>
+                  <td>
+                    <code>{ev.matched}</code>
+                  </td>
+                  <td>{ev.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </details>
+  );
+}
+
 function EvidenceSummary({ findingId }: { findingId: string }) {
   const [runs, setRuns] = useState<TestRunDetail[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -423,6 +489,7 @@ export function Findings({
   onShowLogs?: (filters: { collectionId?: string; findingId?: string; testRunId?: string }) => void;
 }) {
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [toolsById, setToolsById] = useState<Map<string, Tool>>(new Map());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'trifecta' | 'severity'>('trifecta');
   const [loading, setLoading] = useState(true);
@@ -432,8 +499,12 @@ export function Findings({
       try {
         const cols = await api.collections();
         if (!cols[0]) return;
-        const f = await api.findings(cols[0].id);
+        const [f, toolList] = await Promise.all([
+          api.findings(cols[0].id),
+          api.tools(cols[0].id),
+        ]);
         setFindings(f);
+        setToolsById(new Map(toolList.map((t) => [t.id, t])));
       } catch (e) {
         console.error(e);
       } finally {
@@ -522,6 +593,7 @@ export function Findings({
                 <strong>Affected nodes:</strong> {f.affectedNodeIds.join(', ')}
               </p>
             )}
+            <ClassificationEvidenceSection finding={f} toolsById={toolsById} />
             {(f.tested || (f.testRunIds && f.testRunIds.length > 0)) && (
               <EvidenceSummary findingId={f.id} />
             )}
