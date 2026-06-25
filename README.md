@@ -66,15 +66,35 @@ Unlike scanners that only inventory capabilities, ISeeMP highlights chained risk
 
 After running `collect`, `analyze`, and optionally `test`, open the web UI at `http://localhost:7474`:
 
-| View          | What it shows                                                                        |
-| ------------- | ------------------------------------------------------------------------------------ |
-| **Dashboard** | Summary: servers, tools, findings, exploitable paths, prompt-injection confirmations |
-| **Findings**  | Security conclusions grouped by trifecta stage and severity                          |
-| **Graph**     | Structural model path view; lethal trifecta paths are highlighted                    |
-| **Logs**      | Diagnostic timeline showing why a collection, analysis, or test succeeded or failed  |
-| **Evidence**  | Redacted tool-call and canary records attached to tested findings                    |
+| View          | What it shows                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Dashboard** | Summary: servers, tools, findings, exploitable paths, prompt-injection confirmations                        |
+| **Findings**  | Security conclusions grouped by trifecta stage and severity, with classification reasons for affected tools |
+| **Graph**     | Structural model path view; lethal trifecta paths are highlighted                                           |
+| **Logs**      | Diagnostic timeline showing why a collection, analysis, or test succeeded or failed                         |
+| **Evidence**  | Redacted tool-call and canary records attached to tested findings                                           |
 
 Start with **Findings** to understand what ISeeMP concluded. Use **Graph** to see the structural path. Use **Logs** and **Evidence** to understand why a path was confirmed or rejected.
+
+### Classification evidence
+
+ISeeMP records deterministic evidence for every capability it assigns to a tool. Classification is based on name, description, and schema heuristics — not LLM judgement.
+
+Each evidence record contains four fields:
+
+| Field        | Description                                                                           |
+| ------------ | ------------------------------------------------------------------------------------- |
+| `capability` | The capability assigned (e.g. `READ_SECRET_HIGH`, `SEND_EXTERNAL`)                    |
+| `source`     | Where the signal came from: `name`, `description`, `schema`, `derived`, or `combined` |
+| `matched`    | The token, pattern, or value that triggered the match                                 |
+| `reason`     | A human-readable explanation of why the match was made                                |
+
+**Examples:**
+
+- `dv_read_secret` may produce a `READ_SECRET_HIGH` evidence record because the tool name matches a secret-related token.
+- `dv_send_external` may produce a `SEND_EXTERNAL` evidence record because an outbound send capability implies communication across a trust boundary.
+
+**In the web UI:** expand any Finding card and open **"Why these tools were classified this way"** to see the evidence table for all affected tools in that finding.
 
 ## Lethal trifecta model
 
