@@ -95,17 +95,14 @@ describe('ClassificationEvidenceSection', () => {
     expect(screen.getByText(/No classification evidence recorded for affected tools/i)).toBeTruthy();
   });
 
-  it('does not crash when classificationEvidence is empty array', () => {
+  it('shows muted message when classificationEvidence is empty array', () => {
     const tool = makeTool({ id: 'tool-a', classificationEvidence: [] });
     const toolsById = new Map([['tool-a', tool]]);
     const finding = makeFinding({ affectedNodeIds: ['tool:tool-a'] });
 
-    const { container } = render(
-      <ClassificationEvidenceSection finding={finding} toolsById={toolsById} />,
-    );
+    render(<ClassificationEvidenceSection finding={finding} toolsById={toolsById} />);
 
-    // No details element rendered since no evidence rows
-    expect(container.querySelector('.classification-evidence-details')).toBeNull();
+    expect(screen.getByText(/No classification evidence recorded for affected tools/i)).toBeTruthy();
   });
 
   it('renders nothing when no affected tool: nodes are present', () => {
