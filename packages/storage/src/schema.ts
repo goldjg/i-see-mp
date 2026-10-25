@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS servers (
   args TEXT,
   env TEXT,
   auth TEXT,
+  env_refs TEXT,
   transport TEXT NOT NULL,
   is_verified INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL

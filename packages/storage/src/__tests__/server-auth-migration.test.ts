@@ -11,7 +11,7 @@ it('adds a nullable auth reference to an existing database without changing its 
   const path = join(dir, 'legacy.db');
   try {
     const legacy = new Database(path);
-    legacy.exec(SCHEMA_SQL.replace('  auth TEXT,\n', ''));
+    legacy.exec(SCHEMA_SQL.replace('  auth TEXT,\n', '').replace('  env_refs TEXT,\n', ''));
     legacy.exec(`
       INSERT INTO collections (id, started_at) VALUES ('legacy', '2026-01-01');
       INSERT INTO servers (id, collection_id, name, transport, env, created_at)
@@ -20,8 +20,9 @@ it('adds a nullable auth reference to an existing database without changing its 
     `);
     legacy.close();
     const db = resetDb(path);
-    expect(db.prepare('SELECT auth, env FROM servers').get()).toEqual({
+    expect(db.prepare('SELECT auth, env_refs, env FROM servers').get()).toEqual({
       auth: null,
+      env_refs: null,
       env: '{"GITHUB_PERSONAL_ACCESS_TOKEN":"[redacted]"}',
     });
     closeDb();

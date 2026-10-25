@@ -325,21 +325,22 @@ it('enforces the same origin even if a transport attempts a fallback URL', async
   expect(destination.requests).toEqual([]);
 });
 
-it('preserves stdio explicit overrides and tester process-environment inheritance', async () => {
+it('scopes stdio references in collector and tester independently of remote auth', async () => {
   vi.stubEnv('STDIO_EXPLICIT', 'process-value');
   vi.stubEnv('STDIO_INHERITED', 'inherited-value');
   const configPath = await configFile({
     stdio: {
       command: process.execPath,
       args: [fileURLToPath(new URL('./fixtures/credential-stdio.mjs', import.meta.url))],
-      env: { STDIO_EXPLICIT: 'server-override' },
+      envRefs: { STDIO_EXPLICIT: 'STDIO_EXPLICIT' },
       // Remote authentication must not be evaluated for stdio transports.
       auth: { envVar: 'UNSET_AND_IRRELEVANT_FOR_STDIO' },
     },
   });
   const { collectionId, summary } = await collectAndTest(configPath);
   const tools = createToolsRepo(getDb()).findByCollection(collectionId);
-  expect(tools[0]?.description).toContain('server-override');
-  expect(JSON.stringify(summary.testRuns)).toContain('inherited-value');
-  expect(JSON.stringify(summary.testRuns)).not.toContain('server-override');
+  expect(tools[0]?.description).toContain('[redacted]');
+  expect(JSON.stringify(summary.testRuns)).toContain('missing');
+  expect(JSON.stringify(summary.testRuns)).not.toContain('inherited-value');
+  expect(JSON.stringify(summary.testRuns)).not.toContain('process-value');
 });

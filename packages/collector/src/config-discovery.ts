@@ -12,6 +12,7 @@ interface ClaudeDesktopConfig {
       command?: string;
       args?: string[];
       env?: Record<string, string>;
+      envRefs?: Record<string, string>;
       auth?: ServerConfig['auth'];
       url?: string;
       transport?: 'stdio' | 'http' | 'sse';
@@ -61,6 +62,7 @@ async function loadClaudeDesktopConfig(): Promise<ServerConfig[]> {
           command: entry.command,
           args: entry.args,
           env: entry.env,
+          envRefs: entry.envRefs,
           auth: entry.auth,
           transport: normaliseTransport(entry),
         }),
@@ -84,6 +86,7 @@ async function loadVSCodeConfig(): Promise<ServerConfig[]> {
             command?: string;
             args?: string[];
             env?: Record<string, string>;
+            envRefs?: Record<string, string>;
             auth?: ServerConfig['auth'];
             url?: string;
             transport?: 'stdio' | 'http' | 'sse';
@@ -99,6 +102,7 @@ async function loadVSCodeConfig(): Promise<ServerConfig[]> {
         command: entry.command,
         args: entry.args,
         env: entry.env,
+        envRefs: entry.envRefs,
         auth: entry.auth,
         transport: normaliseTransport(entry),
       }),
@@ -122,13 +126,14 @@ async function loadLocalConfig(configPath: string): Promise<ServerConfig[]> {
         command: entry.command,
         args: entry.args,
         env: entry.env,
+        envRefs: entry.envRefs,
         auth: entry.auth,
         transport: normaliseTransport(entry),
       }),
     );
   } catch {
     throw new Error(
-      'Unable to load MCP configuration; check JSON and server settings (including auth.envVar)',
+      'Unable to load MCP configuration; check JSON and server settings (including auth.envVar and envRefs)',
     );
   }
 }

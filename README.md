@@ -725,7 +725,7 @@ Existing explicitly supplied `env.Authorization` headers (including non-Bearer
 schemes) and per-server `env.GITHUB_PERSONAL_ACCESS_TOKEN` remain supported when
 no `auth` reference exists. Their values are redacted in storage as before and
 cannot be recovered for later testing; use `auth.envVar` for collect/test workflows.
-Stdio child environment behavior is unchanged.
+Stdio uses the separate explicit environment policy below.
 
 **Migration:** previously, setting the process-wide
 `GITHUB_PERSONAL_ACCESS_TOKEN` silently authenticated every HTTP/SSE endpoint.
@@ -752,6 +752,100 @@ An authenticated target necessarily receives its selected credential; trust
 the configured server and any same-origin paths it controls. Use HTTPS outside
 isolated local fixtures/networks. Config files and environment injection are
 operator-controlled trust inputs, not a sandbox for untrusted configurations.
+
+### Stdio subprocess environments
+
+**Breaking security hardening:** collector and tester no longer spread the parent
+process environment into local MCP servers. Both use the MCP SDK's platform-specific
+runtime defaults plus only that server's explicit `env` and `envRefs`.
+`GITHUB_PERSONAL_ACCESS_TOKEN`, cloud credentials, `NODE_OPTIONS`, proxy settings,
+and other ambient values are not implicitly forwarded. A value explicitly placed
+in an SDK default variable is still inherited; keep secrets out of runtime variables.
+Each connection emits a value-free environment-policy notice.
+
+```json
+{
+  "mcpServers": {
+    "private-service": {
+      "transport": "stdio",
+      "command": "node",
+      "args": ["/absolute/path/to/server.mjs"],
+      "envRefs": {
+        "API_KEY": "PRIVATE_SERVICE_API_KEY",
+        "SERVICE_URL": "PRIVATE_SERVICE_URL"
+      }
+    },
+    "unrelated": {
+      "transport": "stdio",
+      "command": "node",
+      "args": ["/absolute/path/to/other-server.mjs"]
+    }
+  }
+}
+```
+
+`envRefs` maps **child variable name to parent variable name**. Inject the referenced
+variables into both the collector and tester at runtime, including in Docker/CI;
+only `private-service` receives them in this example. Resolution occurs separately
+at each connection, allowing rotation between collection and testing. Missing or
+empty references fail that connection with a value-free diagnostic. References
+override same-named literal `env` entries. No `${VAR}` interpolation, shell
+expansion, wildcard inheritance, or remote `auth.envVar` forwarding is performed.
+An explicitly configured shell still executes code with the operator's identity.
+
+Names must be portable identifiers (`[A-Za-z_][A-Za-z0-9_]*`, excluding `__proto__`);
+values cannot contain NUL. Windows child names are normalized to uppercase so
+`Path` correctly overrides the SDK's `PATH`; case-colliding distinct names are
+rejected. POSIX names remain case-sensitive. SDK 1.29.0 supplies `HOME`, `LOGNAME`,
+`PATH`, `SHELL`, `TERM`, `USER` on Linux/macOS, and the SDK's Windows defaults
+(`APPDATA`, `HOMEDRIVE`, `HOMEPATH`, `LOCALAPPDATA`, `PATH`,
+`PROCESSOR_ARCHITECTURE`, `SYSTEMDRIVE`, `SYSTEMROOT`, `TEMP`, `USERNAME`,
+`USERPROFILE`, `PROGRAMFILES`) on Windows. Undefined values and exported shell
+functions are omitted by the SDK. Explicit entries override these defaults.
+Configure any additional locale, proxy, certificate, temporary-directory, or
+runtime settings per server rather than relying on ambient inheritance.
+
+**Migration:** audit stdio dependencies on ambient variables and add `envRefs`
+only to the appropriate server entries, then **recollect** before testing old
+inventories. References persist as names only; literal `env` values continue to be
+redacted in SQLite and cannot be recovered for later testing. Tester connections
+with unreplayable redacted entries are explicitly skipped with migration guidance,
+not silently replaced with ambient values. Use references for non-secret settings
+too when they must survive collect/test replay. Literal `env` still works for
+collection and direct runtime connections; do not place credentials in config
+files, commands, or arguments.
+
+All explicit stdio environment values are conservatively redacted from returned
+metadata, tool results, and connection/tool protocol errors before normal
+inventory/evidence handling. Raw child stderr is disabled because a server or its
+runtime can print credentials before the MCP handshake. Startup/protocol failures
+still surface through the normal collector diagnostics or tester skip messages;
+raw traceback/stderr detail is intentionally unavailable. Encoded/transformed
+values and unrelated data are not covered by this exact-value redaction.
+
+**Threat model and limitations:** trusted local servers still receive explicitly
+authorized values. Third-party servers no longer automatically receive unrelated
+credentials; mixed-trust servers receive separate mappings. CI jobs containing
+workflow/cloud secrets gain the same reduction in accidental propagation (there
+are no repository-specific GitHub Actions workflows assumed here).
+
+The previous collector inherited everything when `env` was present, even `{}`;
+the tester always inherited everything. Real synthetic MCP subprocess regressions
+cover both paths, including persistence and testing. This is a medium-severity
+credential-hygiene weakness requiring an operator to launch a server while unrelated
+secrets are present, not a privilege escalation. It can expose credentials to
+server code, accidental logging, or returned inventory/evidence.
+
+**This is not a sandbox or a same-UID security boundary.** Malicious local code may
+read home-directory credentials, mounted files, agent sockets, process information
+(including parent environments where OS permissions permit), cloud metadata, or
+other resources accessible to its identity. SDK runtime defaults retain home/path
+access; executable/package discovery also trusts local tooling and its config.
+Use a separate OS identity, restricted container/VM, filesystem/network controls,
+and least-privilege short-lived credentials for untrusted servers. Review discovered
+configurations before running them: explicit references authorize credential access
+and commands authorize local code execution. Remote HTTP/SSE protections from
+[PR #43](https://github.com/goldjg/i-see-mp/pull/43) are unchanged.
 
 ## HTTP API reference
 

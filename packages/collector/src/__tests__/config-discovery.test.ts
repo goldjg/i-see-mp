@@ -16,6 +16,7 @@ describe('discoverConfigs', () => {
             command: 'npx',
             args: ['-y', '@modelcontextprotocol/server-github'],
             env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'ghp_test' },
+            envRefs: { SERVER_TOKEN: 'NOT_RESOLVED_DURING_DISCOVERY' },
           },
           remote: {
             url: 'https://api.example.com/mcp',
@@ -35,6 +36,7 @@ describe('discoverConfigs', () => {
     const github = configs.find((c) => c.name === 'github');
     expect(github?.transport).toBe('stdio');
     expect(github?.command).toBe('npx');
+    expect(github?.envRefs).toEqual({ SERVER_TOKEN: 'NOT_RESOLVED_DURING_DISCOVERY' });
 
     const remote = configs.find((c) => c.name === 'remote');
     expect(remote?.transport).toBe('http');
