@@ -74,6 +74,7 @@ export async function collect(options: {
           )
         : null,
       transport: config.transport,
+      auth: config.auth ? JSON.stringify(config.auth) : null,
       is_verified: isKnownVerifiedServer({
         name: config.name,
         url: config.url ?? null,

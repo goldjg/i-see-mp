@@ -369,7 +369,7 @@ github-mcp:
 
 - Required env var for GitHub collection/testing: `GITHUB_PERSONAL_ACCESS_TOKEN`
 - Optional env vars: `GITHUB_TOOLSETS` (defaults to `all`), `GITHUB_HOST` (for GHES / ghe.com)
-- Transport note: the sidecar speaks MCP over streamable HTTP on the internal Compose network; `iseemp` connects to `http://github-mcp:8082/` and forwards `GITHUB_PERSONAL_ACCESS_TOKEN` as a bearer token instead of spawning a stdio child inside the app container
+- Transport note: the sidecar speaks MCP over streamable HTTP on the internal Compose network; `iseemp` connects to `http://github-mcp:8082/`. The GitHub entry must explicitly bind `auth.envVar` to `GITHUB_PERSONAL_ACCESS_TOKEN` to send it as a bearer token.
 
 Useful commands:
 
@@ -670,11 +670,88 @@ When using Docker Compose, write the GitHub server entry as:
   "mcpServers": {
     "github": {
       "url": "http://github-mcp:8082/",
+      "transport": "http",
+      "auth": { "envVar": "GITHUB_PERSONAL_ACCESS_TOKEN" }
+    }
+  }
+}
+```
+
+### Per-server remote authentication (HTTP and SSE)
+
+Remote credentials are **opt-in per server**, with no hostname allowlist. Reference a
+runtime environment variable instead of writing a token into a configuration file:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "url": "https://api.githubcopilot.com/mcp/",
+      "transport": "http",
+      "auth": { "envVar": "GITHUB_PERSONAL_ACCESS_TOKEN" }
+    },
+    "internal-assessment": {
+      "url": "https://mcp.example.net/sse",
+      "transport": "sse",
+      "auth": { "envVar": "INTERNAL_MCP_TOKEN" }
+    },
+    "unauthenticated": {
+      "url": "http://localhost:9000/mcp",
       "transport": "http"
     }
   }
 }
 ```
+
+Each reference produces `Authorization: Bearer <value>` only for that server.
+The reference is resolved when connecting, not while loading or displaying config.
+Missing, empty, or invalid bearer values fail that connection with a value-free
+diagnostic. The collector logs connection failures; the tester skips unavailable
+servers. A reference takes precedence over legacy credentials in `env`.
+
+Inject secrets into the **collector/tester process** at runtime. For Compose, the
+existing `iseemp.environment` passes the GitHub PAT from the host; the E2E scripts
+now generate the explicit binding. For other containers, use `docker run --env
+INTERNAL_MCP_TOKEN ...` (variable already exported), or add the selected variable
+to your runtime secret injection. Do not use Docker build arguments or bake
+credentials into images. In CI, map your secret store's value to the referenced
+environment variable for both `collect --config ...` and `test` invocations; never
+echo it or enable shell tracing. Use separate least-privilege tokens for different
+servers. No GitHub settings or secret values need to be changed.
+
+Only `{ "envVar": "..." }` is persisted with the collection. Testing later
+re-resolves that reference, so the environment must also be available then.
+Existing explicitly supplied `env.Authorization` headers (including non-Bearer
+schemes) and per-server `env.GITHUB_PERSONAL_ACCESS_TOKEN` remain supported when
+no `auth` reference exists. Their values are redacted in storage as before and
+cannot be recovered for later testing; use `auth.envVar` for collect/test workflows.
+Stdio child environment behavior is unchanged.
+
+**Migration:** previously, setting the process-wide
+`GITHUB_PERSONAL_ACCESS_TOKEN` silently authenticated every HTTP/SSE endpoint.
+That fallback has been removed. Add `auth.envVar` only to the intended server
+entries and **recollect** existing inventories before testing; old collections
+cannot safely infer a binding from redacted environment values. The `--server`
+shortcut is unauthenticated; use `--config` for authenticated servers. The
+read-only HTTP API and UI neither accept nor resolve remote credentials.
+
+**Trust boundary:** a credential-bearing connection is bound to the configured
+URL's exact origin (scheme, hostname, port). All redirects are rejected, even
+same-origin redirects; configure the final URL explicitly. This applies to
+Streamable HTTP POST/GET, SSE streams, message POSTs, and reconnects. SDK SSE
+endpoint announcements are also same-origin checked. There is no automatic
+transport fallback or OAuth discovery with these credentials. Unauthenticated
+requests retain native redirect behavior. SDK 1.29.0 is unchanged; this is not an
+advisory-driven dependency upgrade.
+
+Known credential values are redacted from remote response bodies and headers
+before inventory, diagnostic, or test-evidence handling, including split SSE
+chunks. This is not a general-purpose DLP boundary: encoded/transformed secrets
+and unrelated secrets returned by the server still require careful handling.
+An authenticated target necessarily receives its selected credential; trust
+the configured server and any same-origin paths it controls. Use HTTPS outside
+isolated local fixtures/networks. Config files and environment injection are
+operator-controlled trust inputs, not a sandbox for untrusted configurations.
 
 ## HTTP API reference
 

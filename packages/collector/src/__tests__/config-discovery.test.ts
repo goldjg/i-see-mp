@@ -20,6 +20,7 @@ describe('discoverConfigs', () => {
           remote: {
             url: 'https://api.example.com/mcp',
             transport: 'http',
+            auth: { envVar: 'NOT_RESOLVED_DURING_DISCOVERY' },
           },
         },
       }),
@@ -38,6 +39,7 @@ describe('discoverConfigs', () => {
     const remote = configs.find((c) => c.name === 'remote');
     expect(remote?.transport).toBe('http');
     expect(remote?.url).toBe('https://api.example.com/mcp');
+    expect(remote?.auth).toEqual({ envVar: 'NOT_RESOLVED_DURING_DISCOVERY' });
   });
 
   it('returns a single server for --server URL', async () => {

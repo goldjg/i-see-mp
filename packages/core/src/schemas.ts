@@ -127,6 +127,13 @@ export const McpPromptSchema = z.object({
 });
 export type McpPrompt = z.infer<typeof McpPromptSchema>;
 
+export const RemoteAuthSchema = z
+  .object({
+    envVar: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
+  })
+  .strict();
+export type RemoteAuth = z.infer<typeof RemoteAuthSchema>;
+
 export const ServerConfigSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -134,6 +141,7 @@ export const ServerConfigSchema = z.object({
   command: z.string().optional(),
   args: z.array(z.string()).optional(),
   env: z.record(z.string()).optional(),
+  auth: RemoteAuthSchema.optional(),
   transport: z.enum(['stdio', 'http', 'sse']),
 });
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;

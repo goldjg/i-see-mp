@@ -20,6 +20,7 @@ import {
   TestOutcome,
   TestStatus,
   ValidationMode,
+  RemoteAuthSchema,
 } from '@iseemp/core';
 import { startMockSink } from './sink.js';
 import {
@@ -572,6 +573,7 @@ async function ensureConnection(
       command: server.command,
       args,
       env,
+      auth: server.auth ? RemoteAuthSchema.parse(JSON.parse(server.auth)) : undefined,
       url: server.url,
     });
     connected.set(planned.serverId, conn);
