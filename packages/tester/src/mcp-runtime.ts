@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { remoteRequestOptions, type RemoteAuth } from '@iseemp/core';
 
 export interface ConnectedServer {
   client: Client;
@@ -14,6 +15,7 @@ export interface ServerConnectConfig {
   command?: string | null;
   args?: string[];
   env?: Record<string, string> | undefined;
+  auth?: RemoteAuth;
   url?: string | null;
 }
 
@@ -38,14 +40,20 @@ export async function connectServer(config: ServerConnectConfig): Promise<Connec
     if (!config.url) {
       throw new Error(`Server ${config.name} has no URL for HTTP/SSE transport`);
     }
-    const requestInit = buildRemoteRequestInit(config.env);
+    const url = new URL(config.url);
+    const options = remoteRequestOptions(url, config);
     transport =
       config.transport === 'http'
-        ? new StreamableHTTPClientTransport(new URL(config.url), { requestInit })
-        : new SSEClientTransport(new URL(config.url), { requestInit });
+        ? new StreamableHTTPClientTransport(url, options)
+        : new SSEClientTransport(url, options);
   }
 
-  await client.connect(transport);
+  try {
+    await client.connect(transport);
+  } catch (error) {
+    await client.close();
+    throw error;
+  }
 
   return {
     client,
@@ -91,18 +99,4 @@ function extractToolResultText(res: unknown): string {
     parts.push(JSON.stringify(result.structuredContent));
   }
   return parts.filter((part) => part.length > 0).join('\n');
-}
-
-function buildRemoteRequestInit(env: Record<string, string> | undefined): RequestInit | undefined {
-  // Intentionally allow an explicit process env fallback so Docker/CI flows can keep
-  // bearer tokens out of persisted config files while still authenticating remote MCP calls.
-  const token =
-    env?.['GITHUB_PERSONAL_ACCESS_TOKEN'] ?? process.env['GITHUB_PERSONAL_ACCESS_TOKEN'];
-  const authorization = env?.['Authorization'];
-  if (!token && !authorization) return undefined;
-  return {
-    headers: {
-      Authorization: authorization ?? `Bearer ${token}`,
-    },
-  };
 }

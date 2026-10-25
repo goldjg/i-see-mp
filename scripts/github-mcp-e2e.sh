@@ -26,8 +26,8 @@
 #   3. `docker compose up -d` and waits for the API to be reachable.
 #   4. Writes an iseemp.config.json inside the container that wires up the
 #      official Go GitHub MCP server container (ghcr.io/github/github-mcp-server)
-#      over HTTP, with the host's GITHUB_PERSONAL_ACCESS_TOKEN injected into the
-#      iseemp process environment so the MCP client can forward it as a bearer token.
+#      over HTTP, explicitly binding its Authorization header to the runtime-injected
+#      GITHUB_PERSONAL_ACCESS_TOKEN environment variable.
 #   5. Runs `iseemp collect`, `iseemp analyze`, and the github-safe-canary
 #      `iseemp test` profile against that collection.
 #
@@ -136,14 +136,15 @@ echo "▶ Writing GitHub MCP config to ${CONFIG_PATH_IN_CONTAINER} inside the co
   "mcpServers": {
     "github": {
       "url": "http://github-mcp:8082/",
-      "transport": "http"
+      "transport": "http",
+      "auth": { "envVar": "GITHUB_PERSONAL_ACCESS_TOKEN" }
     }
   }
 }
 JSON
 
 # Helper: run an iseemp subcommand inside the container with the host PAT
-# forwarded via `-e` so the spawned github MCP child inherits it.
+# forwarded via `-e` for the explicitly bound remote GitHub MCP connection.
 run_iseemp() {
   "${DC[@]}" exec -T \
     -e "GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}" \

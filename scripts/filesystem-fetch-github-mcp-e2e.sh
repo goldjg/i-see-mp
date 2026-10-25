@@ -300,7 +300,8 @@ echo "▶ Writing combined filesystem+fetch+github MCP config to ${CONFIG_PATH_I
     },
     "github": {
       "url": "http://github-mcp:8082/",
-      "transport": "http"
+      "transport": "http",
+      "auth": { "envVar": "GITHUB_PERSONAL_ACCESS_TOKEN" }
     }
   }
 }

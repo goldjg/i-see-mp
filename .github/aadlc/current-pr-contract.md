@@ -1,4 +1,5 @@
 <!-- version: 1.0.0 -->
+
 # Current PR Contract
 
 This contract constrains implementation scope for the active PR. Update
@@ -6,34 +7,53 @@ it when scope is explicitly amended. If a requested action falls outside
 approved scope, stop and escalate before proceeding.
 
 ## Goal
-<!-- One outcome-focused objective for this PR. -->
+
+Bind remote MCP credentials explicitly to each inspected server at runtime.
 
 ## Non-goals
-<!-- Explicitly list what this PR will not change. -->
+
+No endpoint hostname allowlist, stdio environment changes, SDK upgrade, or production changes.
 
 ## Approved scope
-<!-- Bounded capabilities and behavior changes allowed in this PR. -->
+
+Shared remote authentication and origin enforcement; declarative environment references;
+reference-only persistence; regression fixtures; Docker/CI examples and migration docs.
 
 ## Forbidden scope
-<!-- Explicitly forbidden behavior, files, and operational changes. -->
+
+Do not modify real credentials, GitHub settings, infrastructure, or unrelated existing work.
+Do not merge or publish packages.
 
 ## Architectural constraints
-<!-- Structural constraints that must be preserved (patterns, boundaries, composition). -->
+
+Reuse core schemas and SQLite's additive migration pattern. Keep arbitrary HTTP/SSE
+endpoints and existing stdio behavior supported. No new dependencies.
 
 ## Security constraints
-<!-- Security requirements that must remain enforced throughout implementation. -->
+
+Never select an ambient PAT without a per-server reference. Resolve credentials only
+when connecting, never persist resolved values. Fail closed for missing references,
+credential-bearing redirects, and requests outside the configured origin. Redact
+known credential values from remote responses before inventory/evidence handling.
 
 ## Files expected to change
-<!-- Enumerate files or directories expected to be modified. -->
+
+Core, collector, tester, storage, focused API/integration tests, README and the two
+GitHub Docker E2E configuration generators.
 
 ## Tests / validation
-<!-- List validation commands and acceptance checks for this PR. -->
+
+Synthetic local HTTP/SSE/stdio regressions, config/persistence/API coverage;
+pnpm test, pnpm typecheck, pnpm lint, pnpm build, changed-file Prettier check.
 
 ## Stop conditions
-<!-- Define conditions that require stopping implementation immediately. -->
+
+Unexpected conflicting user changes, or a fix requiring unrelated infrastructure changes.
 
 ## Escalation triggers
-<!-- Define ambiguity, risk, or scope triggers that require user confirmation. -->
+
+Any need to change stdio inheritance, broaden credential trust, or add dependencies.
 
 ## Context reset notes
-<!-- Notes to close this contract and reset context when work is complete. -->
+
+Isolated worktree based on origin/main; preserve the original checkout's dirty work.

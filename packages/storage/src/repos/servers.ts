@@ -8,6 +8,7 @@ export interface ServerRow {
   command: string | null;
   args: string | null; // JSON
   env: string | null; // JSON
+  auth?: string | null; // JSON environment-variable reference only
   transport: string;
   is_verified: number;
   created_at: string;
@@ -18,8 +19,8 @@ export function createServersRepo(db: Database.Database) {
     upsert(server: ServerRow): void {
       db.prepare(
         `INSERT OR REPLACE INTO servers
-          (id, collection_id, name, url, command, args, env, transport, is_verified, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+          (id, collection_id, name, url, command, args, env, auth, transport, is_verified, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       ).run(
         server.id,
         server.collection_id,
@@ -28,6 +29,7 @@ export function createServersRepo(db: Database.Database) {
         server.command,
         server.args,
         server.env,
+        server.auth ?? null,
         server.transport,
         server.is_verified,
         server.created_at,
