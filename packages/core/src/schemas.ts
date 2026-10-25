@@ -134,16 +134,40 @@ export const RemoteAuthSchema = z
   .strict();
 export type RemoteAuth = z.infer<typeof RemoteAuthSchema>;
 
-export const ServerConfigSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  url: z.string().optional(),
-  command: z.string().optional(),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string()).optional(),
-  auth: RemoteAuthSchema.optional(),
-  transport: z.enum(['stdio', 'http', 'sse']),
+const EnvironmentNameSchema = z
+  .string()
+  .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
+  .refine((name) => name !== '__proto__');
+export const StdioEnvConfigSchema = z.object({
+  env: z
+    .record(
+      EnvironmentNameSchema,
+      z.string().refine((value) => !value.includes('\0')),
+    )
+    .optional(),
+  envRefs: z.record(EnvironmentNameSchema, EnvironmentNameSchema).optional(),
 });
+
+export const ServerConfigSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    url: z.string().optional(),
+    command: z.string().optional(),
+    args: z.array(z.string()).optional(),
+    env: z.record(z.string()).optional(),
+    envRefs: StdioEnvConfigSchema.shape.envRefs,
+    auth: RemoteAuthSchema.optional(),
+    transport: z.enum(['stdio', 'http', 'sse']),
+  })
+  .superRefine((config, context) => {
+    if (config.transport === 'stdio' && !StdioEnvConfigSchema.safeParse(config).success) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Invalid stdio environment configuration',
+      });
+    }
+  });
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 
 export const GraphNodeSchema = z.object({

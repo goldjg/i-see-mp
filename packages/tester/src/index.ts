@@ -21,6 +21,7 @@ import {
   TestStatus,
   ValidationMode,
   RemoteAuthSchema,
+  StdioEnvConfigSchema,
 } from '@iseemp/core';
 import { startMockSink } from './sink.js';
 import {
@@ -567,13 +568,15 @@ async function ensureConnection(
   }
 
   try {
+    const stdio = server.transport === 'stdio' ? replayStdioEnvironment(server) : undefined;
     const conn = await connectServer({
       name: server.name,
       transport: server.transport as 'stdio' | 'http' | 'sse',
       command: server.command,
       args,
-      env,
+      env: stdio ? stdio.env : env,
       auth: server.auth ? RemoteAuthSchema.parse(JSON.parse(server.auth)) : undefined,
+      envRefs: stdio?.envRefs,
       url: server.url,
     });
     connected.set(planned.serverId, conn);
@@ -584,6 +587,36 @@ async function ensureConnection(
     );
     return undefined;
   }
+}
+
+function replayStdioEnvironment(server: ServerRow): {
+  env?: Record<string, string>;
+  envRefs?: Record<string, string>;
+} {
+  let config;
+  try {
+    config = StdioEnvConfigSchema.parse({
+      env: server.env ? JSON.parse(server.env) : undefined,
+      envRefs: server.env_refs ? JSON.parse(server.env_refs) : undefined,
+    });
+  } catch {
+    throw new Error('Invalid stored stdio environment configuration; recollect');
+  }
+  if (
+    Object.entries(config.env ?? {}).some(
+      ([key, value]) => value === '[redacted]' && !Object.hasOwn(config.envRefs ?? {}, key),
+    )
+  ) {
+    throw new Error(
+      'Stored stdio env values are redacted; configure envRefs and recollect before testing',
+    );
+  }
+  return {
+    env: Object.fromEntries(
+      Object.entries(config.env ?? {}).filter(([, value]) => value !== '[redacted]'),
+    ),
+    envRefs: config.envRefs,
+  };
 }
 
 /**

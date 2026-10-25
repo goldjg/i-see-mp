@@ -8,16 +8,18 @@ approved scope, stop and escalate before proceeding.
 
 ## Goal
 
-Bind remote MCP credentials explicitly to each inspected server at runtime.
+Scope stdio MCP subprocess environments explicitly and consistently in collector
+and tester, independently of the remote credential boundary fixed in PR #43.
 
 ## Non-goals
 
-No endpoint hostname allowlist, stdio environment changes, SDK upgrade, or production changes.
+No sandbox claims, endpoint allowlist, SDK upgrade, or production changes.
 
 ## Approved scope
 
-Shared remote authentication and origin enforcement; declarative environment references;
-reference-only persistence; regression fixtures; Docker/CI examples and migration docs.
+Shared stdio environment construction; explicit per-server environment references;
+reference-only persistence; response/error/stderr safety; real subprocess regressions;
+migration and threat-model documentation. User approved this scope after review.
 
 ## Forbidden scope
 
@@ -26,20 +28,21 @@ Do not merge or publish packages.
 
 ## Architectural constraints
 
-Reuse core schemas and SQLite's additive migration pattern. Keep arbitrary HTTP/SSE
-endpoints and existing stdio behavior supported. No new dependencies.
+Reuse core schemas and SQLite's additive migration pattern. Preserve remote
+HTTP/SSE isolation. Rely on the SDK's platform-specific runtime defaults, never
+spread process.env. No new dependencies.
 
 ## Security constraints
 
-Never select an ambient PAT without a per-server reference. Resolve credentials only
-when connecting, never persist resolved values. Fail closed for missing references,
-credential-bearing redirects, and requests outside the configured origin. Redact
-known credential values from remote responses before inventory/evidence handling.
+Resolve only explicitly selected stdio references at connection time. Reference
+values override literal env entries. Fail closed with value-free errors for invalid
+names, NUL values, missing references, and Windows case collisions. Never persist
+resolved values. Redact configured values before inventory/evidence and diagnostics;
+do not forward raw child stderr. This is environment hygiene, not OS isolation.
 
 ## Files expected to change
 
-Core, collector, tester, storage, focused API/integration tests, README and the two
-GitHub Docker E2E configuration generators.
+Core, collector, tester, storage, focused integration tests and fixtures, README.
 
 ## Tests / validation
 
@@ -52,7 +55,7 @@ Unexpected conflicting user changes, or a fix requiring unrelated infrastructure
 
 ## Escalation triggers
 
-Any need to change stdio inheritance, broaden credential trust, or add dependencies.
+Any need to broaden credential trust, add dependencies, or modify infrastructure.
 
 ## Context reset notes
 

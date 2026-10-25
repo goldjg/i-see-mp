@@ -88,7 +88,10 @@ function migrate(db: Database.Database): void {
   ensureColumns('findings', FINDINGS_NEW_COLUMNS);
   ensureColumns('tools', TOOLS_NEW_COLUMNS);
   ensureColumns('nodes', NODES_NEW_COLUMNS);
-  ensureColumns('servers', [['auth', 'TEXT']]);
+  ensureColumns('servers', [
+    ['auth', 'TEXT'],
+    ['env_refs', 'TEXT'],
+  ]);
 
   // Legacy test_runs table (reserved/unused in MVP) had a different shape.
   // If the new required columns aren't present, drop and let SCHEMA_SQL recreate it.

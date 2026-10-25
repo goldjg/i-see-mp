@@ -2,8 +2,13 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {
+  ListToolsResultSchema,
+  ListResourcesResultSchema,
+  ListPromptsResultSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import type { ServerConfig, McpTool, McpResource, McpPrompt } from '@iseemp/core';
-import { remoteRequestOptions } from '@iseemp/core';
+import { remoteRequestOptions, stdioEnvironment } from '@iseemp/core';
 
 export interface EnumerationResult {
   tools: McpTool[];
@@ -20,14 +25,18 @@ export async function enumerateServer(config: ServerConfig): Promise<Enumeration
   const client = new Client({ name: 'iseemp-collector', version: '0.0.1' }, { capabilities: {} });
 
   let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport;
+  let redact: (value: unknown) => unknown = (value) => value;
 
   if (config.transport === 'stdio') {
     if (!config.command)
       throw new Error(`Server ${config.name} has no command for stdio transport`);
+    const environment = stdioEnvironment(config);
+    redact = environment.redact;
     transport = new StdioClientTransport({
       command: config.command,
       args: config.args ?? [],
-      env: config.env ? ({ ...process.env, ...config.env } as Record<string, string>) : undefined,
+      env: environment.env,
+      stderr: 'ignore',
     });
   } else {
     if (!config.url) throw new Error(`Server ${config.name} has no URL for SSE/HTTP transport`);
@@ -43,13 +52,28 @@ export async function enumerateServer(config: ServerConfig): Promise<Enumeration
     await client.connect(transport);
   } catch (error) {
     await client.close();
+    if (config.transport === 'stdio') {
+      throw new Error(String(redact(error instanceof Error ? error.message : String(error))));
+    }
     throw error;
   }
 
   const [toolsResult, resourcesResult, promptsResult] = await Promise.allSettled([
-    client.listTools(),
-    client.listResources(),
-    client.listPrompts(),
+    client
+      .listTools()
+      .then((value) =>
+        config.transport === 'stdio' ? ListToolsResultSchema.parse(redact(value)) : value,
+      ),
+    client
+      .listResources()
+      .then((value) =>
+        config.transport === 'stdio' ? ListResourcesResultSchema.parse(redact(value)) : value,
+      ),
+    client
+      .listPrompts()
+      .then((value) =>
+        config.transport === 'stdio' ? ListPromptsResultSchema.parse(redact(value)) : value,
+      ),
   ]);
 
   await client.close();
@@ -84,20 +108,31 @@ export async function enumerateServer(config: ServerConfig): Promise<Enumeration
 
   const errors: EnumerationResult['errors'] = {};
   if (toolsResult.status === 'rejected') {
-    errors.tools =
-      toolsResult.reason instanceof Error ? toolsResult.reason.message : String(toolsResult.reason);
+    errors.tools = String(
+      redact(
+        toolsResult.reason instanceof Error
+          ? toolsResult.reason.message
+          : String(toolsResult.reason),
+      ),
+    );
   }
   if (resourcesResult.status === 'rejected') {
-    errors.resources =
-      resourcesResult.reason instanceof Error
-        ? resourcesResult.reason.message
-        : String(resourcesResult.reason);
+    errors.resources = String(
+      redact(
+        resourcesResult.reason instanceof Error
+          ? resourcesResult.reason.message
+          : String(resourcesResult.reason),
+      ),
+    );
   }
   if (promptsResult.status === 'rejected') {
-    errors.prompts =
-      promptsResult.reason instanceof Error
-        ? promptsResult.reason.message
-        : String(promptsResult.reason);
+    errors.prompts = String(
+      redact(
+        promptsResult.reason instanceof Error
+          ? promptsResult.reason.message
+          : String(promptsResult.reason),
+      ),
+    );
   }
 
   return {

@@ -2,7 +2,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { remoteRequestOptions, type RemoteAuth } from '@iseemp/core';
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
+import { remoteRequestOptions, stdioEnvironment, type RemoteAuth } from '@iseemp/core';
+
+const stdioRedactors = new WeakMap<Client, (value: unknown) => unknown>();
 
 export interface ConnectedServer {
   client: Client;
@@ -15,6 +18,7 @@ export interface ServerConnectConfig {
   command?: string | null;
   args?: string[];
   env?: Record<string, string> | undefined;
+  envRefs?: Record<string, string>;
   auth?: RemoteAuth;
   url?: string | null;
 }
@@ -27,14 +31,19 @@ export async function connectServer(config: ServerConnectConfig): Promise<Connec
   const client = new Client({ name: 'iseemp-tester', version: '0.0.1' }, { capabilities: {} });
 
   let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport;
+  let redact: (value: unknown) => unknown = (value) => value;
   if (config.transport === 'stdio') {
     if (!config.command) {
       throw new Error(`Server ${config.name} has no command for stdio transport`);
     }
+    const environment = stdioEnvironment(config);
+    redact = environment.redact;
+    stdioRedactors.set(client, redact);
     transport = new StdioClientTransport({
       command: config.command,
       args: config.args ?? [],
-      env: { ...process.env, ...(config.env ?? {}) } as Record<string, string>,
+      env: environment.env,
+      stderr: 'ignore',
     });
   } else {
     if (!config.url) {
@@ -52,6 +61,9 @@ export async function connectServer(config: ServerConnectConfig): Promise<Connec
     await client.connect(transport);
   } catch (error) {
     await client.close();
+    if (config.transport === 'stdio') {
+      throw new Error(String(redact(error instanceof Error ? error.message : String(error))));
+    }
     throw error;
   }
 
@@ -75,7 +87,17 @@ export async function callTool(
   toolName: string,
   args: Record<string, unknown>,
 ): Promise<ToolCallResult> {
-  const res = await client.callTool({ name: toolName, arguments: args });
+  const redact = stdioRedactors.get(client);
+  let res;
+  try {
+    const result = await client.callTool({ name: toolName, arguments: args });
+    res = redact ? CallToolResultSchema.parse(redact(result)) : result;
+  } catch (error) {
+    if (redact) {
+      throw new Error(String(redact(error instanceof Error ? error.message : String(error))));
+    }
+    throw error;
+  }
   const isError = (res as { isError?: boolean }).isError === true;
   const text = extractToolResultText(res);
   return { raw: res, text, isError };
