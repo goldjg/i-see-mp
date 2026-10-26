@@ -8,18 +8,18 @@ approved scope, stop and escalate before proceeding.
 
 ## Goal
 
-Scope stdio MCP subprocess environments explicitly and consistently in collector
-and tester, independently of the remote credential boundary fixed in PR #43.
+Review the complete resolved dependency graph, remediate confirmed findings with
+compatible updates, and configure maintainable Dependabot monitoring.
 
 ## Non-goals
 
-No sandbox claims, endpoint allowlist, SDK upgrade, or production changes.
+No SDK v2 migration, blanket major upgrades, sandbox claims, or production changes.
 
 ## Approved scope
 
-Shared stdio environment construction; explicit per-server environment references;
-reference-only persistence; response/error/stderr safety; real subprocess regressions;
-migration and threat-model documentation. User approved this scope after review.
+User approved compatible SDK, Fastify, Vitest and transitive security updates;
+weekly workspace npm and Docker Dependabot monitoring; evidence, compatibility,
+rollback and deferred-major documentation; regression tests and independent review.
 
 ## Forbidden scope
 
@@ -28,9 +28,8 @@ Do not merge or publish packages.
 
 ## Architectural constraints
 
-Reuse core schemas and SQLite's additive migration pattern. Preserve remote
-HTTP/SSE isolation. Rely on the SDK's platform-specific runtime defaults, never
-spread process.env. No new dependencies.
+Preserve PRs #43 and #44 without weakening their runtime policies. Keep existing
+package-manager and lockfile conventions. No new direct runtime dependencies.
 
 ## Security constraints
 
@@ -42,12 +41,14 @@ do not forward raw child stderr. This is environment hygiene, not OS isolation.
 
 ## Files expected to change
 
-Core, collector, tester, storage, focused integration tests and fixtures, README.
+Affected manifests and lockfile, Dependabot configuration, focused transport
+regressions, dependency-security evidence and this contract.
 
 ## Tests / validation
 
-Synthetic local HTTP/SSE/stdio regressions, config/persistence/API coverage;
-pnpm test, pnpm typecheck, pnpm lint, pnpm build, changed-file Prettier check.
+Frozen installation and lockfile consistency; synthetic local HTTP/SSE/stdio
+regressions, config/persistence/API coverage; pnpm test, pnpm typecheck, pnpm lint,
+pnpm build, formatting and Dependabot schema checks; independent security review.
 
 ## Stop conditions
 
@@ -55,7 +56,8 @@ Unexpected conflicting user changes, or a fix requiring unrelated infrastructure
 
 ## Escalation triggers
 
-Any need to broaden credential trust, add dependencies, or modify infrastructure.
+Any need to broaden credential trust, introduce substantial breaking changes,
+add direct runtime dependencies, or modify infrastructure or GitHub settings.
 
 ## Context reset notes
 

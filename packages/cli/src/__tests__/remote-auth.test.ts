@@ -9,6 +9,7 @@ import { runTests } from '@iseemp/tester';
 import { Capability, remoteRequestOptions } from '@iseemp/core';
 import { closeDb, getDb, createServersRepo, createToolsRepo } from '@iseemp/storage';
 import { buildServer } from '@iseemp/api';
+import { connectServer } from '../../../tester/src/mcp-runtime.js';
 
 const cleanup: Array<() => Promise<void>> = [];
 
@@ -276,6 +277,56 @@ describe.each(['http', 'sse'] as const)('%s explicit credential binding', (trans
     expect(
       source.requests.every((r) => r.authorization === 'Bearer synthetic-bound-credential'),
     ).toBe(true);
+  });
+
+  it('rejects cross-origin redirects without authentication in both runtime paths', async () => {
+    const source = await fixture();
+    const destination = await fixture();
+    source.state.redirect = destination.url + path;
+    const config = {
+      id: 'redirect',
+      name: 'redirect',
+      url: source.url + '/redirect',
+      transport,
+    };
+    await expect(enumerateServer(config)).rejects.toThrow();
+    await expect(connectServer(config)).rejects.toThrow();
+    expect(source.requests.length).toBeGreaterThanOrEqual(2);
+    expect(destination.requests).toEqual([]);
+  });
+
+  it('keeps authenticated same-origin redirects blocked despite the SDK default', async () => {
+    vi.stubEnv('ASSESSMENT_TOKEN', 'synthetic-bound-credential');
+    const source = await fixture();
+    source.state.redirect = source.url + path;
+    const config = {
+      id: 'redirect',
+      name: 'redirect',
+      url: source.url + '/redirect',
+      transport,
+      auth: { envVar: 'ASSESSMENT_TOKEN' },
+    };
+    await expect(enumerateServer(config)).rejects.toThrow();
+    await expect(connectServer(config)).rejects.toThrow();
+    expect(source.requests.length).toBeGreaterThanOrEqual(2);
+    expect(source.requests.every((request) => request.path === '/redirect')).toBe(true);
+  });
+
+  it('preserves unauthenticated same-origin redirects in both runtime paths', async () => {
+    const source = await fixture();
+    source.state.redirect = source.url + path;
+    const config = {
+      id: 'redirect',
+      name: 'redirect',
+      url: source.url + '/redirect',
+      transport,
+    };
+    const inventory = await enumerateServer(config);
+    expect(inventory.tools[0]?.name).toBe('mutate_remote_state');
+    const connection = await connectServer(config);
+    await connection.close();
+    expect(source.requests.some((request) => request.path === path)).toBe(true);
+    expect(source.requests.every((request) => request.authorization === undefined)).toBe(true);
   });
 
   it('redacts credentials reflected in remote error messages', async () => {

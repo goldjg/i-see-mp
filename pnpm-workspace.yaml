@@ -5,3 +5,10 @@ packages:
 allowBuilds:
   better-sqlite3: true
   esbuild: true
+overrides:
+  # Keep in sync with package.json#pnpm.overrides for pnpm 9/10; pnpm 11+ reads here.
+  # express-rate-limit pins a vulnerable release; retain its existing major API.
+  'express-rate-limit@8>ip-address': ^10.7.4
+  # Preserve the existing test toolchain's Vite 7 line, separately from web Vite 5.
+  'vitest@3>vite': ^7.3.7
+  'vite-node@3>vite': ^7.3.7
