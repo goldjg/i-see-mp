@@ -23,6 +23,6 @@
     "@iseemp/rules": "workspace:*",
     "@iseemp/storage": "workspace:*",
     "fastify": "^5.12.7",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   }
 }
