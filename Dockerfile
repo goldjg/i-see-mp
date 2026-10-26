@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ RUN pnpm --filter @iseemp/cli build \
 RUN pnpm --filter @iseemp/web build
 RUN pnpm --filter demo-mcp-server build
 
-FROM node:20-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
