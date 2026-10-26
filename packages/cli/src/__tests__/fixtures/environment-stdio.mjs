@@ -29,6 +29,10 @@ const lines = createInterface({ input: process.stdin });
 lines.on('line', (line) => {
   const message = JSON.parse(line);
   if (message.id === undefined) return;
+  if (mode === 'oversized' && message.method === 'initialize') {
+    process.stdout.write('x'.repeat(10 * 1024 * 1024 + 1));
+    return;
+  }
   if (
     (mode === 'error-after-init' && message.method !== 'initialize') ||
     (mode === 'initialize-error' && message.method === 'initialize')

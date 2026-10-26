@@ -149,6 +149,12 @@ describe('real stdio subprocess environment', () => {
     await expect(connectServer(server)).rejects.toThrow('Missing or empty stdio envRefs');
   });
 
+  it('closes oversized stdio streams in both runtime paths with the SDK buffer limit', async () => {
+    const server = config({ args: [fixturePath, 'oversized'] });
+    await expect(enumerateServer(server)).rejects.toThrow(/maximum size|Connection closed/);
+    await expect(connectServer(server)).rejects.toThrow(/maximum size|Connection closed/);
+  });
+
   it('redacts reflected metadata, tool results and protocol exceptions', async () => {
     vi.stubEnv('ASSESSMENT_ONE', 'synthetic-one-credential');
     const envRefs = { SERVER_TOKEN: 'ASSESSMENT_ONE' };
