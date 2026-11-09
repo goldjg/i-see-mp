@@ -17,12 +17,12 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@fastify/static": "^10.1.2",
+    "@fastify/static": "^10.1.10",
     "@iseemp/core": "workspace:*",
     "@iseemp/graph": "workspace:*",
     "@iseemp/rules": "workspace:*",
     "@iseemp/storage": "workspace:*",
-    "fastify": "^5.12.7",
+    "fastify": "^5.12.8",
     "zod": "^4.6.7"
   }
 }
